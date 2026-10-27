@@ -1,0 +1,20 @@
+# Chapter: Files - parse a JSON file from disk
+# Shows: file_read, ts.parse, Tree.sexp/has_error/node_count
+# Run: lmscript examples/parse-file.lms      (then: lmbetterp --dsl build/parse-file.dslb)
+# Needs: nothing (offline); reads examples/data/sample.json, run from the repository root.
+# exit: 0
+# expect:
+#|(document (object (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (number)) (pair key: (string (string_content)) value: (true)) (pair key: (string (string_content)) value: (array (string (string_content)) (string (string_content))))))
+#|has_error -> false
+#|nodes -> 50
+p = _dsl_ cli="lmbetterp" install="github:lmctl-ai/lmbetterp@latest";
+
+let text = file_read("examples/data/sample.json");
+let tree = ts.parse(text);
+
+println(tree.sexp());
+println("has_error -> " + str(tree.has_error()));
+println("nodes -> " + str(tree.node_count()));
+
+end _dsl_
+savedsl(p, "build/parse-file.dslb");

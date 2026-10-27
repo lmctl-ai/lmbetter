@@ -1,0 +1,22 @@
+# Chapter: Errors - detect malformed JSON
+# Shows: ts.parse, Tree.has_error, ERROR nodes in the s-expression tree
+# Run: lmscript examples/detect-error.lms      (then: lmbetterp --dsl build/detect-error.dslb)
+# Needs: nothing (offline); the malformed JSON text is embedded below.
+# exit: 0
+# expect:
+#|malformed input detected
+#|(document (object (pair key: (string (string_content)) value: (number)) (ERROR)))
+p = _dsl_ cli="lmbetterp" install="github:lmctl-ai/lmbetterp@latest";
+
+let tree = ts.parse("{\"a\": 1,,}");
+
+# tree-sitter always produces a tree; error nodes flag the broken part.
+if (tree.has_error()) {
+  println("malformed input detected");
+} else {
+  println("unexpected: input parsed cleanly");
+}
+println(tree.sexp());
+
+end _dsl_
+savedsl(p, "build/detect-error.dslb");

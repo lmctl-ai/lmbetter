@@ -1,0 +1,22 @@
+# Chapter: Basics - parse an inline JSON string
+# Shows: ts.parse, Tree.sexp/has_error/node_count, string concat
+# Run: lmscript examples/parse-string.lms      (then: lmbetterp --dsl build/parse-string.dslb)
+# Needs: nothing (offline); the JSON text is embedded below.
+# exit: 0
+# expect:
+#|{"name": "lmbetterp", "tags": ["tree-sitter", "json"]}
+#|(document (object (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (array (string (string_content)) (string (string_content))))))
+#|has_error -> false
+#|nodes -> 34
+p = _dsl_ cli="lmbetterp" install="github:lmctl-ai/lmbetterp@latest";
+
+let text = "{\"name\": \"lmbetterp\", \"tags\": [\"tree-sitter\", \"json\"]}";
+let tree = ts.parse(text);
+
+println(text);
+println(tree.sexp());
+println("has_error -> " + str(tree.has_error()));
+println("nodes -> " + str(tree.node_count()));
+
+end _dsl_
+savedsl(p, "build/parse-string.dslb");

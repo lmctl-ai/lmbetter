@@ -1,0 +1,3 @@
+# Schema bytes and per-file SDK hashes must survive every checkout.
+* text=auto eol=lf
+*.dslb binary

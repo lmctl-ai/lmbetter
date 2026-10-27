@@ -1,0 +1,6 @@
+{
+  "tool": "lmbetterp",
+  "version": 1,
+  "ok": true,
+  "languages": ["json", "lmscript"]
+}

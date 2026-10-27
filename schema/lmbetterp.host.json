@@ -1,0 +1,53 @@
+{
+  "dsl.schema": 2,
+  "name": "lmbetterp",
+  "types": {
+    "Ts": {
+      "methods": {
+        "parse": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ]
+      }
+    },
+    "Tree": {
+      "methods": {
+        "sexp": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ],
+        "has_error": [
+          {
+            "params": [],
+            "returns": "bool"
+          }
+        ],
+        "node_count": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ]
+      }
+    }
+  },
+  "functions": {
+    "println": [
+      {
+        "params": [
+          "string"
+        ],
+        "returns": "void"
+      }
+    ]
+  },
+  "context": {
+    "ts": "Ts"
+  }
+}
