@@ -75,6 +75,7 @@ for runnable scripts.
 ## Repository layout
 
 - `cpp/` — the CLI host: DSL VM integration plus the tree-sitter wrapper
+- `docs/` — design documents (e.g. `rule-snippets.md`: analysis rules as lmscript snippets)
 - `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.420 supplies the built-in standard library implicitly)
 - `examples/` — lmscript examples
 - `scripts/` — vendoring (tree-sitter sources pinned in `deps.lock`, `lmcode-cpp` SDK pinned in `sdk.lock`) and compiler selection

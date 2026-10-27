@@ -9,7 +9,13 @@ export PATH
 UNAME_S="$(uname -s)"
 case "$UNAME_S" in MINGW*|MSYS*|CYGWIN*) HOST="$HOST.exe";; esac
 stat_size(){ stat -c %s "$1" 2>/dev/null || stat -f%z "$1"; }
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/lmbetter-test-XXXXXX")"
+# Scratch lives under the (git-ignored) build dir: /tmp is an MSYS virtual
+# path in Git Bash, and the Node-based lmscript compiler resolves it against
+# a Windows drive where it does not exist. On Windows the path is converted
+# to a native forward-slash path so it can be embedded in .lms sources.
+mkdir -p "$HERE/$BUILD_DIR"
+WORK="$(mktemp -d "$HERE/$BUILD_DIR/test-tmp-XXXXXX")"
+case "$UNAME_S" in MINGW*|MSYS*|CYGWIN*) WORK="$(cd "$WORK" && pwd -W | tr '\\' '/')";; esac
 trap 'rm -rf "$WORK"' EXIT
 pass=0
 ok(){ pass=$((pass+1)); echo "ok $pass - $1"; }
