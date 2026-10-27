@@ -1,5 +1,5 @@
 {
-  "tool": "lmbetterp",
+  "tool": "lmbetter",
   "version": 1,
   "ok": true,
   "languages": ["json", "lmscript"]

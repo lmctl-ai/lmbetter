@@ -1,7 +1,7 @@
 #pragma once
-// lmbetterp wrapper over the tree-sitter incremental parsing engine.
+// lmbetter wrapper over the tree-sitter incremental parsing engine.
 //
-// This is the only lmbetterp-authored interface to tree-sitter: all
+// This is the only lmbetter-authored interface to tree-sitter: all
 // tree_sitter/api.h fallout stays in host.cpp; the CLI host (main.cpp) talks
 // to this plain interface only. The parsed tree is held as an opaque pointer
 // so no tree-sitter header leaks into this file.
@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <string>
 
-namespace lmbetterp {
+namespace lmbetter {
 
 // Owning handle for one parsed tree (the JSON grammar). Never throws: the
 // tree-sitter parser always produces a tree, even for malformed input; use
@@ -48,4 +48,4 @@ int64_t tree_node_count(const Tree &tree);
 // host.cpp helpers). Returns nullptr for a moved-from handle.
 const void *tree_handle(const Tree &tree);
 
-} // namespace lmbetterp
+} // namespace lmbetter

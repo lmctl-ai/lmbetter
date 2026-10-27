@@ -1,4 +1,4 @@
-// lmbetterp wrapper over tree-sitter. The only translation unit that includes
+// lmbetter wrapper over tree-sitter. The only translation unit that includes
 // tree-sitter headers; see host.hpp for the interface contract.
 #include "host.hpp"
 
@@ -7,7 +7,7 @@
 
 extern "C" const TSLanguage *tree_sitter_json(void);
 
-namespace lmbetterp {
+namespace lmbetter {
 
 const void *tree_handle(const Tree &tree) { return tree.tree_; }
 
@@ -53,4 +53,4 @@ int64_t tree_node_count(const Tree &tree) {
   return static_cast<int64_t>(ts_node_descendant_count(root(tree))) + 1;
 }
 
-} // namespace lmbetterp
+} // namespace lmbetter

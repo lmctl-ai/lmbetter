@@ -1,6 +1,6 @@
 # Purpose and place
 
-lmbetterp repackages tree-sitter as one statically linked, scriptable CLI: the
+lmbetter repackages tree-sitter as one statically linked, scriptable CLI: the
 upstream C library (v0.27.1, pinned in `deps.lock`) plus the tree-sitter-json
 grammar (commit `254c42a`, same lock) behind a `parse FILE` subcommand and an
 lmscript DSL host. Sibling of lmproxy (Squid) and lmcurl (curl); same house

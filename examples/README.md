@@ -1,14 +1,14 @@
 # Examples
 
 Runnable lmscript programs, one per scenario. Each compiles to bytecode and
-runs against the `lmbetterp` host:
+runs against the `lmbetter` host:
 
 ```sh
 lmscript examples/parse-string.lms build/parse-string.dslb
-lmbetterp --dsl build/parse-string.dslb
+lmbetter --dsl build/parse-string.dslb
 ```
 
-The `install="github:lmctl-ai/lmbetterp@latest"` line in each script pins the
+The `install="github:lmctl-ai/lmbetter@latest"` line in each script pins the
 host CLI the same way lmscript resolves any other tool.
 
 - `parse-string.lms` — parse an inline JSON string, print the tree

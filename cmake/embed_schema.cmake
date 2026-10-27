@@ -8,7 +8,7 @@ string(REGEX REPLACE ",$" "" _embed_bytes "${_embed_bytes}")
 file(WRITE "${OUTPUT}"
 "// Generated from ${COMMENT} by cmake/embed_schema.cmake. Do not edit.
 #pragma once
-namespace lmbetterp {
+namespace lmbetter {
 inline constexpr unsigned char ${NAME}[] = {${_embed_bytes}};
 inline constexpr unsigned int ${NAME}_size = ${_byte_len};
 }

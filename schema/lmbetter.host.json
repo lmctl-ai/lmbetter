@@ -1,6 +1,6 @@
 {
   "dsl.schema": 2,
-  "name": "lmbetterp",
+  "name": "lmbetter",
   "types": {
     "Ts": {
       "methods": {

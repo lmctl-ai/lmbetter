@@ -1,4 +1,4 @@
-// lmbetterp: tree-sitter's incremental parsing engine as one statically
+// lmbetter: tree-sitter's incremental parsing engine as one statically
 // linked, scriptable CLI. Host for the lmscript DSL plus a small parse
 // subcommand (JSON grammar).
 #include "host.hpp"
@@ -26,7 +26,7 @@ using dslvm::Value;
 
 // ---- arena for schema object handles ----
 struct Host {
-  std::vector<std::unique_ptr<lmbetterp::Tree>> trees;
+  std::vector<std::unique_ptr<lmbetter::Tree>> trees;
   template <class T>
   Value hold(std::vector<std::unique_ptr<T>> &arena, const char *type, T value) {
     if (arena.size() >= 65536)
@@ -38,8 +38,8 @@ struct Host {
 
 template <class T> T *self(void *p) { return static_cast<T *>(p); }
 
-lmbetterp::Tree *tree_of(void *p, const char *who) {
-  auto *t = self<lmbetterp::Tree>(p);
+lmbetter::Tree *tree_of(void *p, const char *who) {
+  auto *t = self<lmbetter::Tree>(p);
   if (!t) throw dslvm::Error(std::string(who) + ": stale Tree handle");
   return t;
 }
@@ -65,17 +65,17 @@ void register_host(dslvm::Registry &reg, Host &host) {
   // The "ts" context object (type Ts) is the parse entry point: the DSL
   // compiler resolves ts.parse(...) as a method call on the context object.
   reg.method("Ts", "parse", {"string"}, "Tree", [&host](void *, Args &args) {
-    return host.hold(host.trees, "Tree", lmbetterp::parse_json(args[0].s));
+    return host.hold(host.trees, "Tree", lmbetter::parse_json(args[0].s));
   });
 
   reg.method("Tree", "sexp", {}, "string", [](void *s, Args &) {
-    return Value::string(lmbetterp::tree_sexp(*tree_of(s, "sexp")));
+    return Value::string(lmbetter::tree_sexp(*tree_of(s, "sexp")));
   });
   reg.method("Tree", "has_error", {}, "bool", [](void *s, Args &) {
-    return Value::boolean(lmbetterp::tree_has_error(*tree_of(s, "has_error")));
+    return Value::boolean(lmbetter::tree_has_error(*tree_of(s, "has_error")));
   });
   reg.method("Tree", "node_count", {}, "int", [](void *s, Args &) {
-    return Value::integer(lmbetterp::tree_node_count(*tree_of(s, "node_count")));
+    return Value::integer(lmbetter::tree_node_count(*tree_of(s, "node_count")));
   });
 }
 
@@ -93,16 +93,16 @@ int main(int argc, char **argv) {
   dslvm::Registry reg;
   register_host(reg, host);
   const std::string usage =
-      "usage: lmbetterp --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
-      "       lmbetterp parse FILE\n"
-      "       lmbetterp --dsl FILE [FILE ...]\n";
+      "usage: lmbetter --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
+      "       lmbetter parse FILE\n"
+      "       lmbetter --dsl FILE [FILE ...]\n";
   if (argc == 2 && std::string(argv[1]) == "--version") {
-    std::cout << "lmbetterp " LMBETTERP_VERSION "\n";
+    std::cout << "lmbetter " LMBETTER_VERSION "\n";
     return std::cout ? 0 : 4;
   }
   if (argc == 2 && std::string(argv[1]) == "--notices") {
-    std::cout.write(reinterpret_cast<const char *>(lmbetterp::embedded_notices),
-                    static_cast<std::streamsize>(lmbetterp::embedded_notices_size));
+    std::cout.write(reinterpret_cast<const char *>(lmbetter::embedded_notices),
+                    static_cast<std::streamsize>(lmbetter::embedded_notices_size));
     return std::cout ? 0 : 4;
   }
   if (argc >= 2 && std::string(argv[1]) == "--dsl-schema") {
@@ -111,8 +111,8 @@ int main(int argc, char **argv) {
       return std::cout ? 0 : 4;
     }
     if (argc == 3 && std::string(argv[2]) == "--json") {
-      std::cout.write(reinterpret_cast<const char *>(lmbetterp::embedded_schema),
-                      static_cast<std::streamsize>(lmbetterp::embedded_schema_size));
+      std::cout.write(reinterpret_cast<const char *>(lmbetter::embedded_schema),
+                      static_cast<std::streamsize>(lmbetter::embedded_schema_size));
       return std::cout ? 0 : 4;
     }
     std::cerr << usage;
@@ -133,8 +133,8 @@ int main(int argc, char **argv) {
       try { raw = read_file(path); }
       catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
     }
-    const lmbetterp::Tree tree = lmbetterp::parse_json(raw);
-    std::cout << lmbetterp::tree_sexp(tree) << "\n";
+    const lmbetter::Tree tree = lmbetter::parse_json(raw);
+    std::cout << lmbetter::tree_sexp(tree) << "\n";
     return std::cout ? 0 : 4;
   }
   if (argc >= 3 && std::string(argv[1]) == "--dsl") {
@@ -144,8 +144,8 @@ int main(int argc, char **argv) {
         return 2;
       }
     }
-    const std::string schema(reinterpret_cast<const char *>(lmbetterp::embedded_schema),
-                             lmbetterp::embedded_schema_size);
+    const std::string schema(reinterpret_cast<const char *>(lmbetter::embedded_schema),
+                             lmbetter::embedded_schema_size);
     dslvm::Context context;
     context.set("ts", &host);
     std::vector<dslvm::Program> programs;

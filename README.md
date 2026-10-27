@@ -1,9 +1,9 @@
-# lmbetterp
+# lmbetter
 
 tree-sitter's incremental parsing engine as a single statically-linked,
 scriptable CLI.
 
-lmbetterp wraps [tree-sitter](https://tree-sitter.github.io) 0.27.1 together
+lmbetter wraps [tree-sitter](https://tree-sitter.github.io) 0.27.1 together
 with the [tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json)
 grammar in one dependency-free executable that can be driven from the command
 line or scripted with [lmscript](https://github.com/lmctl-ai). Feed it JSON
@@ -17,7 +17,7 @@ Everything in this repository runs through [lmctl](https://lmctl.com), the core 
 ```bash
 npm install -g @lmctl-ai/lmctl
 lmctl autorun examples/parse-string.lms
-lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmbetterp/main/examples/parse-string.lms
+lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmbetter/main/examples/parse-string.lms
 ```
 
 ## Build
@@ -28,18 +28,18 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-Produces `build/lmbetterp`: one statically linked executable (`ldd` reports
+Produces `build/lmbetter`: one statically linked executable (`ldd` reports
 "not a dynamic executable" on Linux; macOS links only system libraries).
 
 ## CLI
 
 ```
-lmbetterp --version
-lmbetterp --notices
-lmbetterp --dsl-schema [--json]
-lmbetterp --dsl-signatures
-lmbetterp parse FILE           # '-' reads stdin
-lmbetterp --dsl FILE [FILE ...]
+lmbetter --version
+lmbetter --notices
+lmbetter --dsl-schema [--json]
+lmbetter --dsl-signatures
+lmbetter parse FILE           # '-' reads stdin
+lmbetter --dsl FILE [FILE ...]
 ```
 
 `parse` prints the concrete syntax tree as a single-line s-expression, like
@@ -49,7 +49,7 @@ produces a tree. Exit codes: 0 ok, 2 usage error, 3 input/DSL error,
 4 stdout failure.
 
 ```
-$ echo '{"a": [1, null]}' | lmbetterp parse -
+$ echo '{"a": [1, null]}' | lmbetter parse -
 (document (object (pair key: (string (string_content)) value: (array (number) (null)))))
 ```
 
@@ -59,8 +59,8 @@ structured access to parsed trees.
 ## Scripting
 
 ```lmscript
-p = _dsl_ cli="lmbetterp" install="github:lmctl-ai/lmbetterp@latest";
-let tree = ts.parse("{\"name\": \"lmbetterp\", \"tags\": [\"tree-sitter\", \"json\"]}");
+p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+let tree = ts.parse("{\"name\": \"lmbetter\", \"tags\": [\"tree-sitter\", \"json\"]}");
 println(tree.sexp());
 println("has_error -> " + str(tree.has_error()));
 println("nodes -> " + str(tree.node_count()));
@@ -75,14 +75,14 @@ for runnable scripts.
 ## Repository layout
 
 - `cpp/` — the CLI host: DSL VM integration plus the tree-sitter wrapper
-- `schema/lmbetterp.host.json` — the host-only DSL schema (copied to `schema/lmbetterp.dsl.json` and embedded into the binary; `lmscript` >= 0.2.420 supplies the built-in standard library implicitly)
+- `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.420 supplies the built-in standard library implicitly)
 - `examples/` — lmscript examples
 - `scripts/` — vendoring (tree-sitter sources pinned in `deps.lock`, `lmcode-cpp` SDK pinned in `sdk.lock`) and compiler selection
 - `third_party/` — downloaded upstream sources (git-ignored, pinned by `deps.lock`)
 
 ## License and company
 
-lmbetterp-authored code is MIT licensed (see `LICENSE`). It builds against
+lmbetter-authored code is MIT licensed (see `LICENSE`). It builds against
 tree-sitter and tree-sitter-json, both MIT licensed (`THIRD_PARTY_NOTICES.md`;
-also embedded in the binary, see `lmbetterp --notices`). Made by
+also embedded in the binary, see `lmbetter --notices`). Made by
 **Lattice Systems LLC**.

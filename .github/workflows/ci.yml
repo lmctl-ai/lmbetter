@@ -1,6 +1,8 @@
 name: ci
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       only:
@@ -8,12 +10,13 @@ on:
         required: true
         default: "all"
         type: choice
-        options: [all, linux-x64, linux-arm64, macos-arm64, macos-x64]
+        options: [all, linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64]
 
-# tree-sitter upstream supports POSIX hosts (and Windows via MSVC, not covered
-# here), so the matrix covers Linux and macOS, both architectures. Binaries
-# are published as workflow artifacts (one per OS/arch); there is deliberately
-# no release job — releases are cut by hand when wanted.
+# tree-sitter upstream is portable C and the vendored lmcode-cpp SDK is
+# standard-library-only C++17 with _WIN32 paths, so the matrix covers Linux,
+# macOS, and Windows (MinGW). Binaries are published as workflow artifacts
+# (one per OS/arch); there is deliberately no release job — releases are cut
+# by hand when wanted.
 permissions:
   contents: read
 
@@ -31,6 +34,7 @@ jobs:
           - { os: ubuntu-24.04-arm, name: linux-arm64 }
           - { os: macos-15,         name: macos-arm64 }
           - { os: macos-15-intel,   name: macos-x64 }
+          - { os: windows-2022,     name: windows-x64 }
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.name }}
     env:
@@ -58,6 +62,16 @@ jobs:
         if: runner.os == 'macOS' && env.ONLY_OK == 'true'
         run: brew install ninja coreutils
 
+      - name: toolchain (windows)
+        if: runner.os == 'Windows' && env.ONLY_OK == 'true'
+        run: |
+          for i in 1 2 3; do
+            command -v g++ >/dev/null 2>&1 && command -v ninja >/dev/null 2>&1 && break
+            choco install -y mingw ninja && break || sleep 15
+          done
+          command -v g++ >/dev/null 2>&1 || exit 1
+          command -v ninja >/dev/null 2>&1 || exit 1
+
       - name: lmscript compiler (npm @lmctl-ai/lmctl, DSL v5)
         if: env.ONLY_OK == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -82,13 +96,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp build/lmbetterp dist/lmbetterp-${{ matrix.name }}
+          suffix=""; [ "$RUNNER_OS" = Windows ] && suffix=.exe
+          cp "build/lmbetter${suffix}" "dist/lmbetter-${{ matrix.name }}${suffix}"
           cp LICENSE THIRD_PARTY_NOTICES.md dist/
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: env.ONLY_OK == 'true'
         with:
-          name: lmbetterp-${{ matrix.name }}
+          name: lmbetter-${{ matrix.name }}
           path: dist/
           if-no-files-found: error
 
@@ -105,12 +120,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: lmbetterp-*
+          pattern: lmbetter-*
           path: ${{ runner.temp }}/bins
           merge-multiple: true
 
       - name: checksums
-        run: (cd "${{ runner.temp }}/bins" && sha256sum lmbetterp-* > SHA256SUMS)
+        run: (cd "${{ runner.temp }}/bins" && sha256sum lmbetter-* > SHA256SUMS)
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -128,12 +143,12 @@ jobs:
             git checkout --orphan dist
           fi
           git rm -rf . >/dev/null 2>&1 || true
-          cp "${{ runner.temp }}/bins"/lmbetterp-* "${{ runner.temp }}/bins"/SHA256SUMS .
+          cp "${{ runner.temp }}/bins"/lmbetter-* "${{ runner.temp }}/bins"/SHA256SUMS .
           cp LICENSE THIRD_PARTY_NOTICES.md . 2>/dev/null || true
           git add -A
           if git diff --cached --quiet; then
             echo "dist branch already up to date"
           else
-            git commit -m "dist: lmbetterp binaries from ${GITHUB_SHA}"
+            git commit -m "dist: lmbetter binaries from ${GITHUB_SHA}"
           fi
           git push --force-with-lease origin dist
