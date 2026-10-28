@@ -2,6 +2,7 @@
 """Native v6 rule dispatch: deterministic fixtures, no network or installed host."""
 import json
 import os
+import shutil
 from pathlib import Path
 import struct
 import subprocess
@@ -12,6 +13,15 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 HOST = str(Path(sys.argv.pop(1)).resolve()) if len(sys.argv) > 1 else str(ROOT / 'build/lmok')
 COMPILER = os.environ.get('LMSCRIPT_BIN', 'lmscript')
+
+def compiler_argv():
+    # On Windows npm installs `lmscript` as an extension-less sh script plus a
+    # `lmscript.cmd` shim; CreateProcess can run only the shim (WinError 193 otherwise).
+    if os.name == 'nt' and not COMPILER.lower().endswith(('.cmd', '.exe', '.bat')):
+        for candidate in (COMPILER + '.cmd', shutil.which('lmscript.cmd')):
+            if candidate and Path(candidate).exists():
+                return [candidate]
+    return [COMPILER]
 
 class EntryChecks(unittest.TestCase):
     def setUp(self):
@@ -25,7 +35,7 @@ class EntryChecks(unittest.TestCase):
         src = self.work / 'rules.lms'
         binary = self.work / 'rules.dslb'
         src.write_text('p = _lmcode_ schema=' + json.dumps(str(ROOT / 'schema/lmok.host.json')) + ';\n' + body + '\nend _lmcode_\nsavedsl(p, ARGV[0]);\n')
-        r = subprocess.run([COMPILER, str(src), str(binary)], capture_output=True, text=True)
+        r = subprocess.run([*compiler_argv(), str(src), str(binary)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         return binary
     def run_host(self, binary, *files, lang='json'):
