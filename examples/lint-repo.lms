@@ -1,0 +1,20 @@
+# Chapter: Compose - drive the lint dispatcher from lmscript
+# Shows: dsl_cli, system, exit-code asserts, counting findings in stdout
+# Run: lmscript examples/lint-repo.lms      (needs lmbetter on PATH, e.g. PATH=build:$PATH)
+# Needs: the built lmbetter binary; offline otherwise.
+# exit: 0
+# expect:
+#|repo lint: c-security 1 findings, json-config 2 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+let probe = ts.parse("{}");
+end _lmcode_
+
+# dsl_cli(p) is the argv prefix resolving this script's pinned lmbetter; the
+# lint dispatcher runs as a plain subprocess and its JSON-lines stdout is
+# data back in lmscript.
+r1 = system ${dsl_cli(p)} lint examples/rules/c-security.json examples/data/sample.c;
+assert(r1.code == 0);
+r2 = system ${dsl_cli(p)} lint examples/rules/json-config.json examples/data/bad-config.json;
+assert(r2.code == 0);
+
+println("repo lint: c-security " + str(count_matches(r1.stdout, "\"rule\":")) + " findings, json-config " + str(count_matches(r2.stdout, "\"rule\":")) + " findings");

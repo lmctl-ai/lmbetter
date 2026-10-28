@@ -1,0 +1,19 @@
+{
+  "lang": "json",
+  "rules": [
+    {
+      "id": "LBJ001",
+      "query": "(pair key: (string (string_content) @key))",
+      "text_matches": "password",
+      "message": "password key \"{text}\"",
+      "severity": "critical"
+    },
+    {
+      "id": "LBJ002",
+      "query": "(string (string_content) @value)",
+      "text_matches": "^(TODO|CHANGEME)$",
+      "message": "placeholder string {text}",
+      "severity": "minor"
+    }
+  ]
+}

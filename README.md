@@ -40,6 +40,7 @@ lmbetter --dsl-schema [--json]
 lmbetter --dsl-signatures
 lmbetter parse [--lang json|c] FILE          # '-' reads stdin
 lmbetter query [--lang json|c] PATTERN FILE  # '-' reads stdin
+lmbetter lint RULES.json FILE...
 lmbetter --dsl FILE [FILE ...]
 ```
 
@@ -50,8 +51,12 @@ produces a tree. `query` runs a tree-sitter S-expression pattern over the
 document and prints one line per captured node, `kind
 start_row:start_col-end_row:end_col` (0-based). Both default to the JSON
 grammar; `--lang c` switches to C (an unknown language exits 2 with the
-known-languages list). Exit codes: 0 ok, 2 usage error, 3 input/DSL error (an
-invalid query pattern names its byte offset and reason), 4 stdout failure.
+known-languages list). `lint` runs a rule pack (below) over each file and
+prints one JSON finding per line plus `N findings in <file>`; exit codes:
+0 ok (findings never fail the run — gating is the caller's job), 2 usage or
+rule-pack error, 3 input/DSL error (unreadable file aborts the run fast; an
+invalid query pattern names the rule id, byte offset and reason), 4 stdout
+failure.
 
 ```
 $ echo '{"a": [1, null]}' | lmbetter parse -
@@ -61,10 +66,56 @@ string_content 1:3-1:7
 string_content 2:3-2:10
 string_content 3:3-3:5
 string_content 4:3-4:12
+$ lmbetter lint examples/rules/c-security.json examples/data/sample.c
+{"row":4,"col":2,"end_row":4,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"}
+1 findings in examples/data/sample.c
 ```
 
 The `--dsl` interface runs lmscript bytecode against the same engine with
 structured access to parsed trees.
+
+## Rule packs
+
+`lmbetter lint` reads a pack — conditions as data. Format:
+
+```json
+{
+  "lang": "c",
+  "rules": [
+    {"id": "LBC001",
+     "query": "(call_expression function: (identifier) @fn)",
+     "text_matches": "^(gets|strcpy|sprintf)$",
+     "message": "unsafe call '{text}'",
+     "severity": "critical"}
+  ]
+}
+```
+
+- `id` (required string), `message` (required; `{text}` expands to the
+  matched node's text), `severity` (optional, default `"minor"` — free-form,
+  the pack owns the vocabulary).
+- Selector — exactly one of (both present is a pack error, exit 2):
+  - `on`: a tree-sitter node kind, matched against NAMED nodes. This mirrors
+    the `@ANNOTATION` value of an lmcode rule fn and is the v6-pluggable
+    path: when the v6 bytecode rule entry table lands, `--dsl` chunks will
+    export annotated rules and this same kind-indexed dispatcher will walk
+    once and dispatch to them.
+  - `query`: an S-expression pattern; every captured node of every match is a
+    candidate.
+- `text_matches`: optional `std::regex` (ECMAScript) applied with
+  `regex_search` (unanchored — anchor with `^`/`$` yourself) to the
+  candidate's text as a post-match filter.
+- Language: `rule.lang` overrides the pack-level `lang`; a rule with neither
+  is a pack error. Known languages: `json`, `c`.
+- Dispatch: per file, parse once per grammar used. `on` rules share ONE
+  pre-order walk over the named nodes with a kind→rules index; `query` rules
+  run one query cursor each over the root (merging them into the walk is a
+  later optimization — deliberately no Rete). Findings print sorted by
+  (row, col), one JSON object per line with the same field order as
+  `ts.report_json` (row, col, end_row, end_col, rule, severity, message),
+  then `N findings in <file>`.
+
+Packs live in `examples/rules/` (`c-security.json`, `json-config.json`).
 
 ## Scripting
 

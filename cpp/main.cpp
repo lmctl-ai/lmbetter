@@ -2,6 +2,7 @@
 // linked, scriptable CLI. Host for the lmscript DSL plus a small parse
 // subcommand (JSON grammar).
 #include "host.hpp"
+#include "lint.hpp"
 #include "dslvm.hpp"
 #include "stdlib/string.hpp"
 #include "stdlib/collections.hpp"
@@ -239,6 +240,7 @@ int main(int argc, char **argv) {
       "usage: lmbetter --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
       "       lmbetter parse [--lang json|c] FILE\n"
       "       lmbetter query [--lang json|c] PATTERN FILE\n"
+      "       lmbetter lint RULES.json FILE...\n"
       "       lmbetter --dsl FILE [FILE ...]\n";
   if (argc == 2 && std::string(argv[1]) == "--version") {
     std::cout << "lmbetter " LMBETTER_VERSION "\n";
@@ -312,6 +314,38 @@ int main(int argc, char **argv) {
       std::cout << lmbetter::node_kind(node) << " "
                 << lmbetter::node_start_row(node) << ":" << lmbetter::node_start_col(node)
                 << "-" << lmbetter::node_end_row(node) << ":" << lmbetter::node_end_col(node) << "\n";
+    return std::cout ? 0 : 4;
+  }
+  if (argc >= 2 && std::string(argv[1]) == "lint") {
+    if (argc < 4) { std::cerr << usage; return 2; }
+    std::vector<lmbetter::LintRule> rules;
+    try {
+      rules = lmbetter::load_rule_pack(argv[2]);
+    } catch (const dslvm::Error &e) {
+      std::cerr << e.what() << "\n";
+      return 2;
+    }
+    // Fail fast: the first unreadable file aborts the whole run (exit 3);
+    // earlier files' findings were already printed.
+    for (int i = 3; i < argc; ++i) {
+      std::string raw;
+      try { raw = read_file(argv[i]); }
+      catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
+      std::vector<lmbetter::LintFinding> findings;
+      try {
+        findings = lmbetter::lint_text(rules, raw);
+      } catch (const lmbetter::QueryError &e) {
+        std::cerr << e.what() << "\n";
+        return 3;
+      }
+      for (const auto &f : findings)
+        std::cout << "{\"row\":" << f.row << ",\"col\":" << f.col
+                  << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col
+                  << ",\"rule\":\"" << json_escape(f.rule)
+                  << "\",\"severity\":\"" << json_escape(f.severity)
+                  << "\",\"message\":\"" << json_escape(f.message) << "\"}\n";
+      std::cout << findings.size() << " findings in " << argv[i] << "\n";
+    }
     return std::cout ? 0 : 4;
   }
   if (argc >= 3 && std::string(argv[1]) == "--dsl") {

@@ -145,6 +145,42 @@ set +e; out="$("$HOST" parse --lang rust examples/data/sample.c 2>&1)"; code=$?;
 [ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust' (known: json, c)"* ]] || fail "unknown --lang (exit $code): $out"
 ok "unknown --lang refused with the known-languages list (exit 2)"
 
+# --- lint (rule-pack dispatcher) ---
+out="$("$HOST" lint examples/rules/c-security.json examples/data/sample.c)"
+[ "$out" = '{"row":4,"col":2,"end_row":4,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call '"'"'gets'"'"'"}
+1 findings in examples/data/sample.c' ] || fail "lint c-security: $out"
+ok "lint: c-security pack over sample.c (query + text_matches)"
+
+out="$("$HOST" lint examples/rules/json-config.json examples/data/bad-config.json)"
+[ "$out" = '{"row":2,"col":3,"end_row":2,"end_col":11,"rule":"LBJ001","severity":"critical","message":"password key \"password\""}
+{"row":3,"col":13,"end_row":3,"end_col":17,"rule":"LBJ002","severity":"minor","message":"placeholder string TODO"}
+2 findings in examples/data/bad-config.json' ] || fail "lint json-config: $out"
+ok "lint: json-config pack over bad-config.json (sorted by row, col)"
+
+printf 'int main(void) { return 0; }\n' > "$WORK/clean.c"
+out="$("$HOST" lint examples/rules/c-security.json "$WORK/clean.c")"
+[ "$out" = "0 findings in $WORK/clean.c" ] || fail "lint clean file: $out"
+ok "lint: zero findings still prints the summary line (exit 0)"
+
+printf '{"lang":"c","rules":[{"id":"X","query":"(pair","message":"m"}]}' > "$WORK/badquery.json"
+set +e; out="$("$HOST" lint "$WORK/badquery.json" examples/data/sample.c 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'rule X: query error at byte offset'* ]] || fail "lint bad query (exit $code): $out"
+ok "lint: bad query in pack refused (exit 3, rule id + offset)"
+
+printf '{"lang":"c","rules":[{"id":"Y","on":"comment","query":"(comment)","message":"m"}]}' > "$WORK/both.json"
+set +e; out="$("$HOST" lint "$WORK/both.json" examples/data/sample.c 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *"rule Y: 'on' and 'query' are mutually exclusive"* ]] || fail "lint on+query (exit $code): $out"
+ok "lint: on+query together refused (exit 2)"
+
+printf 'not json' > "$WORK/broken.json"
+set +e; out="$("$HOST" lint "$WORK/broken.json" examples/data/sample.c 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *'invalid JSON'* ]] || fail "lint malformed pack (exit $code): $out"
+ok "lint: malformed pack refused (exit 2)"
+
+set +e; out="$("$HOST" lint examples/rules/c-security.json "$WORK/no-such.c" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'cannot read'* ]] || fail "lint missing file (exit $code): $out"
+ok "lint: unreadable file aborts fast (exit 3)"
+
 # --- DSL bytecode ---
 cat > "$WORK/smoke.lms" <<EOF
 p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
@@ -240,6 +276,14 @@ assert results[-1]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"
 print("SARIF 2.1.0: 4 results, regions and levels correct")
 PY
 ok "SARIF artifact is valid JSON with the expected structure"
+
+# --- lint-repo.lms (outer lmscript driving the CLI dispatcher) ---
+"$LMSCRIPT" examples/lint-repo.lms >"$WORK/lint-repo.out" 2>"$WORK/lint-repo.err" ||
+  { cat "$WORK/lint-repo.err" >&2; fail "lint-repo example run"; }
+while IFS= read -r line; do
+  grep -qxF "${line:2}" "$WORK/lint-repo.out" || fail "lint-repo output missing: ${line:2} (got $(cat "$WORK/lint-repo.out"))"
+done < <(grep '^#|' examples/lint-repo.lms)
+ok "lint-repo: lmscript drives lmbetter lint and counts findings"
 
 if [ "$UNAME_S" = "Darwin" ]; then
   BAD_LIBS="$(otool -L "$HOST" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/\|^/System/Library/' || true)"

@@ -1,0 +1,25 @@
+{
+  "lang": "c",
+  "rules": [
+    {
+      "id": "LBC001",
+      "query": "(call_expression function: (identifier) @fn)",
+      "text_matches": "^(gets|strcpy|sprintf)$",
+      "message": "unsafe call '{text}'",
+      "severity": "critical"
+    },
+    {
+      "id": "LBC002",
+      "on": "comment",
+      "text_matches": "FIXME",
+      "message": "unresolved FIXME comment",
+      "severity": "minor"
+    },
+    {
+      "id": "LBC003",
+      "on": "goto_statement",
+      "message": "goto used",
+      "severity": "minor"
+    }
+  ]
+}

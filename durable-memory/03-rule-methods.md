@@ -37,7 +37,9 @@ the TODO in scripts/select-compiler.sh).
   with `n.kind()` and the walk calls every rule on every node — O(rules ×
   nodes). The stated future direction is a DSLB v6 rule entry table
   (annotation + interface per rule; the host walks once and dispatches by
-  node kind). PARTIALLY LANDED in v0.2.3: `ts.query(root, pattern)` runs a
+  node kind). The host-side walk exists since v0.2.8 as the `lint`
+  dispatcher with rule packs (conditions as data) — see
+  [04-dispatcher.md](04-dispatcher.md). PARTIALLY LANDED in v0.2.3: `ts.query(root, pattern)` runs a
   tree-sitter S-expression query (the esquery analog from
   docs/rule-snippets.md) and returns every captured node as a `NodeList`, so
   the pattern — not a per-node loop — does the structural selection

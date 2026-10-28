@@ -39,6 +39,12 @@ host CLI the same way lmscript resolves any other tool.
   document to `build/sarif-results.sarif` via string building; severity→level
   mapping, the 0-based→1-based region conversion, and the driver rule catalog
   (derived from the findings) are all script-side
+- `lint-repo.lms` — outer-lmscript composition: drives the `lmbetter lint`
+  CLI dispatcher as a subprocess via `dsl_cli` + `system`, asserts exit
+  codes, counts findings in stdout
+- `rules/` — rule packs for the `lint` subcommand (`c-security.json`:
+  unsafe-call query + `on: comment`/`on: goto_statement` kind rules;
+  `json-config.json`: JSON password-key/placeholder rules as data)
 
 `cst-rules.lms` shows manual `Node.child(i)` navigation (fixed-depth nested
 loops, because lmcode has no recursion); `lint-json.lms` shows the `NodeList`
