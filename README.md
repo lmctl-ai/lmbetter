@@ -165,7 +165,10 @@ emits the existing `ts.report_json()` findings plus `N findings` and
 the standard success record for each input. Files are explicit; directories
 and stdin are not accepted. A fresh host arena and findings sink are used per
 input. Rule and severity metadata come from `ts.report` payloads; entry names
-are not silently used as finding ids. DSLB v6 is the only accepted runtime
+are not silently used as finding ids. Every annotation is checked against the
+selected grammar at load: a misspelled kind, a supertype (abstract, e.g. `@expression`) or a hidden
+symbol is refused with exit 3 and a `LOAD_UNBOUND` record naming the entry, so a rule can never be
+silently dead; a rules file is therefore specific to one `--lang`. DSLB v6 is the only accepted runtime
 format, so old bytecode must be recompiled. Install the private compiler with
 `npm install --prefix /tmp/lmok-tools @lmctl-ai/lmctl@0.2.444` when needed.
 

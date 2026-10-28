@@ -22,6 +22,12 @@ struct Node;
 // reparse); a fifth grammar should trigger generalizing this to a language
 // parameter.
 enum class Grammar { Json, C, Python, Bash };
+const char *grammar_name(Grammar grammar); // "json", "c", "python", "bash"
+// Empty when `kind` is a kind the walk can visit in this grammar (a named node, an anonymous token or ERROR);
+// otherwise the reason it can never match: unknown spelling, a supertype (abstract; annotate its concrete
+// kinds) or a hidden/auxiliary symbol. Used by `check` to refuse annotations at load instead of silently
+// never firing them (WP14 F3).
+std::string annotation_problem(Grammar grammar, const std::string &kind);
 
 // Owning handle for one parsed tree plus a copy of its source text (kept
 // alive so Node text() stays valid). Never throws: the tree-sitter parser

@@ -589,6 +589,10 @@ static int run_cli(int argc, char **argv) {
       if (entry.iface != "interface Rule(Node) -> void") {
         return dslvm::report_error("load", dslvm::Error("LOAD_BAD_BYTECODE", "check entry '" + entry.name + "' must implement Rule(Node) -> void"));
       }
+      const std::string problem = lmok::annotation_problem(grammar, entry.annotation);
+      if (!problem.empty()) {
+        return dslvm::report_error("load", dslvm::Error("LOAD_UNBOUND", "check entry '" + entry.name + "': annotation '@" + entry.annotation + "' " + problem));
+      }
       by_kind[entry.annotation].push_back(i); // duplicate kinds retain source order
     }
     dslvm::Context context;

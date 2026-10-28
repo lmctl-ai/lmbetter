@@ -55,8 +55,9 @@ class EntryChecks(unittest.TestCase):
         self.assertEqual(arrays[0], arrays[1], 'findings reset for each input')
         self.assertEqual([f['rule'] for f in arrays[0]], ['ID_A','ID_B','ID_A','ID_B'])
         self.assertEqual(r.stdout.splitlines().count('configured'), 1)
-    def test_wrong_kind_finds_nothing(self):
-        binary = self.compile('@absent_kind fn ignored(n: Node) -> void implements Rule { ts.report(n, "wrong"); }')
+    def test_real_kind_absent_from_input_finds_nothing(self):
+        # `null` is a JSON node kind that this input does not contain (an unknown kind is refused at load, see below).
+        binary = self.compile('@null fn ignored(n: Node) -> void implements Rule { ts.report(n, "wrong"); }')
         self.assertEqual(self.arrays(self.run_host(binary)), [[]])
     def test_anonymous_keyword_kind(self):
         self.source.write_text('int f(void) { if (1) return 0; return 1; }')
@@ -112,6 +113,24 @@ class EntryChecks(unittest.TestCase):
         binary = self.compile('@number fn num(n: Node) -> void implements Rule { ts.report(n, "missing=" + str(n.is_missing()), "NUM", "minor"); }')
         findings = self.arrays(self.run_host(binary))[0]
         self.assertEqual([f['message'] for f in findings], ['missing=false', 'missing=true'])
+    def test_unknown_annotation_kinds_are_refused_at_load(self):
+        # WP14 F3: a misspelled or abstract kind used to be silent (the rule simply never fired).
+        binary = self.compile('@typo_kind_that_does_not_exist fn t(n: Node) -> void implements Rule { ts.report(n, "typo"); }')
+        r = self.run_host(binary)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        error = json.loads(r.stdout)
+        self.assertEqual((error['phase'], error['code']), ('load', 'LOAD_UNBOUND'))
+        self.assertIn("annotation '@typo_kind_that_does_not_exist' is not a node kind of the json grammar", error['message'])
+        self.source.write_text('int f(void) { return 1; }')
+        binary = self.compile('@expression fn abstract(n: Node) -> void implements Rule { ts.report(n, "never"); }')
+        r = self.run_host(binary, lang='c')
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        self.assertIn("'@expression' is a supertype of the c grammar", json.loads(r.stdout)['message'])
+        # Concrete kinds keep working: the ERROR kind, an anonymous token and a named node.
+        self.source.write_text('{"a" 1}')
+        binary = self.compile('@ERROR fn e(n: Node) -> void implements Rule { ts.report(n, "error", "E", "major"); }\n@document fn d(n: Node) -> void implements Rule { ts.report(n, "doc", "D", "info"); }')
+        findings = self.arrays(self.run_host(binary))[0]
+        self.assertEqual(sorted(f['rule'] for f in findings), ['D', 'E'])
     def test_missing_input_and_bad_usage(self):
         binary=self.compile('@pair fn first(n: Node) -> void implements Rule {}')
         r=self.run_host(binary,self.work/'missing.json')

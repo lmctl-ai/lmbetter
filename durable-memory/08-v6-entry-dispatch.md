@@ -11,6 +11,11 @@ entry whose annotation equals the node kind is called with a `Node` handle.
 Directories and stdin are intentionally outside this command; cross-file
 aggregation remains a body-level `--dsl` responsibility.
 
+Each annotation must name a kind the walk can visit in the selected grammar (a named node, an
+anonymous token or `ERROR`, checked with `ts_language_symbol_for_name`/`ts_language_symbol_type`);
+unknown spellings, supertypes and hidden symbols are refused at load (`LOAD_UNBOUND`, exit 3) so a
+misspelled rule cannot be silently dead (WP14 F3).
+
 Rule entries must implement the schema SAM `Rule(n: Node) -> void`. A rule's
 finding id and severity come from its `ts.report` payload; the entry name is a
 callable identity only and is not inserted as a default finding id. Two-argument

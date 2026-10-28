@@ -68,6 +68,35 @@ static void check_text_size(const char *who, const std::string &text) {
                             " bytes; tree-sitter addresses at most 4294967295");
 }
 
+const char *grammar_name(Grammar grammar) {
+  switch (grammar) {
+  case Grammar::Json: return "json";
+  case Grammar::C: return "c";
+  case Grammar::Python: return "python";
+  case Grammar::Bash: return "bash";
+  }
+  return "json";
+}
+
+std::string annotation_problem(Grammar grammar, const std::string &kind) {
+  const TSLanguage *language = language_of(grammar);
+  const std::string suffix = std::string(" of the ") + grammar_name(grammar) + " grammar";
+  bool visible = false, supertype = false, hidden = false;
+  for (bool named : {true, false}) {
+    const TSSymbol symbol = ts_language_symbol_for_name(language, kind.data(), uint32_t(kind.size()), named);
+    if (symbol == 0) continue;
+    switch (ts_language_symbol_type(language, symbol)) {
+    case TSSymbolTypeRegular: case TSSymbolTypeAnonymous: visible = true; break;
+    case TSSymbolTypeSupertype: supertype = true; break;
+    case TSSymbolTypeAuxiliary: hidden = true; break;
+    }
+  }
+  if (visible) return "";
+  if (supertype) return "is a supertype" + suffix + " (abstract: annotate its concrete kinds, see `lmok parse`)";
+  if (hidden) return "is a hidden symbol" + suffix + " and never appears as a node";
+  return "is not a node kind" + suffix + " (see `lmok parse` for the kinds in a tree)";
+}
+
 Tree parse(Grammar grammar, const std::string &text) {
   check_text_size("parse", text);
   TSParser *parser = ts_parser_new();
