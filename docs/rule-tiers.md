@@ -24,7 +24,10 @@ See the [rule library and run commands](../rules/README.md) and
 
 ## Tier 1 — shipped (rules/)
 
-### C ([rules/c-tier1.json](../rules/c-tier1.json), 10 rules)
+### C ([rules/c-tier1.json](../rules/c-tier1.json), 11 rules)
+
+Real-world validated against sds, kilo and cJSON (see
+[durable-memory/06-realworld-validation.md](../durable-memory/06-realworld-validation.md) for the TP/FP triage).
 
 | id | rule | mechanism | reference |
 | --- | --- | --- | --- |
@@ -34,10 +37,11 @@ See the [rule library and run commands](../rules/README.md) and
 | LBC004 | command-exec calls `system`/`popen`/`execl*`/`execvp` | same query as LBC001 + anchored regex | CWE-78 |
 | LBC005 | assignment inside `if`/`while` condition | two query patterns through `parenthesized_expression` | CERT EXP45-C; cf. MISRA C:2012 13.4 |
 | LBC006 | K&R function definition | query `((function_definition (declaration)) @kr)` (a definition with direct `declaration` children) | — |
-| LBC007 | object-like `#define` macro | `on: preproc_def` | — |
+| LBC007 | object-like `#define` macro with a replacement value | `on: preproc_def` + regex requiring a value after the name (value-less include guards / feature macros skipped) | — |
 | LBC008 | `register` storage class | `on: storage_class_specifier` + regex `^register$` | — |
-| LBC009 | function name not snake_case | query function declarators + regex `[A-Z]` | — (convention rule) |
-| LBC010 | commented-out code | `on: comment` + heuristic regex `(=.*;)\|(;\s*$)` | cf. SonarQube S125 |
+| LBC009 | function name not snake_case | two query patterns over `function_definition` declarators (incl. pointer-returning) + regex `[A-Z]`; all-caps names exempt (macro convention) | — (convention rule) |
+| LBC010 | commented-out code | `on: comment` + heuristic regex anchored to the comment's FIRST line (`=…;` or trailing `;`) | cf. SonarQube S125 |
+| LBC011 | cast of `malloc`/`calloc`/`realloc` result | query `cast_expression` of a call + `#match?` on the callee | CERT MEM02-C |
 
 ### JSON ([rules/json-tier1.json](../rules/json-tier1.json), 11 rules)
 
@@ -70,7 +74,6 @@ escape-split `string_content` nodes do not hide long source strings.
 - multiple assignment (`a = b = 0`): nested `assignment_expression` query
 - empty `if`/`while` body (`;`): `on: expression_statement` + text `;` guard,
   or a query for empty consequences
-- `malloc` result cast to a pointer type: `cast_expression` + regex
 
 ### Shipped as lmcode rules (rules/lmcode/) — logic over the CST
 

@@ -6,12 +6,30 @@ Three delivery forms, by how much logic a rule needs:
   dispatcher: a tree-sitter `query` pattern or an `on` node kind, an optional
   `text_matches` regex, message, severity. No code. See [rule tiers](../docs/rule-tiers.md)
   for the framework and [Rule packs](../README.md#rule-packs) for the format.
-  Shipped: `c-tier1.json` (10 rules), `json-tier1.json` (11 rules:
+  Shipped: `c-tier1.json` (11 rules), `json-tier1.json` (11 rules:
   LBJ001–LBJ010 and LBJ104).
   JSON checks cover credential keys, placeholders, nulls, key naming, numeric
   strings, HTTP URLs, unpinned versions, empty containers, and long source
   strings. The length threshold is >200 source bytes excluding quotes, not
   decoded characters; see the inventory for each policy's scope.
+
+  c-tier1 heuristic notes (from real-world validation on sds, kilo, cJSON —
+  see [durable-memory/06-realworld-validation.md](../durable-memory/06-realworld-validation.md)):
+  - LBC006 (K&R definitions) can also fire on parser error-recovery
+    artifacts in macro-heavy code (statement-like macros used without a
+    semicolon, e.g. unity's `EXPECT_ABORT_BEGIN`, produce a recovered
+    `function_definition` whose shape mimics K&R). Genuine K&R is so rare
+    in modern code that the rule is kept as-is.
+  - LBC007 only flags `#define`s WITH a replacement value; value-less
+    defines (include guards, `#define _CRT_SECURE_NO_DEPRECATE`) are
+    skipped. Value-having feature-test macros (`_POSIX_C_SOURCE 200809L`)
+    still fire — known noise, severity minor.
+  - LBC009 checks function DEFINITIONS only (one finding per function;
+    header prototypes are not separately flagged) and exempts ALL-CAPS
+    names (macro-style convention).
+  - LBC010 only considers a comment's first line, so doc comments with
+    code examples deeper in the block no longer fire; the trade-off is
+    that `/*`-blocks whose code starts on line 2+ are missed.
 
 - **lmcode rules** (`rules/lmcode/*.lms`) — rules that need LOGIC beyond
   selector+regex: arithmetic (`end_row - start_row`), counting children,

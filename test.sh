@@ -257,12 +257,13 @@ cat >"$WORK/c-tier1.expected" <<'EXPECTED_C'
 {"row":15,"col":2,"end_row":15,"end_col":19,"rule":"LBC010","severity":"minor","message":"commented-out code"}
 {"row":16,"col":2,"end_row":16,"end_col":29,"rule":"LBC002","severity":"minor","message":"unresolved FIXME/TODO comment"}
 {"row":20,"col":0,"end_row":22,"end_col":13,"rule":"LBC006","severity":"major","message":"K&R function definition (use ANSI prototypes)"}
-13 findings in tests/fixtures/c-tier1-violations.c
+{"row":27,"col":20,"end_row":27,"end_col":26,"rule":"LBC011","severity":"minor","message":"cast of 'malloc' result (redundant in C, can hide a missing prototype)"}
+14 findings in tests/fixtures/c-tier1-violations.c
 EXPECTED_C
 cmp "$WORK/c-tier1.expected" "$WORK/c-tier1.out" || { diff "$WORK/c-tier1.expected" "$WORK/c-tier1.out" >&2; fail "c-tier1 violations output"; }
 out="$("$HOST" lint rules/c-tier1.json tests/fixtures/c-tier1-clean.c)"
 [ "$out" = "0 findings in tests/fixtures/c-tier1-clean.c" ] || fail "c-tier1 clean: $out"
-ok "lint: c-tier1 pack, all 10 rules fire on violations, clean fixture silent"
+ok "lint: c-tier1 pack, all 11 rules fire on violations, clean fixture silent"
 
 "$HOST" lint rules/json-tier1.json tests/fixtures/json-tier1-violations.json >"$WORK/json-tier1.out" || fail "lint json-tier1 violations run"
 cat >"$WORK/json-tier1.expected" <<'EXPECTED_J'

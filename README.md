@@ -195,9 +195,9 @@ small demos; the canonical rule library is `rules/` (see below).
 ## Rule tiers
 
 Rules are classified by the information they need: tier 1 (CST shape + text)
-ships as packs in `rules/` — `c-tier1.json` (10 rules: unsafe calls, command
+ships as packs in `rules/` — `c-tier1.json` (11 rules: unsafe calls, command
 exec, assignment-in-condition, K&R definitions, goto, FIXME/TODO, object-like
-macros, register, naming, commented-out code) and `json-tier1.json` (11 rules:
+macros, register, naming, commented-out code, malloc-result casts) and `json-tier1.json` (11 rules:
 credential keys, placeholders, nulls, key naming, numbers-as-strings, exact
 password key, sensitive credential keys, HTTP URLs, unpinned versions, empty
 containers, long strings) — plus lmcode-native rules in `rules/lmcode/` for
