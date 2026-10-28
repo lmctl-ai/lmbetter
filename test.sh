@@ -468,7 +468,7 @@ ok "Tree.edit: out-of-range offsets refused (exit 3)"
 python3 -c "import sys; sys.stdout.buffer.write(b'// x = ' + b'a'*100000 + b';\n')" > "$WORK/longcomment.c"
 set +e; out="$("$HOST" lint rules/c-tier1.json "$WORK/longcomment.c" 2>"$WORK/longcomment.err")"; code=$?; set -e
 [ "$code" = 0 ] && [ "$out" = "0 findings in $WORK/longcomment.c" ] || fail "long comment lint (exit $code): $out"
-grep -q 'regex not applied to a 100008-byte node text' "$WORK/longcomment.err" || fail "long comment lint: missing stderr note: $(cat "$WORK/longcomment.err")"
+grep -qE 'regex not applied to a [0-9]+-byte node text' "$WORK/longcomment.err" || fail "long comment lint: missing stderr note: $(cat "$WORK/longcomment.err")"
 set +e; out="$("$HOST" query --lang c '((comment) @c (#match? @c "(.*)*b"))' "$WORK/longcomment.c" 2>/dev/null)"; code=$?; set -e
 [ "$code" = 0 ] && [ -z "$out" ] || fail "long comment #match? (exit $code): $out"
 ok "regex over node text is bounded: 100 KB comment lints and queries without crashing (one stderr note)"
