@@ -32,6 +32,9 @@ host CLI the same way lmscript resolves any other tool.
 - `rule-catalog.lms` — user-side policy: parse `ts.report_json()` back with
   the std json functions, summarize by severity, and apply a quality gate
   (`critical > 0` → `gate=FAIL`) as a plain script-side `if`
+- `suppress-findings.lms` — `// nosonar`-style suppression as pure lmcode
+  policy: rules report everything; a chunk-level post-filter drops findings
+  on rows whose comment contains "nosonar" (StrMap + `json_parse`/`to_json`)
 
 `cst-rules.lms` shows manual `Node.child(i)` navigation (fixed-depth nested
 loops, because lmcode has no recursion); `lint-json.lms` shows the `NodeList`

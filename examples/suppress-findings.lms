@@ -1,0 +1,67 @@
+# Chapter: Rules - nosonar-style suppression as pure lmcode policy
+# Shows: suppression post-filter with StrMap + json_parse/Json.to_json over ts.report_json
+# Run: lmscript examples/suppress-findings.lms      (then: lmbetter --dsl build/suppress-findings.dslb)
+# Needs: nothing (offline); the C source is embedded below.
+# exit: 0
+# expect:
+#|[{"row":6,"col":2,"end_row":6,"end_col":8,"rule":"LBC001","severity":"critical","message":"unsafe call 'strcpy'"},{"row":7,"col":2,"end_row":7,"end_col":9,"rule":"LBC001","severity":"critical","message":"unsafe call 'sprintf'"},{"row":7,"col":40,"end_row":7,"end_col":71,"rule":"LBC002","severity":"minor","message":"unresolved FIXME comment"}]
+#|findings=3 suppressed=1
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# The two lint-c rules, unchanged: they report every hit with metadata.
+# "// nosonar" suppression is NOT host machinery (SonarQube's NoSonarFilter is
+# platform-side); here it is user lmcode: a post-filter over the findings
+# sink. (lmcode fns cannot capture chunk-level locals, so the filter lives in
+# the chunk body, where the suppression map is visible — same shape as
+# SonarQube's pipeline, but redefinable by the script author.)
+
+@call_expression
+fn no_unsafe_fn(n: Node) -> void implements Rule {
+  let name = n.text();
+  if (name == "gets" || name == "strcpy" || name == "sprintf") {
+    ts.report(n, "unsafe call '" + name + "'", "LBC001", "critical");
+  }
+}
+
+@comment
+fn no_fixme(n: Node) -> void implements Rule {
+  if (str_contains(n.text(), "FIXME")) {
+    ts.report(n, "unresolved FIXME comment", "LBC002", "minor");
+  }
+}
+
+let tree = ts.parse_c("#include <stdio.h>\n#include <string.h>\n\nvoid login(char *input) {\n  char buf[16];\n  gets(input);                          // nosonar: legacy API boundary\n  strcpy(buf, input);\n  sprintf(buf, \"%s\", input);            // FIXME: replace with snprintf\n  printf(\"%s\", buf);\n}\n");
+let root = tree.root();
+
+for (f in ts.query_c(root, "(call_expression function: (identifier) @fn)")) {
+  no_unsafe_fn(f);
+}
+for (c in ts.query_c(root, "(comment) @c")) {
+  no_fixme(c);
+}
+
+# Suppression set: rows carrying a comment that contains "nosonar".
+let suppressed = str_map();
+for (c in ts.query_c(root, "(comment) @c")) {
+  if (str_contains(c.text(), "nosonar")) { suppressed.set(str(c.start_row()), "1"); }
+}
+
+# Post-filter: re-emit the findings minus suppressed rows (Json.to_json keeps
+# each finding's bytes), counting both sides.
+let out = "[";
+let kept = 0;
+let dropped = 0;
+for (f in json_parse(ts.report_json())) {
+  if (suppressed.has(str(f.get("row").as_int()))) {
+    dropped = dropped + 1;
+  } else {
+    if (kept > 0) { out = out + ","; }
+    out = out + f.to_json();
+    kept = kept + 1;
+  }
+}
+println(out + "]");
+println("findings=" + str(kept) + " suppressed=" + str(dropped));
+
+end _lmcode_
+savedsl(p, "build/suppress-findings.dslb");
