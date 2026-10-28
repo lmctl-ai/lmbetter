@@ -8,9 +8,13 @@ namespace lmbetter {
 // std::regex has neither a portable execution budget nor a stack bound.
 // Charge iterator operations shared by all backtracking copies. This bounds
 // both failed searches and recursive matching, without changing regex syntax.
+// Budget 65536: libc++ (macOS) charges several times more iterator ops per
+// scan position than libstdc++ — a legit anchored-but-failing scan of a
+// ~150-char container text trips 4096 there. Catastrophic patterns trip any
+// finite budget quickly (exponential backtracking charges fast).
 class RegexLimit : public std::runtime_error {
 public:
-  RegexLimit() : std::runtime_error("regex work limit exceeded (4096)") {}
+  RegexLimit() : std::runtime_error("regex work limit exceeded (65536)") {}
 };
 class RegexIterator {
   std::string::const_iterator it_;
@@ -33,7 +37,7 @@ public:
   bool operator!=(const RegexIterator &other) const { return !(*this == other); }
 };
 inline bool bounded_regex_search(const std::string &text, const std::regex &regex) {
-  size_t remaining = 4096;
+  size_t remaining = 65536;
   return std::regex_search(RegexIterator(text.begin(), remaining), RegexIterator(text.end(), remaining), regex);
 }
 inline std::regex bounded_regex(const std::string &pattern) {

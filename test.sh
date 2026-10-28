@@ -743,7 +743,7 @@ import json, pathlib, subprocess, sys
 host, work = sys.argv[1:]; w = pathlib.Path(work)
 p = w / 'robust-pack.json'; source = w / 'robust-input.json'
 for regex, text, code, message in [
-    ('(a+)+$', 'a'*30+'!', 3, 'rule X: regex work limit exceeded (4096)\n'),
+    ('(a+)+$', 'a'*30+'!', 3, 'rule X: regex work limit exceeded (65536)\n'),
     ('a+$', 'a'*100000, 0, None),  # over the 16 KiB text cap: skipped with a stderr note
     ('a'*50000, 'a', 2, f'rules pack {p}: rule X: regex pattern limit exceeded (1024 bytes)\n'),
     ('a{30000}', 'a', 2, f'rules pack {p}: rule X: regex repetition limit exceeded (1024)\n'),
@@ -753,7 +753,7 @@ for regex, text, code, message in [
     source.write_text(json.dumps(text))
     r = subprocess.run([host,'lint',str(p),str(source)], capture_output=True, timeout=5)
     if message is None:
-        assert r.returncode == 0 and r.stdout == f'0 findings in {source}\n'.encode(), r
+        assert r.returncode == 0 and r.stdout == f'0 findings in {pathlib.Path(source).as_posix()}\n'.encode(), r
         assert b'regex not applied to a 100000-byte node text' in r.stderr, r
     else:
         assert (r.returncode,r.stdout,r.stderr) == (code,b'',message.encode()), r
@@ -765,7 +765,7 @@ import json, pathlib, subprocess, sys
 host, work = sys.argv[1:]; w = pathlib.Path(work); p = w / 'query-input.json'
 p.write_text(json.dumps('a'*30+'!'))
 for pattern, message in [
-    ('((string_content) @s (#match? @s "(a+)+$"))', 'regex work limit exceeded (4096)\n'),
+    ('((string_content) @s (#match? @s "(a+)+$"))', 'regex work limit exceeded (65536)\n'),
     ('((string_content) @s (#match? @s "["))', "query predicate error in pattern 0: #match? has an invalid regex '['\n"),
     ('(array '*300+'(number) @n'+')'*300, 'query error at byte offset 1792: nesting limit exceeded (256)\n'),
 ]:

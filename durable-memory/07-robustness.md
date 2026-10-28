@@ -135,7 +135,11 @@ hardened the same spot, the merge reconciled as follows:
 
 - **Regex defense is layered**: Fable's 16 KiB text cap first (over-cap node
   text is skipped with one stderr note, treated as no match), then this
-  branch's 4,096-operation budget within the cap. Consequence for one branch
+  branch's operation budget within the cap — raised from 4,096 to 65,536 in
+  the merge: libc++ (macOS) charges several times more iterator ops per scan
+  position than libstdc++, so a legitimate anchored scan of a ~150-char
+  container text (shipped rule LBJ009) tripped 4,096 on macOS CI. The
+  catastrophic short-text cases still trip any finite budget quickly. Consequence for one branch
   pin: `a+$` against 100,000 characters now hits the cap (exit 0 + note), not
   the budget (exit 3). Catastrophic short-text cases (`(a+)+$`) still hit the
   budget — the cap alone never stopped those.

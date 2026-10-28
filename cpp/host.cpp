@@ -477,7 +477,7 @@ NodeList node_query(const Node &root_node, const std::string &pattern, Grammar g
       for (const Predicate &p : predicates[match.pattern_index])
         if (!satisfies(p, match, root_node.owner)) { ok = false; break; }
     } catch (const RegexLimit &e) {
-      throw QueryError(e.what()); // plain "regex work limit exceeded (4096)"
+      throw QueryError(e.what()); // plain "regex work limit exceeded (65536)"
     }
     if (!ok) continue;
     for (uint16_t i = 0; i < match.capture_count; ++i)
