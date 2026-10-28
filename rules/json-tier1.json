@@ -40,6 +40,41 @@
       "query": "((pair key: (string (string_content) @k)) (#eq? @k \"password\"))",
       "message": "exact password key",
       "severity": "critical"
+    },
+    {
+      "id": "LBJ006",
+      "query": "(pair key: (string) @key)",
+      "text_matches": "^\"(aws_secret|aws_secret_access_key|private_key|api_key)\"$",
+      "message": "sensitive credential key {text}",
+      "severity": "critical"
+    },
+    {
+      "id": "LBJ007",
+      "query": "(pair value: (string) @value) (array (string) @value)",
+      "text_matches": "^\"http://",
+      "message": "insecure HTTP URL",
+      "severity": "major"
+    },
+    {
+      "id": "LBJ008",
+      "query": "(pair value: (string) @value)",
+      "text_matches": "^\"(\\*|latest)\"$",
+      "message": "unpinned version {text}",
+      "severity": "minor"
+    },
+    {
+      "id": "LBJ009",
+      "query": "[(array) (object)] @container",
+      "text_matches": "^(\\[\\s*\\]|\\{\\s*\\})$",
+      "message": "empty container placeholder",
+      "severity": "minor"
+    },
+    {
+      "id": "LBJ010",
+      "on": "string",
+      "text_matches": "^\".{201,}\"$",
+      "message": "string exceeds 200 source bytes",
+      "severity": "minor"
     }
   ]
 }
