@@ -452,7 +452,7 @@ for f in c-function-metrics c-switch-style json-duplicate-values json-duplicate-
   "$LMSCRIPT" "$WORK/$f-clean.lms" "$WORK/$f-clean.dslb" >/dev/null 2>&1 || fail "$f clean compile"
   out="$(run_rule "$WORK/$f-clean.lms" "$WORK/$f-clean.dslb")"
   grep -qxF '[]' <<<"$out" || fail "$f clean fixture findings: $out"
-  grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
+  grep -qx '0 findings\( in .*\)\?' <<<"$out" || fail "$f clean fixture count: $out"
 done
 ok "rules/lmcode: ten rule files fire on violations fixtures, silent on clean"
 

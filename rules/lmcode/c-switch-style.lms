@@ -1,12 +1,14 @@
 # Chapter: Rules (lmcode) - C switch/branch style
 # Shows: @switch_statement/@if_statement rules, kind checks over children, text prefix check for default
+# Note: the host's single pre-order walk interleaves LBC103/LBC104 by position; the pre-v6 body script
+#       emitted every switch finding first (same findings, different order on inputs with several of each).
 # Run: lmscript rules/lmcode/c-switch-style.lms   (then: lmok check --lang c build/rules-lmcode/c-switch-style.dslb tests/fixtures/c-logic-violations.c)
 # check: c tests/fixtures/c-logic-violations.c
 # Needs: nothing (offline); reads tests/fixtures/c-logic-violations.c
 # exit: 0
 # expect:
 #|[{"row":72,"col":2,"end_row":75,"end_col":3,"rule":"LBC103","severity":"minor","message":"switch without default"},{"row":80,"col":13,"end_row":80,"end_col":17,"rule":"LBC104","severity":"minor","message":"if without braces"}]
-#|2 findings
+#|2 findings in tests/fixtures/c-logic-violations.c
 p = _lmcode_ cli="lmok";
 
 # default: is a case_statement WITHOUT a value; in lmcode the robust check is

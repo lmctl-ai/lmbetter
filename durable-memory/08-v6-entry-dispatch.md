@@ -22,9 +22,11 @@ callable identity only and is not inserted as a default finding id. Two-argument
 reports therefore retain absent `rule`/`severity` fields. Existing report JSON
 ordering and SARIF examples remain script-owned.
 
-Each input emits the existing report JSON array, `N findings`, and the
-standard success record. Inputs are processed in argument order. An entry
-failure is a run-phase error. `--dsl` continues to run only the body, preserving
+Each input emits the report JSON array, `N findings in FILE` (FILE as given on the command line,
+the same line `lint` prints) and the standard success record; body findings, when any, are a
+group of their own (`N findings in body`) before the first file. Inputs are processed in argument
+order. An entry failure prints the partial group collected so far, then the located run-phase
+error record, and stops the run with exit 3 (WP14 F2/F5/F6). `--dsl` continues to run only the body, preserving
 existing scripts and rule files that perform their own traversal.
 
 The host schema already declares `Rule` and `Node`; changing those exact schema

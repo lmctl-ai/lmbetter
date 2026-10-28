@@ -68,7 +68,17 @@ Three delivery forms, by how much logic a rule needs:
   line identifies the grammar and fixture used by the test harness.
   `c-symbol-rules.lms` retains a translation-unit entry for set algebra plus its
   function-definition entry. `c-cross-file.lms` remains body-oriented because
-  one entry cannot own facts from two trees.
+  one entry cannot own facts from two trees. Finding sets are unchanged from the
+  pre-v6 body loops; the order follows the single pre-order walk, which changed
+  two files: `c-symbol-rules.lms` (set-level LBC107/LBC108 now precede LBC109)
+  and `c-switch-style.lms` on real inputs (the old script ran all switch
+  findings, then all if findings; now they interleave by position; its fixture
+  has one of each, so the pinned expectation did not move).
+  A tree-sitter MISSING placeholder dispatches as its expected kind with empty
+  text and zero width; `n.is_missing()` tells it apart. In the Python grammar
+  `lambda`, `await`, `yield` and `type` are both a named node and an anonymous
+  token, so a rule on those kinds fires twice per construct unless it checks
+  `n.is_named()` (the other three grammars have no such spelling).
 
 - **Teaching examples** (`examples/*.lms`) — the same techniques in
   narrative order; read these first.

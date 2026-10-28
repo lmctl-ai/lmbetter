@@ -6,7 +6,7 @@
 # exit: 0
 # expect:
 #|[{"row":5,"col":2,"end_row":5,"end_col":7,"rule":"LBC106","severity":"major","message":"scanf-family call without field width in \"%s\""}]
-#|1 findings
+#|1 findings in tests/fixtures/c-scanf-violations.c
 p = _lmcode_ cli="lmok";
 
 # Keep the original two-capture predicate query inside the current call.

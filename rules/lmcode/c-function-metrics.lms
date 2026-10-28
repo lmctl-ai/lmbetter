@@ -6,7 +6,7 @@
 # exit: 0
 # expect:
 #|[{"row":0,"col":0,"end_row":65,"end_col":1,"rule":"LBC101","severity":"major","message":"function too long (65 rows)"},{"row":67,"col":0,"end_row":69,"end_col":1,"rule":"LBC102","severity":"minor","message":"too many parameters (8)"}]
-#|2 findings
+#|2 findings in tests/fixtures/c-logic-violations.c
 p = _lmcode_ cli="lmok";
 
 # Tier-1 rules that need lmcode LOGIC (arithmetic, counting) — not expressible

@@ -161,8 +161,12 @@ with structured access to parsed trees. `check RULES.dslb FILE...` is the v6
 entry path: it loads one DSLB file, indexes entries by annotation, runs its
 body once, then parses and walks each explicit input file once. It dispatches
 matching entries in source order, including anonymous tree-sitter kinds, and
-emits the existing `ts.report_json()` findings plus `N findings` and
-the standard success record for each input. Files are explicit; directories
+emits one output group per input: the `ts.report_json()` findings array, `N findings in FILE`
+(the same line `lint` prints; FILE is the path as given) and the standard success record.
+Findings reported by the body form their own group, `N findings in body`, printed before the
+first file only when the body reported something. If an entry fails mid-walk, the group collected
+so far is printed, then the located error record, and the run stops with exit 3 (later inputs are
+not processed). Files are explicit; directories
 and stdin are not accepted. A fresh host arena and findings sink are used per
 input. Rule and severity metadata come from `ts.report` payloads; entry names
 are not silently used as finding ids. Every annotation is checked against the

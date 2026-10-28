@@ -6,7 +6,7 @@
 # exit: 0
 # expect:
 #|[{"row":0,"col":36,"end_row":0,"end_col":44,"rule":"LBJ103","severity":"major","message":"value nested 7 levels deep (max 6)"}]
-#|1 findings
+#|1 findings in tests/fixtures/json-nesting-violations.json
 p = _lmcode_ cli="lmok";
 
 # Depth = number of object/array containers on the ancestor chain (self

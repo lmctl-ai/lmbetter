@@ -6,7 +6,7 @@
 # exit: 0
 # expect:
 #|[{"row":0,"col":0,"end_row":62,"end_col":16,"rule":"LBP101","severity":"major","message":"function too long (62 rows)"}]
-#|1 findings
+#|1 findings in tests/fixtures/python-logic-violations.py
 p = _lmcode_ cli="lmok";
 
 # Tier-1 rule that needs lmcode LOGIC (row arithmetic) — not expressible as

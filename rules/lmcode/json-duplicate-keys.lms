@@ -6,7 +6,7 @@
 # exit: 0
 # expect:
 #|[{"row":3,"col":2,"end_row":3,"end_col":8,"rule":"LBJ101","severity":"major","message":"duplicate key \"a\""},{"row":6,"col":4,"end_row":6,"end_col":10,"rule":"LBJ101","severity":"major","message":"duplicate key \"x\""}]
-#|2 findings
+#|2 findings in tests/fixtures/json-dupkeys-violations.json
 p = _lmcode_ cli="lmok";
 
 # Duplicate keys are sibling relationships — a query pattern cannot express

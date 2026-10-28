@@ -6,7 +6,7 @@
 # exit: 0
 # expect:
 #|[{"row":5,"col":10,"end_row":7,"end_col":11,"rule":"LBC105","severity":"major","message":"control structure nested 5 deep (max 4)"}]
-#|1 findings
+#|1 findings in tests/fixtures/c-nesting-violations.c
 p = _lmcode_ cli="lmok";
 
 # Nesting depth needs UPWARD navigation — impossible in tier 1 without

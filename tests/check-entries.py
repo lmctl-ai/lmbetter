@@ -131,6 +131,33 @@ class EntryChecks(unittest.TestCase):
         binary = self.compile('@ERROR fn e(n: Node) -> void implements Rule { ts.report(n, "error", "E", "major"); }\n@document fn d(n: Node) -> void implements Rule { ts.report(n, "doc", "D", "info"); }')
         findings = self.arrays(self.run_host(binary))[0]
         self.assertEqual(sorted(f['rule'] for f in findings), ['D', 'E'])
+    def test_each_group_names_its_file(self):
+        # WP14 F6: consumers must not have to correlate groups with the argument list by position.
+        other = self.work / 'other.json'; other.write_text('{"c":3}')
+        binary = self.compile('@pair fn p(n: Node) -> void implements Rule { ts.report(n, "pair", "P", "minor"); }')
+        r = self.run_host(binary, self.source, other)
+        self.arrays(r)
+        counts = [line for line in r.stdout.splitlines() if ' findings in ' in line]
+        self.assertEqual(counts, ['2 findings in ' + str(self.source), '1 findings in ' + str(other)])
+    def test_body_findings_are_their_own_group(self):
+        # WP14 F2: findings reported by the body were silently discarded by the per-file reset.
+        binary = self.compile("""ts.report(ts.parse("{}").root(), "from the body", "BODY", "major");
+@pair fn p(n: Node) -> void implements Rule { ts.report(n, "pair", "P", "minor"); }""")
+        r = self.run_host(binary)
+        arrays = self.arrays(r)
+        self.assertEqual([[f['rule'] for f in a] for a in arrays], [['BODY'], ['P', 'P']])
+        self.assertEqual([line for line in r.stdout.splitlines() if ' findings in ' in line], ['1 findings in body', '2 findings in ' + str(self.source)])
+    def test_entry_failure_prints_the_partial_group_first(self):
+        # WP14 F5: the findings collected before a failing entry are printed, then the located error, exit 3.
+        binary = self.compile("""@pair fn first(n: Node) -> void implements Rule { ts.report(n, "before", "F1", "minor"); }
+@number fn boom(n: Node) -> void implements Rule { if (n.text() == "2") { n.child(999); } }""")
+        r = self.run_host(binary, self.source, self.source)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        lines = r.stdout.splitlines()
+        self.assertEqual([f['rule'] for f in json.loads(lines[0])], ['F1', 'F1'])
+        self.assertEqual(lines[1], '2 findings in ' + str(self.source))
+        error = json.loads(lines[2]); self.assertEqual(error['phase'], 'run'); self.assertIn('out of range', error['message'])
+        self.assertEqual(len(lines), 3, 'the second input is not processed after an error')
     def test_missing_input_and_bad_usage(self):
         binary=self.compile('@pair fn first(n: Node) -> void implements Rule {}')
         r=self.run_host(binary,self.work/'missing.json')

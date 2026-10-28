@@ -6,7 +6,7 @@
 # exit: 0
 # expect:
 #|[{"row":0,"col":0,"end_row":52,"end_col":1,"rule":"LBJ102","severity":"minor","message":"object too large (51 entries)"}]
-#|1 findings
+#|1 findings in tests/fixtures/json-size-violations.json
 p = _lmcode_ cli="lmok";
 
 @object

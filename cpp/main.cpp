@@ -597,10 +597,20 @@ static int run_cli(int argc, char **argv) {
     }
     dslvm::Context context;
     context.set("ts", &host);
+    // One output group per findings sink: the JSON array, then `N findings in WHERE` (the same line `lint`
+    // prints, WHERE = the input path as given, or `body`), then the success record. Body findings are their own
+    // group, printed only when the body reported something (WP14 F2). When an entry fails mid-walk the group
+    // collected so far is printed before the located error record and the run stops with exit 3 (WP14 F5/F6).
+    const auto print_group = [&](const std::string &where) {
+      std::cout << findings_json(host.findings) << "\n" << host.findings.size() << " findings in " << where << "\n";
+    };
+    const char *where = "body";
     try {
       program.run(context, reg); // configuration/effects once, not once per node or file
+      if (!host.findings.empty()) print_group("body");
       for (; argi < argc; ++argi) {
         host.reset(); // transient body/file objects and findings do not escape an input
+        where = argv[argi];
         const lmok::Tree tree = lmok::parse(grammar, read_file(argv[argi]));
         lmok::walk_nodes(tree, [&](const lmok::Node &node, const std::vector<lmok::Node> &ancestors) {
           const auto found = by_kind.find(lmok::node_kind(node));
@@ -611,12 +621,17 @@ static int run_cli(int argc, char **argv) {
           const Value handle = host.hold_node(node); // per-file arena; Tree stays alive
           for (size_t entry : found->second) program.call(entry, context, reg, {handle});
         });
-        std::cout << findings_json(host.findings) << "\n" << host.findings.size() << " findings\n";
+        print_group(where);
         dslvm::report_ok();
         if (!std::cout) return 4;
       }
-    } catch (const dslvm::Error &error) { return dslvm::report_error("run", error); }
-      catch (const std::exception &error) { return dslvm::report_error("run", dslvm::Error("RUN_HOST", error.what())); }
+    } catch (const dslvm::Error &error) {
+      if (where != std::string("body") || !host.findings.empty()) print_group(where);
+      return dslvm::report_error("run", error);
+    } catch (const std::exception &error) {
+      if (where != std::string("body") || !host.findings.empty()) print_group(where);
+      return dslvm::report_error("run", dslvm::Error("RUN_HOST", error.what()));
+    }
     return 0;
   }
   if (argc >= 3 && std::string(argv[1]) == "--dsl") {
