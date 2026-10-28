@@ -1,9 +1,9 @@
-# lmbetter
+# lmok
 
 tree-sitter's incremental parsing engine as a single statically-linked,
 scriptable CLI.
 
-lmbetter wraps [tree-sitter](https://tree-sitter.github.io) 0.27.1 together
+lmok wraps [tree-sitter](https://tree-sitter.github.io) 0.27.1 together
 with the [tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json),
 [tree-sitter-c](https://github.com/tree-sitter/tree-sitter-c),
 [tree-sitter-python](https://github.com/tree-sitter/tree-sitter-python) and
@@ -35,7 +35,7 @@ install CMake and Ninja as well as the command-line compiler tools.
 
 ```sh
 git clone https://github.com/lmctl-ai/lmok.git
-cd lmbetter
+cd lmok
 npm install --prefix /tmp/lmok-tools @lmctl-ai/lmctl@0.2.444
 export PATH="/tmp/lmok-tools/node_modules/.bin:$PATH"
 lmscript --version   # lmscript 0.2.444
@@ -48,17 +48,17 @@ export PATH="$PWD/build:$PATH"
 
 Run all repository examples from this directory, in the same shell. The
 absolute PATH entry lets lmscript find the locally built host's schema and
-makes the `lmbetter` commands below work. If npm's commands are not found,
+makes the `lmok` commands below work. If npm's commands are not found,
 add its global executable directory to PATH too.
 
-Produces `build/lmbetter`: one statically linked executable (`ldd` reports
+Produces `build/lmok`: one statically linked executable (`ldd` reports
 "not a dynamic executable" on Linux; macOS links only system libraries).
 The test suite rebuilds the host, checks dependency pins, and runs examples
 and rule fixtures; on Linux this revision ends with `PASS: 77 checks`.
 
 ```sh
 lmscript examples/parse-string.lms
-build/lmbetter --dsl build/parse-string.dslb
+build/lmok --dsl build/parse-string.dslb
 ```
 
 The first command saves bytecode; the second prints the JSON text, its tree,
@@ -71,26 +71,28 @@ To use a published binary without building C++, install Node/npm and lmctl
 as above, then:
 
 ```sh
-lmscript install github:lmctl-ai/lmbetter@latest
+lmscript install github:lmctl-ai/lmok@latest
 ```
 
-This prints the resolved release tag, executable path, and SHA-256. It
-resolves v0.5.0 at the time of writing; releases contain Linux x64/ARM64,
-macOS x64/ARM64, and Windows x64 executables. It caches the host rather than
-adding a `lmbetter` command to your shell PATH. Add the directory printed in
-`path:` to PATH to run the CLI by name. The rolling `dist` branch also holds
-platform binaries; `@latest` resolves a GitHub release, not that branch.
-Use `@v0.5.0` when you need a fixed release instead of a moving `@latest`.
+The install command resolves a GitHub release, checks its host version, and
+prints the executable path and checksum. It does not add `lmok` to your PATH.
+The repository rename alone does not rename existing release assets: maintainers
+must publish a matching release containing `lmok-linux-x64`, `lmok-linux-arm64`,
+`lmok-macos-x64`, `lmok-macos-arm64` and `lmok-windows-x64.exe` plus checksums
+before this renamed `@latest` path works. No release is created by this change.
+The rolling `dist` branch is separate; `@latest` selects a release, not `dist`.
+Use an explicit `@TAG` for a reproducible dependency once that release exists.
+Local builds on PATH work now without downloading a host.
 
 From the repository root (or an empty directory for this inline-data example):
 
 ```sh
 mkdir -p build
-lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmbetter/main/examples/parse-string.lms
-lmbetter --dsl build/parse-string.dslb
+lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmok/main/examples/parse-string.lms
+lmok --dsl build/parse-string.dslb
 ```
 
-With a local build, use `build/lmbetter` for the second command. The local
+With a local build, use `build/lmok` for the second command. The local
 form `lmctl autorun examples/parse-string.lms` works too. `autorun` runs the
 outer script, whose `savedsl` call writes `build/parse-string.dslb`; it does
 not execute that bytecode or print the tree. The `install=` declaration lets
@@ -105,15 +107,15 @@ must exist before compilation.
 ## CLI
 
 ```
-lmbetter --version
-lmbetter --notices
-lmbetter --dsl-schema [--json]
-lmbetter --dsl-signatures
-lmbetter parse [--lang json|c|python|bash] FILE          # '-' reads stdin
-lmbetter query [--lang json|c|python|bash] PATTERN FILE  # '-' reads stdin
-lmbetter lint RULES.json FILE...
-lmbetter check [--lang json|c|python|bash] RULES.dslb FILE...
-lmbetter --dsl FILE [FILE ...]
+lmok --version
+lmok --notices
+lmok --dsl-schema [--json]
+lmok --dsl-signatures
+lmok parse [--lang json|c|python|bash] FILE          # '-' reads stdin
+lmok query [--lang json|c|python|bash] PATTERN FILE  # '-' reads stdin
+lmok lint RULES.json FILE...
+lmok check [--lang json|c|python|bash] RULES.dslb FILE...
+lmok --dsl FILE [FILE ...]
 ```
 
 `parse` prints the concrete syntax tree as a single-line s-expression, like
@@ -131,14 +133,14 @@ invalid query pattern names the rule id, byte offset and reason), 4 stdout
 failure.
 
 ```
-$ echo '{"a": [1, null]}' | lmbetter parse -
+$ echo '{"a": [1, null]}' | lmok parse -
 (document (object (pair key: (string (string_content)) value: (array (number) (null)))))
-$ lmbetter query '(pair key: (string (string_content) @key))' examples/data/sample.json
+$ lmok query '(pair key: (string (string_content) @key))' examples/data/sample.json
 string_content 1:3-1:7
 string_content 2:3-2:10
 string_content 3:3-3:5
 string_content 4:3-4:12
-$ lmbetter lint examples/rules/c-security.json examples/data/sample.c
+$ lmok lint examples/rules/c-security.json examples/data/sample.c
 {"row":4,"col":2,"end_row":4,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"}
 1 findings in examples/data/sample.c
 ```
@@ -158,7 +160,7 @@ format, so old bytecode must be recompiled. Install the private compiler with
 
 ## Rule packs
 
-`lmbetter lint` reads a pack — conditions as data. Format:
+`lmok lint` reads a pack — conditions as data. Format:
 
 ```json
 {
@@ -240,18 +242,18 @@ in v0.3.5/v0.4.0; tier 3 (real semantics) is deferred.
 The framework, inventory, and extension plan: [rule tiers](docs/rule-tiers.md).
 
 ```sh
-lmbetter lint rules/c-tier1.json examples/data/sample.c
+lmok lint rules/c-tier1.json examples/data/sample.c
 ```
 
 ## Scripting
 
 Save this as `build/show.lms` after the setup above, run
-`lmscript build/show.lms`, then `build/lmbetter --dsl build/show.dslb`.
+`lmscript build/show.lms`, then `build/lmok --dsl build/show.dslb`.
 The script saves bytecode; `--dsl` executes it.
 
 ```lmscript
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
-let tree = ts.parse("{\"name\": \"lmbetter\", \"tags\": [\"tree-sitter\", \"json\"]}");
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
+let tree = ts.parse("{\"name\": \"lmok\", \"tags\": [\"tree-sitter\", \"json\"]}");
 println(tree.sexp());
 println("has_error -> " + str(tree.has_error()));
 println("nodes -> " + str(tree.node_count()));
@@ -315,7 +317,7 @@ runnable scripts.
 
 - `cpp/` — the CLI host: DSL VM integration plus the tree-sitter wrapper
 - `docs/` — design documents (e.g. `rule-snippets.md`: analysis rules as lmscript snippets)
-- `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.444 supplies the built-in standard library implicitly)
+- `schema/lmok.host.json` — the host-only DSL schema (copied to `schema/lmok.dsl.json` and embedded into the binary; `lmscript` >= 0.2.444 supplies the built-in standard library implicitly)
 - `examples/` — lmscript examples (plus `examples/rules/` demo packs)
 - `rules/` — the canonical rule library: tier-1 packs plus `rules/lmcode/` logic rules (see [rules/README.md](rules/README.md), [docs/rule-tiers.md](docs/rule-tiers.md))
 - `tests/fixtures/` — lint fixtures (violations fire every rule; clean guards false positives)
@@ -324,7 +326,7 @@ runnable scripts.
 
 ## License and company
 
-lmbetter-authored code is MIT licensed (see `LICENSE`). It builds against
+lmok-authored code is MIT licensed (see `LICENSE`). It builds against
 tree-sitter, tree-sitter-json, and tree-sitter-c, all MIT licensed (`THIRD_PARTY_NOTICES.md`;
-also embedded in the binary, see `lmbetter --notices`). Made by
+also embedded in the binary, see `lmok --notices`). Made by
 **Lattice Systems LLC**.

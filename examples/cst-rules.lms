@@ -1,13 +1,13 @@
 # Chapter: Rules - CST rules as annotated lmcode functions
 # Shows: @NODE-KIND annotations, fn ... implements Rule, Tree.root, Node.kind/text/start_row/start_col/child_count/child
-# Run: lmscript examples/cst-rules.lms      (then: build/lmbetter --dsl build/cst-rules.dslb)
-# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Run: lmscript examples/cst-rules.lms      (then: build/lmok --dsl build/cst-rules.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
 # Data: nothing else (offline).
 # exit: 0
 # expect:
 #|finding: password key "password" at row 4 col 4
 #|finding: placeholder string "TODO" at row 6 col 9
-p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _lmcode_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 
 # One rule = one annotated top-level fn implementing the schema's SAM interface
 # Rule (params: n: Node, returns: void). The annotation names the tree-sitter

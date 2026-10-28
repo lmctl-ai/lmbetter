@@ -3,7 +3,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE"
 BUILD_DIR="${BUILD_DIR:-build}"
-HOST="$BUILD_DIR/lmbetter"
+HOST="$BUILD_DIR/lmok"
 PATH="$HERE/$BUILD_DIR:$PATH"
 export PATH
 UNAME_S="$(uname -s)"
@@ -33,7 +33,7 @@ cmake --build "$BUILD_DIR" -j2 >"$WORK/build.log" 2>&1 ||
   { grep -n -B 3 -A 4 "error:" "$WORK/build.log" >&2 || true; tail -30 "$WORK/build.log" >&2; fail "cmake build ($BUILD_DIR)"; }
 ok "host build ($BUILD_DIR)"
 
-want_version="lmbetter $(sed -n 's/^project(lmbetter VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+want_version="lmok $(sed -n 's/^project(lmok VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
 [ "$("$HOST" --version)" = "$want_version" ] || fail "--version prints $want_version"
 set +e; "$HOST" --version extra >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 2 ] || fail "--version with an extra argument exits 2 (got $code)"
@@ -44,13 +44,13 @@ cmp THIRD_PARTY_NOTICES.md "$WORK/notices.txt" || fail "--notices differs from T
 ok "--notices prints byte-identical THIRD_PARTY_NOTICES.md"
 
 "$HOST" --dsl-schema --json >"$WORK/embedded-schema.json" || fail "embedded schema print"
-cmp schema/lmbetter.dsl.json "$WORK/embedded-schema.json" || fail "embedded schema differs from source bytes"
+cmp schema/lmok.dsl.json "$WORK/embedded-schema.json" || fail "embedded schema differs from source bytes"
 ok "--dsl-schema --json prints byte-identical embedded schema bytes"
 "$HOST" --dsl-schema >"$WORK/schema-summary.txt" || fail "schema summary print"
 python3 - "$WORK/schema-summary.txt" <<'PY'
 import re,subprocess,sys
 summary=open(sys.argv[1]).read()
-sigs=subprocess.run(['build/lmbetter','--dsl-signatures'],capture_output=True,text=True).stdout.splitlines()
+sigs=subprocess.run(['build/lmok','--dsl-signatures'],capture_output=True,text=True).stdout.splitlines()
 missing=[]
 for line in sigs:
   if line.startswith('method '): needle=line[7:]
@@ -62,10 +62,10 @@ assert not missing, missing
 print('all', len(sigs), 'registry members listed in --dsl-schema summary')
 PY
 ok "--dsl-schema summary lists every registry member"
-diff -u <("$LMSCRIPT" --dsl-signatures schema/lmbetter.dsl.json) <("$HOST" --dsl-signatures) || fail "host/compiler signatures differ"
-cmp schema/lmbetter.host.json schema/lmbetter.dsl.json || fail "generated schema differs from host-only input"
-python3 scripts/merge-std.py --host-only schema/lmbetter.dsl.json "$WORK/host-only-schema.json"
-cmp schema/lmbetter.dsl.json "$WORK/host-only-schema.json" || fail "embedded schema still declares standard members"
+diff -u <("$LMSCRIPT" --dsl-signatures schema/lmok.dsl.json) <("$HOST" --dsl-signatures) || fail "host/compiler signatures differ"
+cmp schema/lmok.host.json schema/lmok.dsl.json || fail "generated schema differs from host-only input"
+python3 scripts/merge-std.py --host-only schema/lmok.dsl.json "$WORK/host-only-schema.json"
+cmp schema/lmok.dsl.json "$WORK/host-only-schema.json" || fail "embedded schema still declares standard members"
 "$HOST" --dsl-signatures >"$WORK/registry-signatures.txt"
 "$LMSCRIPT" --dsl-signatures cpp/std/lmcode-std.schema.json >"$WORK/standard-signatures.txt"
 python3 - "$WORK" <<'PYHOST'
@@ -77,12 +77,12 @@ standard=set((work/'standard-signatures.txt').read_text().splitlines())
 assert len(standard)==181, len(standard)  # POC branch: sdk.lock pins lmcode-cpp d70a12c, matching the POC compiler's implicit std
 (work/'host-signatures.txt').write_bytes(''.join(line+'\n' for line in sorted(registry-standard)).encode('utf-8'))
 PYHOST
-diff -u <("$LMSCRIPT" --dsl-signatures schema/lmbetter.dsl.json --without-std) "$WORK/host-signatures.txt" || fail "host-only registry/compiler signatures differ"
+diff -u <("$LMSCRIPT" --dsl-signatures schema/lmok.dsl.json --without-std) "$WORK/host-signatures.txt" || fail "host-only registry/compiler signatures differ"
 ok "typed registry signatures match compiler schema signatures (full and --without-std)"
 
 # --- parse ---
 cat > "$WORK/sample.json" <<'EOF'
-{"tool": "lmbetter", "ok": true, "items": [1, null]}
+{"tool": "lmok", "ok": true, "items": [1, null]}
 EOF
 out="$("$HOST" parse "$WORK/sample.json")"
 [ "$out" = '(document (object (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (true)) (pair key: (string (string_content)) value: (array (number) (null)))))' ] \
@@ -296,8 +296,8 @@ ok "lint: json-tier1 pack, all 11 rules fire on violations, clean fixture silent
 
 # --- DSL bytecode ---
 cat > "$WORK/smoke.lms" <<EOF
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
-let tree = ts.parse("{\"name\": \"lmbetter\", \"tags\": [\"tree-sitter\", \"json\"]}");
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
+let tree = ts.parse("{\"name\": \"lmok\", \"tags\": [\"tree-sitter\", \"json\"]}");
 println(tree.sexp());
 println("has_error -> " + str(tree.has_error()));
 println("nodes -> " + str(tree.node_count()));
@@ -314,7 +314,7 @@ grep -q '^nodes -> 34$' <<<"$out" || fail "smoke node_count line: $out"
 ok "bytecode: ts.parse/sexp/has_error/node_count through the DSL"
 
 cat > "$WORK/error-tree.lms" <<EOF
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let tree = ts.parse("{\"a\": 1,,}");
 if (!tree.has_error()) { println("bad"); }
 println("error flagged");
@@ -327,7 +327,7 @@ grep -q '^error flagged$' <<<"$out" || fail "malformed JSON must set has_error: 
 ok "bytecode: malformed JSON flags Tree.has_error"
 
 cat > "$WORK/wrong-arg.lms" <<EOF
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 ts.parse(42);
 end _dsl_
 savedsl(p, "$WORK/wrong-arg.dslb");
@@ -337,7 +337,7 @@ set +e; "$LMSCRIPT" "$WORK/wrong-arg.lms" "$WORK/wrong-arg.dslb" >"$WORK/type-er
 ok "type mismatch refused at compile (exit 2)"
 
 cat > "$WORK/oob.lms" <<EOF
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let names = str_list().add("a");
 names.at(5);
 end _dsl_
@@ -349,7 +349,7 @@ set +e; out="$("$HOST" --dsl "$WORK/oob.dslb" 2>&1)"; code=$?; set -e
 ok "StrList.at bounds refused at runtime (exit 3)"
 
 cat > "$WORK/root-parent.lms" <<EOF
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let r = ts.parse("{}").root();
 if (r.has_parent()) { println("bad"); }
 r.parent();
@@ -362,7 +362,7 @@ set +e; out="$("$HOST" --dsl "$WORK/root-parent.dslb" 2>&1)"; code=$?; set -e
 ok "Node.parent: has_parent() false at root, parent() on root refused (exit 3)"
 
 set +e; out="$("$HOST" 2>&1)"; code=$?; set -e
-[ "$code" = 2 ] && [[ "$out" == *'usage: lmbetter'* ]] || fail "bad args refusal (exit $code): $out"
+[ "$code" = 2 ] && [[ "$out" == *'usage: lmok'* ]] || fail "bad args refusal (exit $code): $out"
 ok "bad arguments refused (exit 2)"
 set +e; out="$("$HOST" --dsl "$WORK/no-such.dslb" 2>&1)"; code=$?; set -e
 [ "$code" = 3 ] && [[ "$out" == *'"phase": "load"'* ]] || fail "missing bytecode refusal (exit $code): $out"
@@ -390,7 +390,7 @@ import json
 doc = json.load(open("build/sarif-results.sarif"))
 assert doc["version"] == "2.1.0", doc["version"]
 run = doc["runs"][0]
-assert run["tool"]["driver"]["name"] == "lmbetter"
+assert run["tool"]["driver"]["name"] == "lmok"
 assert [r["id"] for r in run["tool"]["driver"]["rules"]] == ["LBC001", "LBC002"]
 results = run["results"]
 assert len(results) == 4, len(results)
@@ -409,7 +409,7 @@ ok "SARIF artifact is valid JSON with the expected structure"
 while IFS= read -r line; do
   grep -qxF "${line:2}" "$WORK/lint-repo.out" || fail "lint-repo output missing: ${line:2} (got $(cat "$WORK/lint-repo.out"))"
 done < <(grep '^#|' examples/lint-repo.lms)
-ok "lint-repo: lmscript drives lmbetter lint and counts findings"
+ok "lint-repo: lmscript drives lmok lint and counts findings"
 
 # Entry rules declare their language/input in a non-executable test header.
 # Aggregate scripts without that header retain the body-only --dsl path.
@@ -446,7 +446,7 @@ ok "rules/lmcode: ten rule files fire on violations fixtures, silent on clean"
 
 # --- incremental reparse contract (E5) ---
 cat > "$WORK/reparse-contract.lms" <<EOF2
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let old = ts.parse("{}");
 old.edit(1, 1, 2);
 let new = ts.reparse(old, "{ }");
@@ -462,7 +462,7 @@ grep -q '^old root kind document$' <<<"$out" || fail "old tree alive after repar
 ok "reparse: old tree stays alive (changed_ranges + root kind readable)"
 
 cat > "$WORK/bad-edit.lms" <<EOF2
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let t = ts.parse("{}");
 t.edit(5, 1, 5);
 end _dsl_
@@ -488,7 +488,7 @@ ok "regex over node text is bounded: 100 KB comment lints and queries without cr
 
 # M1: reparse without an edit must not hand back the old tree for new text.
 cat > "$WORK/reparse-noedit.lms" <<EOF2
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let same = ts.parse("{}");
 println("same " + ts.reparse(same, "{}").sexp());
 let old = ts.parse("{}");
@@ -502,7 +502,7 @@ set +e; out="$("$HOST" --dsl "$WORK/reparse-noedit.dslb" 2>&1)"; code=$?; set -e
 [ "$code" = 3 ] && [[ "$out" == *'no pending edit for changed text'* ]] && grep -q '^same (document (object))$' <<<"$out" \
   || fail "reparse without edit (exit $code): $out"
 cat > "$WORK/reparse-badlen.lms" <<EOF2
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let t = ts.parse("{\"a\": 1}");
 t.edit(1, 1, 50);
 let n = ts.reparse(t, "{\"a\": 1}");
@@ -523,7 +523,7 @@ with open(sys.argv[1], 'w') as f:
         f.write(f'int f{i}(int a, int b) {{ return a + b * {i}; }}\n')
 PY
 cat > "$WORK/bigwalk.lms" <<EOF2
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let t = ts.parse_c(file_read("$WORK/many.c"));
 let ns = t.nodes();
 let c = 0;
@@ -540,7 +540,7 @@ ok "NodeList iteration over a 180k-node C tree runs in one program (no per-visit
 # M3: arenas reset per --dsl file: 3 runs x 400k root() handles would exceed
 # the 1<<20 Node cap if the arena carried over; findings reset too.
 cat > "$WORK/handles.lms" <<EOF2
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let t = ts.parse("{}");
 let r = t.root();
 for (i in range(0, 400000)) { r = t.root(); }
@@ -643,7 +643,7 @@ elif [[ "$UNAME_S" == MINGW* || "$UNAME_S" == MSYS* || "$UNAME_S" == CYGWIN* ]];
   ok "host runs on Windows ($(stat_size "$HOST") bytes, static C++ runtime)"
 else
   LDD_OUT="$(ldd "$HOST" 2>&1 || true)"
-  if grep -qx 'LMBETTER_FULL_STATIC:BOOL=OFF' "$BUILD_DIR/CMakeCache.txt"; then
+  if grep -qx 'LMOK_FULL_STATIC:BOOL=OFF' "$BUILD_DIR/CMakeCache.txt"; then
     [[ "$LDD_OUT" != *'not a dynamic executable'* ]] || fail "dynamic build unexpectedly static"
     ok "host uses requested dynamic linkage (sanitizer-compatible)"
   else
@@ -827,7 +827,7 @@ for index in -1 4294967296 9223372036854775807; do
 expression="$index"
 if [ "$index" = 9223372036854775807 ]; then expression="9007199254740991 * 1024 + 1023"; fi
 cat > "$WORK/child-index.lms" <<EOF_CHILD
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let r = ts.parse("{}").root();
 r.child($expression);
 end _dsl_

@@ -1,13 +1,13 @@
 # Chapter: Rules (lmcode) - deep value nesting in JSON (tier 2: Node.parent)
 # Shows: Node.has_parent/parent chain walk, container-kind predicate
-# Run: lmscript rules/lmcode/json-nesting-depth.lms   (then: lmbetter check --lang json build/rules-lmcode/json-nesting-depth.dslb tests/fixtures/json-nesting-violations.json)
+# Run: lmscript rules/lmcode/json-nesting-depth.lms   (then: lmok check --lang json build/rules-lmcode/json-nesting-depth.dslb tests/fixtures/json-nesting-violations.json)
 # check: json tests/fixtures/json-nesting-violations.json
 # Needs: nothing (offline); reads tests/fixtures/json-nesting-violations.json
 # exit: 0
 # expect:
 #|[{"row":0,"col":36,"end_row":0,"end_col":44,"rule":"LBJ103","severity":"major","message":"value nested 7 levels deep (max 6)"}]
 #|1 findings
-p = _lmcode_ cli="lmbetter";
+p = _lmcode_ cli="lmok";
 
 # Depth = number of object/array containers on the ancestor chain (self
 # included); pairs and scalars don't count. Report the deepest container only:

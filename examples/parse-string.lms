@@ -1,17 +1,17 @@
 # Chapter: Basics - parse an inline JSON string
 # Shows: ts.parse, Tree.sexp/has_error/node_count, string concat
-# Run: lmscript examples/parse-string.lms      (then: build/lmbetter --dsl build/parse-string.dslb)
-# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Run: lmscript examples/parse-string.lms      (then: build/lmok --dsl build/parse-string.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
 # Data: the JSON text is embedded below.
 # exit: 0
 # expect:
-#|{"name": "lmbetter", "tags": ["tree-sitter", "json"]}
+#|{"name": "lmok", "tags": ["tree-sitter", "json"]}
 #|(document (object (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (array (string (string_content)) (string (string_content))))))
 #|has_error -> false
 #|nodes -> 34
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 
-let text = "{\"name\": \"lmbetter\", \"tags\": [\"tree-sitter\", \"json\"]}";
+let text = "{\"name\": \"lmok\", \"tags\": [\"tree-sitter\", \"json\"]}";
 let tree = ts.parse(text);
 
 println(text);

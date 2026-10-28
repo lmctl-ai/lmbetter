@@ -1,6 +1,6 @@
 # Rule tiers (v0.3.0)
 
-The owner-set three-tier strategy for rules — lmbetter stays a simple CLI, no
+The owner-set three-tier strategy for rules — lmok stays a simple CLI, no
 platform. Framework, inventory, and reference keys: `docs/rule-tiers.md`.
 Membership test: "what information does the rule need?" — CST shape + text
 (tier 1, ship now as packs), CST + one named mechanical extension (tier 2,
@@ -59,7 +59,7 @@ re-lint finds the inserted `gets` call).
 
 ## E4 landed: directory lint + script-side cross-file (v0.3.5)
 
-`lmbetter lint` takes directories: `std::filesystem::recursive_directory_iterator`
+`lmok lint` takes directories: `std::filesystem::recursive_directory_iterator`
 (C++17, MinGW-safe — no POSIX-only calls; `starts_with` is C++20 so the hidden
 check uses `rfind(".", 0) == 0`, with `.`/`..` exempted so `lint pack .`
 works), expansion filtered to `.c`/`.h`/`.json`, hidden paths skipped, paths

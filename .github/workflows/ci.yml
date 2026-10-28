@@ -83,12 +83,11 @@ jobs:
         if: env.ONLY_OK == 'true'
         shell: bash
         run: |
-          # TODO: confirm first release containing R47/R48 rule methods
-          # (staging publish pending); must match MIN_VERSION in
-          # scripts/select-compiler.sh.
+          # R49 v6 entries require the published 0.2.444 compiler.
+          # Keep this pin aligned with scripts/select-compiler.sh.
           npm i -g @lmctl-ai/lmctl@0.2.444
           scripts/select-compiler.sh | tee compiler.txt
-          grep -q lmscript compiler.txt || { echo "no v5 compiler available"; exit 1; }
+          grep -q lmscript compiler.txt || { echo "no v6 compiler available"; exit 1; }
 
       - name: build and test
         if: env.ONLY_OK == 'true'
@@ -101,13 +100,13 @@ jobs:
         run: |
           mkdir -p dist
           suffix=""; [ "$RUNNER_OS" = Windows ] && suffix=.exe
-          cp "build/lmbetter${suffix}" "dist/lmbetter-${{ matrix.name }}${suffix}"
+          cp "build/lmok${suffix}" "dist/lmok-${{ matrix.name }}${suffix}"
           cp LICENSE THIRD_PARTY_NOTICES.md dist/
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: env.ONLY_OK == 'true'
         with:
-          name: lmbetter-${{ matrix.name }}
+          name: lmok-${{ matrix.name }}
           path: dist/
           if-no-files-found: error
 
@@ -124,12 +123,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: lmbetter-*
+          pattern: lmok-*
           path: ${{ runner.temp }}/bins
           merge-multiple: true
 
       - name: checksums
-        run: (cd "${{ runner.temp }}/bins" && sha256sum lmbetter-* > SHA256SUMS)
+        run: (cd "${{ runner.temp }}/bins" && sha256sum lmok-* > SHA256SUMS)
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -147,13 +146,13 @@ jobs:
             git checkout --orphan dist
           fi
           git rm -rf . >/dev/null 2>&1 || true
-          cp "${{ runner.temp }}/bins"/lmbetter-* "${{ runner.temp }}/bins"/SHA256SUMS .
+          cp "${{ runner.temp }}/bins"/lmok-* "${{ runner.temp }}/bins"/SHA256SUMS .
           cp LICENSE THIRD_PARTY_NOTICES.md . 2>/dev/null || true
           git add -A
           if git diff --cached --quiet; then
             echo "dist branch already up to date"
           else
-            git commit -m "dist: lmbetter binaries from ${GITHUB_SHA}"
+            git commit -m "dist: lmok binaries from ${GITHUB_SHA}"
           fi
           git push --force-with-lease origin dist
 
@@ -167,14 +166,14 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: lmbetter-*
+          pattern: lmok-*
           path: dist
           merge-multiple: true
 
       - name: Check five release assets and checksums
         run: |
-          test "$(find dist -maxdepth 1 -type f -name 'lmbetter-*' | wc -l)" -eq 5
-          (cd dist && sha256sum lmbetter-* > SHA256SUMS)
+          test "$(find dist -maxdepth 1 -type f -name 'lmok-*' | wc -l)" -eq 5
+          (cd dist && sha256sum lmok-* > SHA256SUMS)
 
       - name: Publish release
         env:
@@ -183,7 +182,7 @@ jobs:
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release already published; preserving its verified assets and checksums."
           else
-            gh release create "$GITHUB_REF_NAME" dist/lmbetter-* dist/SHA256SUMS \
+            gh release create "$GITHUB_REF_NAME" dist/lmok-* dist/SHA256SUMS \
               --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
               --notes "Five tested platform binaries (Linux x64/arm64, macOS arm64/x64, Windows x64) plus SHA256SUMS. Rolling latest-main builds live on the dist branch."
           fi

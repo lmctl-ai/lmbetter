@@ -1,12 +1,12 @@
 # Chapter: Interop - emit SARIF 2.1.0 for the lint-c rules
 # Shows: SARIF emission via string building, severity->level mapping in script, 0-based -> 1-based conversion, file_write
-# Run: lmscript examples/sarif-report.lms      (then: build/lmbetter --dsl build/sarif-report.dslb)
-# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Run: lmscript examples/sarif-report.lms      (then: build/lmok --dsl build/sarif-report.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
 # Data: the C source is embedded below. Writes build/sarif-results.sarif.
 # exit: 0
 # expect:
 #|sarif: 4 results written to build/sarif-results.sarif
-p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _lmcode_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 
 # Minimal JSON string escaping (messages here need only quote/backslash).
 fn jesc(s: string) -> string {
@@ -80,7 +80,7 @@ for (f in json_parse(ts.report_json())) {
 }
 
 let sarif = "{\"version\":\"2.1.0\",\"$schema\":\"https://json.schemastore.org/sarif-2.1.0.json\""
-  + ",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"lmbetter\",\"version\":\"0.2.7\",\"rules\":[" + rules_json + "]}}"
+  + ",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"lmok\",\"version\":\"0.2.7\",\"rules\":[" + rules_json + "]}}"
   + ",\"results\":[" + results + "]}]}";
 file_write("build/sarif-results.sarif", sarif);
 println("sarif: " + str(ts.report_count()) + " results written to build/sarif-results.sarif");

@@ -1,13 +1,13 @@
 # Chapter: Rules (lmcode) - same-file symbol rules via set algebra (tier-2 E3 reality check)
 # Shows: two queries + StrMap sets, per-definition subtree query (recursion), script-owned libc whitelist
-# Run: lmscript rules/lmcode/c-symbol-rules.lms   (then: lmbetter check --lang c build/rules-lmcode/c-symbol-rules.dslb tests/fixtures/c-symbol-violations.c)
+# Run: lmscript rules/lmcode/c-symbol-rules.lms   (then: lmok check --lang c build/rules-lmcode/c-symbol-rules.dslb tests/fixtures/c-symbol-violations.c)
 # check: c tests/fixtures/c-symbol-violations.c
 # Needs: nothing (offline); reads tests/fixtures/c-symbol-violations.c
 # exit: 0
 # expect:
 #|[{"row":2,"col":0,"end_row":4,"end_col":1,"rule":"LBC107","severity":"minor","message":"static function 'unused_helper' never called"},{"row":13,"col":2,"end_row":13,"end_col":14,"rule":"LBC108","severity":"minor","message":"call to undefined function 'missing_init' (same-file)"},{"row":6,"col":0,"end_row":9,"end_col":1,"rule":"LBC109","severity":"major","message":"direct recursive call to 'recurse_me'"}]
 #|3 findings
-p = _lmcode_ cli="lmbetter";
+p = _lmcode_ cli="lmok";
 
 # Symbol-ish rules WITHOUT a host symbol index: definitions and calls are two
 # queries, sets are StrMaps. Conservative by design: LBC107 only flags STATIC

@@ -1,7 +1,7 @@
 # Real-world validation of rules/c-tier1.json (Kimi3)
 
 Validated the C tier-1 pack against three real C projects (shallow clones in
-/tmp, linted as directories with `lmbetter lint rules/c-tier1.json <dir>`):
+/tmp, linted as directories with `lmok lint rules/c-tier1.json <dir>`):
 
 - **sds** (antirez, 1.7k LOC) — string library, modern C99
 - **kilo** (antirez, 1.3k LOC) — terminal editor, old-school C

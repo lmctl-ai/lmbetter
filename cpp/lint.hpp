@@ -1,9 +1,8 @@
 #pragma once
-// Rule-pack loading and the lint dispatcher behind `lmbetter lint`.
+// Rule-pack loading and the lint dispatcher behind `lmok lint`.
 //
 // A rule pack is conditions-as-data: each rule declares an `on` node kind
-// (mirrors the @annotation value — the v6 bytecode entry table will plug
-// annotated lmcode rule fns into this same kind-indexed dispatch) or a
+// (mirrors the @annotation value used by the v6 check command) or a
 // tree-sitter `query` pattern, plus optional text_matches regex and the
 // finding message/severity. See README "Rule packs" for the format.
 
@@ -13,7 +12,7 @@
 #include <string>
 #include <vector>
 
-namespace lmbetter {
+namespace lmok {
 
 struct LintRule {
   std::string id;
@@ -46,4 +45,4 @@ std::vector<LintRule> load_rule_pack(const std::string &path);
 // throws QueryError with the rule id prepended.
 std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std::string &text);
 
-} // namespace lmbetter
+} // namespace lmok

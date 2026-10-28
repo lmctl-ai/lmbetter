@@ -1,14 +1,14 @@
-# lmbetter durable memory
+# lmok durable memory
 
-Technical documentation and operational notes for `lmbetter`.
-`lmbetter` embeds tree-sitter 0.27.1 with the tree-sitter-json and tree-sitter-c grammars as a standalone CLI host for lmscript.
+Technical documentation and operational notes for `lmok`.
+`lmok` embeds tree-sitter 0.27.1 with the tree-sitter-json and tree-sitter-c grammars as a standalone CLI host for lmscript.
 Repository: https://github.com/lmctl-ai/lmok.
 
 ## Document map
 
 | File | Contents |
 | --- | --- |
-| [01-purpose-and-place.md](01-purpose-and-place.md) | What lmbetter is, the pinned parts, the minimal DSL surface |
+| [01-purpose-and-place.md](01-purpose-and-place.md) | What lmok is, the pinned parts, the minimal DSL surface |
 | [02-build-run-test.md](02-build-run-test.md) | Build, run, and test commands; adding examples and functions |
 | [03-rule-methods.md](03-rule-methods.md) | Rule methods: @annotation + implements Rule, Node navigation, limitations |
 | [04-dispatcher.md](04-dispatcher.md) | lint rule packs, the kind-indexed walk dispatcher, v6 entry-point trajectory |
@@ -16,3 +16,7 @@ Repository: https://github.com/lmctl-ai/lmok.
 | [06-realworld-validation.md](06-realworld-validation.md) | c-tier1 validated against real-world C codebases (sds, kilo, cJSON) |
 | [07-robustness.md](07-robustness.md) | Bounded queries/regexes, input hardening, finding output escaping |
 | [08-v6-entry-dispatch.md](08-v6-entry-dispatch.md) | v6 lmcode entry loading, CST dispatch, findings and CLI contract |
+
+Operational name: **lmok** (binary, schemas, CMake and install paths). Tier-3
+proposal documents are owned by the other team and were intentionally retained
+verbatim; old product names there are historical, not current CLI instructions.

@@ -1,7 +1,7 @@
 # Chapter: Rules - lint a JSON document with the NodeList idiom
 # Shows: Tree.nodes + foreach, @NODE-KIND annotations, fn ... implements Rule, int predicate helpers
-# Run: lmscript examples/lint-json.lms      (then: build/lmbetter --dsl build/lint-json.dslb)
-# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Run: lmscript examples/lint-json.lms      (then: build/lmok --dsl build/lint-json.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
 # Data: the JSON fixture is embedded below.
 # exit: 0
 # expect:
@@ -9,7 +9,7 @@
 #|finding: password key "password" at row 5 col 4
 #|finding: placeholder string "TODO" at row 7 col 12
 #|3 findings
-p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _lmcode_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 
 # Predicates are the single source of truth (1 = hit). Rules print; the
 # walker sums the same predicates for the summary count. (lmcode inlines

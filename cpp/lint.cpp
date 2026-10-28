@@ -12,7 +12,7 @@
 #include <sstream>
 #include <utility>
 
-namespace lmbetter {
+namespace lmok {
 namespace {
 
 using dslvm::stdlib::JsonNode;
@@ -163,8 +163,8 @@ std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std
     const Tree tree = parse(grammar, text);
     const Node root = node_root(tree);
 
-    // One pre-order walk, dispatched through the kind index (the `on` path —
-    // the piece a v6 rule entry table will reuse for annotated lmcode fns).
+    // Lint retains its named-node kind index; check uses the corresponding
+    // all-node cursor policy for v6 annotated entries.
     std::map<std::string, std::vector<const LintRule *>> by_kind;
     for (const LintRule *rule : here)
       if (!rule->on.empty()) by_kind[rule->on].push_back(rule);
@@ -195,4 +195,4 @@ std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std
   return findings;
 }
 
-} // namespace lmbetter
+} // namespace lmok

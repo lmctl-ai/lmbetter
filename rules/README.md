@@ -1,8 +1,8 @@
-# rules/ — the lmbetter rule library
+# rules/ — the lmok rule library
 
 Three delivery forms, by how much logic a rule needs:
 
-- **Rule packs** (`rules/*.json`) — conditions as data for the `lmbetter lint`
+- **Rule packs** (`rules/*.json`) — conditions as data for the `lmok lint`
   dispatcher: a tree-sitter `query` pattern or an `on` node kind, an optional
   `text_matches` regex, message, severity. No code. See [rule tiers](../docs/rule-tiers.md)
   for the framework and [Rule packs](../README.md#rule-packs) for the format.
@@ -87,7 +87,7 @@ with a raw script URL:
 export PATH="$PWD/build:$PATH"
 mkdir -p build/rules-lmcode
 lmscript rules/lmcode/c-function-metrics.lms
-build/lmbetter check --lang c build/rules-lmcode/c-function-metrics.dslb tests/fixtures/c-logic-violations.c
+build/lmok check --lang c build/rules-lmcode/c-function-metrics.dslb tests/fixtures/c-logic-violations.c
 ```
 
 Expect a findings array containing LBC101 and LBC102, `2 findings`, then
@@ -105,9 +105,9 @@ for source in rules/lmcode/*.lms; do
   spec="$(sed -n 's/^# check: //p' "$source")"
   if [ -n "$spec" ]; then
     read -r lang input <<< "$spec"
-    build/lmbetter check --lang "$lang" "$bytecode" "$input" || exit 1
+    build/lmok check --lang "$lang" "$bytecode" "$input" || exit 1
   else
-    build/lmbetter --dsl "$bytecode" || exit 1
+    build/lmok --dsl "$bytecode" || exit 1
   fi
 done
 ```
@@ -121,8 +121,8 @@ metrics 1, bash unquoted variables 3. Exact findings appear in each script's
 For the data-only packs, no lmscript compilation is needed:
 
 ```sh
-build/lmbetter lint rules/c-tier1.json tests/fixtures/c-tier1-clean.c
-build/lmbetter lint rules/json-tier1.json tests/fixtures/json-tier1-clean.json
+build/lmok lint rules/c-tier1.json tests/fixtures/c-tier1-clean.c
+build/lmok lint rules/json-tier1.json tests/fixtures/json-tier1-clean.json
 ```
 
 Each prints `0 findings in <fixture path>`. The JSON pack includes LBJ104

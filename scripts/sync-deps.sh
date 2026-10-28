@@ -19,7 +19,7 @@ sha256() { $SHA_CMD "$1" | awk '{print $1}'; }
 # Digest of every regular file under a tree (sorted paths, hash+name lines,
 # hashed again). Excludes our own marker files.
 tree_digest() {
-  (cd "$1" && find . -type f ! -name '.lmbetter-*' -print | LC_ALL=C sort | tr '\n' '\0' | xargs -0 $SHA_CMD | $SHA_CMD | awk '{print $1}')
+  (cd "$1" && find . -type f ! -name '.lmok-*' -print | LC_ALL=C sort | tr '\n' '\0' | xargs -0 $SHA_CMD | $SHA_CMD | awk '{print $1}')
 }
 # GNU timeout does not exist on stock macOS (coreutils installs gtimeout).
 if command -v timeout >/dev/null 2>&1; then with_timeout() { timeout "$@"; }
@@ -37,13 +37,13 @@ fetch_one() {
     mv -f "$tarball.part" "$tarball"
   fi
   [[ "$(sha256 "$tarball")" == "$want" ]] || { echo "$name archive hash mismatch" >&2; exit 1; }
-  if [[ -f "$DEST/$dir/.lmbetter-archive-sha256" && "$(cat "$DEST/$dir/.lmbetter-archive-sha256")" == "$want" \
-        && -f "$DEST/$dir/.lmbetter-tree-sha256" ]]; then return; fi
+  if [[ -f "$DEST/$dir/.lmok-archive-sha256" && "$(cat "$DEST/$dir/.lmok-archive-sha256")" == "$want" \
+        && -f "$DEST/$dir/.lmok-tree-sha256" ]]; then return; fi
   rm -rf "$DEST/$dir"
   mkdir -p "$DEST/$dir"
   tar -xzf "$tarball" -C "$DEST/$dir" --strip-components=1
-  printf '%s\n' "$want" > "$DEST/$dir/.lmbetter-archive-sha256"
-  tree_digest "$DEST/$dir" > "$DEST/$dir/.lmbetter-tree-sha256"
+  printf '%s\n' "$want" > "$DEST/$dir/.lmok-archive-sha256"
+  tree_digest "$DEST/$dir" > "$DEST/$dir/.lmok-tree-sha256"
 }
 get() { sed -n "s/^$1\.$2=//p" "$LOCK"; }
 if [[ "${1:-}" == "--verify" ]]; then
@@ -54,12 +54,12 @@ if [[ "${1:-}" == "--verify" ]]; then
     'tree_sitter_python tree-sitter-python-0.23.6.tar.gz tree-sitter-python' \
     'tree_sitter_bash tree-sitter-bash-0.25.1.tar.gz tree-sitter-bash'; do
     read -r name archive dir <<<"$spec"
-    [[ -f "$DEST/$dir/.lmbetter-archive-sha256" && -f "$DEST/$dir/.lmbetter-tree-sha256" ]] || { echo "$name missing or synced by an older script; run scripts/sync-deps.sh" >&2; exit 1; }
+    [[ -f "$DEST/$dir/.lmok-archive-sha256" && -f "$DEST/$dir/.lmok-tree-sha256" ]] || { echo "$name missing or synced by an older script; run scripts/sync-deps.sh" >&2; exit 1; }
     [[ -f "$DEST/.$archive" && "$(sha256 "$DEST/.$archive")" == "$(get "$name" sha256)" ]] || { echo "$name cached archive differs from deps.lock" >&2; exit 1; }
-    [[ "$(cat "$DEST/$dir/.lmbetter-archive-sha256")" == "$(get "$name" sha256)" ]] || { echo "$name pin mismatch" >&2; exit 1; }
-    [[ "$(tree_digest "$DEST/$dir")" == "$(cat "$DEST/$dir/.lmbetter-tree-sha256")" ]] || { echo "$name extracted sources differ from the archive (edited third_party/$dir?); run scripts/sync-deps.sh after removing it" >&2; exit 1; }
+    [[ "$(cat "$DEST/$dir/.lmok-archive-sha256")" == "$(get "$name" sha256)" ]] || { echo "$name pin mismatch" >&2; exit 1; }
+    [[ "$(tree_digest "$DEST/$dir")" == "$(cat "$DEST/$dir/.lmok-tree-sha256")" ]] || { echo "$name extracted sources differ from the archive (edited third_party/$dir?); run scripts/sync-deps.sh after removing it" >&2; exit 1; }
   done
-  echo "lmbetter third-party archives match deps.lock"
+  echo "lmok third-party archives match deps.lock"
   exit 0
 fi
 fetch_one tree_sitter "$(get tree_sitter url)" "$(get tree_sitter sha256)" tree-sitter-0.27.1.tar.gz tree-sitter
@@ -67,4 +67,4 @@ fetch_one tree_sitter_json "$(get tree_sitter_json url)" "$(get tree_sitter_json
 fetch_one tree_sitter_c "$(get tree_sitter_c url)" "$(get tree_sitter_c sha256)" tree-sitter-c-b780e47.tar.gz tree-sitter-c
 fetch_one tree_sitter_python "$(get tree_sitter_python url)" "$(get tree_sitter_python sha256)" tree-sitter-python-0.23.6.tar.gz tree-sitter-python
 fetch_one tree_sitter_bash "$(get tree_sitter_bash url)" "$(get tree_sitter_bash sha256)" tree-sitter-bash-0.25.1.tar.gz tree-sitter-bash
-echo "synced pinned lmbetter dependencies"
+echo "synced pinned lmok dependencies"

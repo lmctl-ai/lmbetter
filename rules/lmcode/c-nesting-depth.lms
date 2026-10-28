@@ -1,13 +1,13 @@
 # Chapter: Rules (lmcode) - deep control nesting in C (tier 2: Node.parent)
 # Shows: Node.has_parent/parent chain walk, kind predicates, @if_statement rule
-# Run: lmscript rules/lmcode/c-nesting-depth.lms   (then: lmbetter check --lang c build/rules-lmcode/c-nesting-depth.dslb tests/fixtures/c-nesting-violations.c)
+# Run: lmscript rules/lmcode/c-nesting-depth.lms   (then: lmok check --lang c build/rules-lmcode/c-nesting-depth.dslb tests/fixtures/c-nesting-violations.c)
 # check: c tests/fixtures/c-nesting-violations.c
 # Needs: nothing (offline); reads tests/fixtures/c-nesting-violations.c
 # exit: 0
 # expect:
 #|[{"row":5,"col":10,"end_row":7,"end_col":11,"rule":"LBC105","severity":"major","message":"control structure nested 5 deep (max 4)"}]
 #|1 findings
-p = _lmcode_ cli="lmbetter";
+p = _lmcode_ cli="lmok";
 
 # Nesting depth needs UPWARD navigation — impossible in tier 1 without
 # Node.parent() (extension E2). has_parent() is the loop guard; parent() on

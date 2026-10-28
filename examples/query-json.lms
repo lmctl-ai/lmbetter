@@ -1,13 +1,13 @@
 # Chapter: Rules - select nodes with a tree-sitter query
 # Shows: ts.query, S-expression patterns with @captures, Tree.root, ts.report_json/report_count
-# Run: lmscript examples/query-json.lms      (then: build/lmbetter --dsl build/query-json.dslb)
-# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Run: lmscript examples/query-json.lms      (then: build/lmok --dsl build/query-json.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
 # Data: the JSON fixture is embedded below.
 # exit: 0
 # expect:
 #|[{"row":5,"col":5,"end_row":5,"end_col":13,"message":"password key password"}]
 #|1 findings
-p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _lmcode_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 
 # The selector half of rule-writing: a tree-sitter S-expression pattern picks
 # the candidate nodes (the direct analog of SonarJS's esquery selectors); the

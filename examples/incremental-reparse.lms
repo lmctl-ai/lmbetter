@@ -1,7 +1,7 @@
 # Chapter: Incremental - edit, reparse, re-lint (tier-2 E5)
 # Shows: Tree.edit, ts.reparse_c, ts.changed_ranges, re-linting the NEW tree
-# Run: lmscript examples/incremental-reparse.lms      (then: build/lmbetter --dsl build/incremental-reparse.dslb)
-# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Run: lmscript examples/incremental-reparse.lms      (then: build/lmok --dsl build/incremental-reparse.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
 # Data: the C source is embedded below.
 # exit: 0
 # expect:
@@ -9,7 +9,7 @@
 #|changed: [[55,65]]
 #|after: 1 findings
 #|[{"row":4,"col":2,"end_row":4,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"}]
-p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _lmcode_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 
 # The unsafe-calls rule from the tier-1 library (LBC001), predicate form.
 @call_expression

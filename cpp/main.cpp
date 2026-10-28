@@ -1,4 +1,4 @@
-// lmbetter: tree-sitter's incremental parsing engine as one statically
+// lmok: tree-sitter's incremental parsing engine as one statically
 // linked, scriptable CLI. Host for the lmscript DSL plus a small parse
 // subcommand (JSON grammar).
 #include "host.hpp"
@@ -50,9 +50,9 @@ struct Finding {
 struct Host {
   static constexpr size_t kHandleCap = 65536;
   static constexpr size_t kNodeCap = size_t(1) << 20;
-  std::vector<std::unique_ptr<lmbetter::Tree>> trees;
-  std::deque<lmbetter::Node> nodes;
-  std::vector<std::unique_ptr<lmbetter::NodeList>> node_lists;
+  std::vector<std::unique_ptr<lmok::Tree>> trees;
+  std::deque<lmok::Node> nodes;
+  std::vector<std::unique_ptr<lmok::NodeList>> node_lists;
   // Findings collected via ts.report; reset per --dsl file (see the run loop).
   std::vector<Finding> findings;
   template <class T>
@@ -62,7 +62,7 @@ struct Host {
     arena.push_back(std::make_unique<T>(std::move(value)));
     return Value::object(type, arena.back().get());
   }
-  Value hold_node(lmbetter::Node node) {
+  Value hold_node(lmok::Node node) {
     if (nodes.size() >= kNodeCap)
       throw dslvm::Error("Node object limit exceeded (" + std::to_string(kNodeCap) + ")");
     nodes.push_back(node);
@@ -78,26 +78,26 @@ struct Host {
 
 template <class T> T *self(void *p) { return static_cast<T *>(p); }
 
-lmbetter::Tree *tree_of(void *p, const char *who) {
-  auto *t = self<lmbetter::Tree>(p);
+lmok::Tree *tree_of(void *p, const char *who) {
+  auto *t = self<lmok::Tree>(p);
   if (!t) throw dslvm::Error(std::string(who) + ": stale Tree handle");
   return t;
 }
 
-lmbetter::Node *node_of(void *p, const char *who) {
-  auto *n = self<lmbetter::Node>(p);
+lmok::Node *node_of(void *p, const char *who) {
+  auto *n = self<lmok::Node>(p);
   if (!n) throw dslvm::Error(std::string(who) + ": stale Node handle");
   return n;
 }
 
-lmbetter::NodeList *nodelist_of(void *p, const char *who) {
-  auto *l = self<lmbetter::NodeList>(p);
+lmok::NodeList *nodelist_of(void *p, const char *who) {
+  auto *l = self<lmok::NodeList>(p);
   if (!l) throw dslvm::Error(std::string(who) + ": stale NodeList handle");
   return l;
 }
 
 std::string read_file(const std::string &path) {
-  return lmbetter::read_input_file(path);
+  return lmok::read_input_file(path);
 }
 
 // JSON string escaping for ts.report_json output.
@@ -167,27 +167,27 @@ void register_host(dslvm::Registry &reg, Host &host) {
 
   // The "ts" context object (type Ts) is the parse entry point: the DSL
   // compiler resolves ts.parse(...) as a method call on the context object.
-  const auto parse_method = [&reg, &host](const char *name, lmbetter::Grammar grammar) {
+  const auto parse_method = [&reg, &host](const char *name, lmok::Grammar grammar) {
     reg.method("Ts", name, {"string"}, "Tree", [&host, grammar](void *, Args &args) {
       try {
-        return host.hold(host.trees, "Tree", lmbetter::parse(grammar, args[0].s));
+        return host.hold(host.trees, "Tree", lmok::parse(grammar, args[0].s));
       } catch (const std::length_error &error) {
         throw dslvm::Error(error.what());
       }
     });
   };
-  parse_method("parse", lmbetter::Grammar::Json);
-  parse_method("parse_c", lmbetter::Grammar::C);
-  parse_method("parse_python", lmbetter::Grammar::Python);
-  parse_method("parse_bash", lmbetter::Grammar::Bash);
+  parse_method("parse", lmok::Grammar::Json);
+  parse_method("parse_c", lmok::Grammar::C);
+  parse_method("parse_python", lmok::Grammar::Python);
+  parse_method("parse_bash", lmok::Grammar::Bash);
   // The findings sink: rules are void fns, so they report into the host and
   // the chunk body reads the collection back (count / JSON array string).
   const auto report_impl = [&host](void *, Args &args) {
     if (host.findings.size() >= 65536)
       throw dslvm::Error("report limit exceeded (65536)");
-    const lmbetter::Node *n = node_of(args[0].obj, "report");
-    Finding f{lmbetter::node_start_row(*n), lmbetter::node_start_col(*n),
-              lmbetter::node_end_row(*n), lmbetter::node_end_col(*n), args[1].s, "", ""};
+    const lmok::Node *n = node_of(args[0].obj, "report");
+    Finding f{lmok::node_start_row(*n), lmok::node_start_col(*n),
+              lmok::node_end_row(*n), lmok::node_end_col(*n), args[1].s, "", ""};
     if (args.size() == 4) { f.rule = args[2].s; f.severity = args[3].s; }
     host.findings.push_back(std::move(f));
     return Value::none();
@@ -200,25 +200,25 @@ void register_host(dslvm::Registry &reg, Host &host) {
   reg.method("Ts", "report_json", {}, "string", [&host](void *, Args &) {
     return Value::string(findings_json(host.findings));
   });
-  const auto query_method = [&reg, &host](const char *name, lmbetter::Grammar grammar) {
+  const auto query_method = [&reg, &host](const char *name, lmok::Grammar grammar) {
     reg.method("Ts", name, {"Node", "string"}, "NodeList", [&host, grammar](void *, Args &args) {
       try {
         return host.hold(host.node_lists, "NodeList",
-                         lmbetter::node_query(*node_of(args[0].obj, "query"), args[1].s, grammar));
-      } catch (const lmbetter::QueryError &error) {
+                         lmok::node_query(*node_of(args[0].obj, "query"), args[1].s, grammar));
+      } catch (const lmok::QueryError &error) {
         throw dslvm::Error(error.what());
       }
     });
   };
-  query_method("query", lmbetter::Grammar::Json);
-  query_method("query_c", lmbetter::Grammar::C);
-  query_method("query_python", lmbetter::Grammar::Python);
-  query_method("query_bash", lmbetter::Grammar::Bash);
-  const auto reparse_method = [&reg, &host](const char *name, lmbetter::Grammar grammar) {
+  query_method("query", lmok::Grammar::Json);
+  query_method("query_c", lmok::Grammar::C);
+  query_method("query_python", lmok::Grammar::Python);
+  query_method("query_bash", lmok::Grammar::Bash);
+  const auto reparse_method = [&reg, &host](const char *name, lmok::Grammar grammar) {
     reg.method("Ts", name, {"Tree", "string"}, "Tree", [&host, grammar](void *, Args &args) {
       try {
         return host.hold(host.trees, "Tree",
-                         lmbetter::reparse(grammar, *tree_of(args[0].obj, "reparse"), args[1].s));
+                         lmok::reparse(grammar, *tree_of(args[0].obj, "reparse"), args[1].s));
       } catch (const std::out_of_range &error) {
         throw dslvm::Error(error.what());
       } catch (const std::length_error &error) {
@@ -226,18 +226,18 @@ void register_host(dslvm::Registry &reg, Host &host) {
       }
     });
   };
-  reparse_method("reparse", lmbetter::Grammar::Json);
-  reparse_method("reparse_c", lmbetter::Grammar::C);
-  reparse_method("reparse_python", lmbetter::Grammar::Python);
-  reparse_method("reparse_bash", lmbetter::Grammar::Bash);
+  reparse_method("reparse", lmok::Grammar::Json);
+  reparse_method("reparse_c", lmok::Grammar::C);
+  reparse_method("reparse_python", lmok::Grammar::Python);
+  reparse_method("reparse_bash", lmok::Grammar::Bash);
   reg.method("Ts", "changed_ranges", {"Tree", "Tree"}, "string", [](void *, Args &args) {
-    return Value::string(lmbetter::changed_ranges_json(*tree_of(args[0].obj, "changed_ranges"),
+    return Value::string(lmok::changed_ranges_json(*tree_of(args[0].obj, "changed_ranges"),
                                                        *tree_of(args[1].obj, "changed_ranges")));
   });
 
   reg.method("Tree", "edit", {"int", "int", "int"}, "void", [](void *s, Args &args) {
     try {
-      lmbetter::tree_edit(*tree_of(s, "edit"), args[0].i, args[1].i, args[2].i);
+      lmok::tree_edit(*tree_of(s, "edit"), args[0].i, args[1].i, args[2].i);
     } catch (const std::out_of_range &error) {
       throw dslvm::Error(error.what());
     }
@@ -245,19 +245,19 @@ void register_host(dslvm::Registry &reg, Host &host) {
   });
 
   reg.method("Tree", "sexp", {}, "string", [](void *s, Args &) {
-    return Value::string(lmbetter::tree_sexp(*tree_of(s, "sexp")));
+    return Value::string(lmok::tree_sexp(*tree_of(s, "sexp")));
   });
   reg.method("Tree", "has_error", {}, "bool", [](void *s, Args &) {
-    return Value::boolean(lmbetter::tree_has_error(*tree_of(s, "has_error")));
+    return Value::boolean(lmok::tree_has_error(*tree_of(s, "has_error")));
   });
   reg.method("Tree", "node_count", {}, "int", [](void *s, Args &) {
-    return Value::integer(lmbetter::tree_node_count(*tree_of(s, "node_count")));
+    return Value::integer(lmok::tree_node_count(*tree_of(s, "node_count")));
   });
   reg.method("Tree", "root", {}, "Node", [&host](void *s, Args &) {
-    return host.hold_node(lmbetter::node_root(*tree_of(s, "root")));
+    return host.hold_node(lmok::node_root(*tree_of(s, "root")));
   });
   reg.method("Tree", "nodes", {}, "NodeList", [&host](void *s, Args &) {
-    return host.hold(host.node_lists, "NodeList", lmbetter::tree_nodes(*tree_of(s, "nodes")));
+    return host.hold(host.node_lists, "NodeList", lmok::tree_nodes(*tree_of(s, "nodes")));
   });
 
   const auto node_string_method = [&reg](const char *name, auto impl) {
@@ -265,46 +265,46 @@ void register_host(dslvm::Registry &reg, Host &host) {
       return Value::string(impl(node_of(s, name)));
     });
   };
-  node_string_method("kind", [](const lmbetter::Node *n) { return lmbetter::node_kind(*n); });
-  node_string_method("text", [](const lmbetter::Node *n) { return lmbetter::node_text(*n); });
+  node_string_method("kind", [](const lmok::Node *n) { return lmok::node_kind(*n); });
+  node_string_method("text", [](const lmok::Node *n) { return lmok::node_text(*n); });
   reg.method("Node", "is_named", {}, "bool", [](void *s, Args &) {
-    return Value::boolean(lmbetter::node_is_named(*node_of(s, "is_named")));
+    return Value::boolean(lmok::node_is_named(*node_of(s, "is_named")));
   });
   const auto node_point_method = [&reg](const char *name, auto impl) {
     reg.method("Node", name, {}, "int", [name, impl](void *s, Args &) {
       return Value::integer(impl(node_of(s, name)));
     });
   };
-  node_point_method("start_row", [](const lmbetter::Node *n) { return lmbetter::node_start_row(*n); });
-  node_point_method("start_col", [](const lmbetter::Node *n) { return lmbetter::node_start_col(*n); });
-  node_point_method("end_row", [](const lmbetter::Node *n) { return lmbetter::node_end_row(*n); });
-  node_point_method("end_col", [](const lmbetter::Node *n) { return lmbetter::node_end_col(*n); });
+  node_point_method("start_row", [](const lmok::Node *n) { return lmok::node_start_row(*n); });
+  node_point_method("start_col", [](const lmok::Node *n) { return lmok::node_start_col(*n); });
+  node_point_method("end_row", [](const lmok::Node *n) { return lmok::node_end_row(*n); });
+  node_point_method("end_col", [](const lmok::Node *n) { return lmok::node_end_col(*n); });
   reg.method("Node", "child_count", {}, "int", [](void *s, Args &) {
-    return Value::integer(lmbetter::node_child_count(*node_of(s, "child_count")));
+    return Value::integer(lmok::node_child_count(*node_of(s, "child_count")));
   });
   reg.method("Node", "child", {"int"}, "Node", [&host](void *s, Args &args) {
-    const lmbetter::Node *n = node_of(s, "child");
-    const int64_t count = lmbetter::node_child_count(*n);
+    const lmok::Node *n = node_of(s, "child");
+    const int64_t count = lmok::node_child_count(*n);
     if (args[0].i < 0 || args[0].i >= count)
       throw dslvm::Error("Node.child index " + std::to_string(args[0].i) +
                          " out of range (named child count " + std::to_string(count) + ")");
-    return host.hold_node(lmbetter::node_child(*n, args[0].i));
+    return host.hold_node(lmok::node_child(*n, args[0].i));
   });
   reg.method("Node", "has_parent", {}, "bool", [](void *s, Args &) {
-    return Value::boolean(lmbetter::node_has_parent(*node_of(s, "has_parent")));
+    return Value::boolean(lmok::node_has_parent(*node_of(s, "has_parent")));
   });
   reg.method("Node", "parent", {}, "Node", [&host](void *s, Args &) {
-    const lmbetter::Node *n = node_of(s, "parent");
-    if (!lmbetter::node_has_parent(*n))
+    const lmok::Node *n = node_of(s, "parent");
+    if (!lmok::node_has_parent(*n))
       throw dslvm::Error("Node.parent: root node has no parent");
-    return host.hold_node(lmbetter::node_parent(*n));
+    return host.hold_node(lmok::node_parent(*n));
   });
 
   reg.method("NodeList", "len", {}, "int", [](void *s, Args &) {
     return Value::integer(static_cast<int64_t>(nodelist_of(s, "len")->items.size()));
   });
   reg.method("NodeList", "at", {"int"}, "Node", [](void *s, Args &args) {
-    lmbetter::NodeList *l = nodelist_of(s, "at");
+    lmok::NodeList *l = nodelist_of(s, "at");
     const int64_t count = static_cast<int64_t>(l->items.size());
     if (args[0].i < 0 || args[0].i >= count)
       throw dslvm::Error("NodeList.at index " + std::to_string(args[0].i) +
@@ -331,19 +331,19 @@ int main(int argc, char **argv) {
   dslvm::Registry reg;
   register_host(reg, host);
   const std::string usage =
-      "usage: lmbetter --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
-      "       lmbetter parse [--lang json|c|python|bash] FILE\n"
-      "       lmbetter query [--lang json|c|python|bash] PATTERN FILE\n"
-      "       lmbetter lint RULES.json FILE...\n"
-      "       lmbetter check [--lang json|c|python|bash] RULES.dslb FILE...\n"
-      "       lmbetter --dsl FILE [FILE ...]\n";
+      "usage: lmok --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
+      "       lmok parse [--lang json|c|python|bash] FILE\n"
+      "       lmok query [--lang json|c|python|bash] PATTERN FILE\n"
+      "       lmok lint RULES.json FILE...\n"
+      "       lmok check [--lang json|c|python|bash] RULES.dslb FILE...\n"
+      "       lmok --dsl FILE [FILE ...]\n";
   if (argc == 2 && std::string(argv[1]) == "--version") {
-    std::cout << "lmbetter " LMBETTER_VERSION "\n";
+    std::cout << "lmok " LMOK_VERSION "\n";
     return std::cout ? 0 : 4;
   }
   if (argc == 2 && std::string(argv[1]) == "--notices") {
-    std::cout.write(reinterpret_cast<const char *>(lmbetter::embedded_notices),
-                    static_cast<std::streamsize>(lmbetter::embedded_notices_size));
+    std::cout.write(reinterpret_cast<const char *>(lmok::embedded_notices),
+                    static_cast<std::streamsize>(lmok::embedded_notices_size));
     return std::cout ? 0 : 4;
   }
   if (argc >= 2 && std::string(argv[1]) == "--dsl-schema") {
@@ -352,8 +352,8 @@ int main(int argc, char **argv) {
       return std::cout ? 0 : 4;
     }
     if (argc == 3 && std::string(argv[2]) == "--json") {
-      std::cout.write(reinterpret_cast<const char *>(lmbetter::embedded_schema),
-                      static_cast<std::streamsize>(lmbetter::embedded_schema_size));
+      std::cout.write(reinterpret_cast<const char *>(lmok::embedded_schema),
+                      static_cast<std::streamsize>(lmok::embedded_schema_size));
       return std::cout ? 0 : 4;
     }
     std::cerr << usage;
@@ -365,7 +365,7 @@ int main(int argc, char **argv) {
   }
   if (argc >= 2 && (std::string(argv[1]) == "parse" || std::string(argv[1]) == "query")) {
     const bool is_query = std::string(argv[1]) == "query";
-    lmbetter::Grammar grammar = lmbetter::Grammar::Json;
+    lmok::Grammar grammar = lmok::Grammar::Json;
     int argi = 2;
     if (argi < argc && std::string(argv[argi]) == "--lang" && argi + 1 >= argc) {
       std::cerr << "--lang needs a value (json|c)\n" << usage;
@@ -373,10 +373,10 @@ int main(int argc, char **argv) {
     }
     if (argi + 1 < argc && std::string(argv[argi]) == "--lang") {
       const std::string lang = argv[argi + 1];
-      if (lang == "json") grammar = lmbetter::Grammar::Json;
-      else if (lang == "c") grammar = lmbetter::Grammar::C;
-      else if (lang == "python") grammar = lmbetter::Grammar::Python;
-      else if (lang == "bash") grammar = lmbetter::Grammar::Bash;
+      if (lang == "json") grammar = lmok::Grammar::Json;
+      else if (lang == "c") grammar = lmok::Grammar::C;
+      else if (lang == "python") grammar = lmok::Grammar::Python;
+      else if (lang == "bash") grammar = lmok::Grammar::Bash;
       else {
         std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash)\n" << usage;
         return 2;
@@ -399,41 +399,41 @@ int main(int argc, char **argv) {
       try { raw = read_file(path); }
       catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
     }
-    lmbetter::Tree tree;
-    try { tree = lmbetter::parse(grammar, raw); }
+    lmok::Tree tree;
+    try { tree = lmok::parse(grammar, raw); }
     catch (const std::length_error &e) { std::cerr << e.what() << "\n"; return 3; }
     if (!is_query) {
-      std::cout << lmbetter::tree_sexp(tree) << "\n";
+      std::cout << lmok::tree_sexp(tree) << "\n";
       return std::cout ? 0 : 4;
     }
-    lmbetter::NodeList captures;
+    lmok::NodeList captures;
     try {
-      captures = lmbetter::node_query(lmbetter::node_root(tree), pattern, grammar);
-    } catch (const lmbetter::QueryError &e) {
+      captures = lmok::node_query(lmok::node_root(tree), pattern, grammar);
+    } catch (const lmok::QueryError &e) {
       std::cerr << e.what() << "\n";
       return 3;
     }
     for (const auto &node : captures.items)
-      std::cout << lmbetter::node_kind(node) << " "
-                << lmbetter::node_start_row(node) << ":" << lmbetter::node_start_col(node)
-                << "-" << lmbetter::node_end_row(node) << ":" << lmbetter::node_end_col(node) << "\n";
+      std::cout << lmok::node_kind(node) << " "
+                << lmok::node_start_row(node) << ":" << lmok::node_start_col(node)
+                << "-" << lmok::node_end_row(node) << ":" << lmok::node_end_col(node) << "\n";
     return std::cout ? 0 : 4;
   }
   if (argc >= 2 && std::string(argv[1]) == "lint") {
     if (argc < 4) { std::cerr << usage; return 2; }
-    std::vector<lmbetter::LintRule> rules;
+    std::vector<lmok::LintRule> rules;
     try {
-      rules = lmbetter::load_rule_pack(argv[2]);
+      rules = lmok::load_rule_pack(argv[2]);
     } catch (const dslvm::Error &e) {
       std::cerr << e.what() << "\n";
       return 2;
     }
     // Per-grammar rule lists for extension-based filtering.
-    std::vector<lmbetter::LintRule> c_rules, json_rules, python_rules, bash_rules;
+    std::vector<lmok::LintRule> c_rules, json_rules, python_rules, bash_rules;
     for (const auto &rule : rules) {
-      if (rule.grammar == lmbetter::Grammar::C) c_rules.push_back(rule);
-      else if (rule.grammar == lmbetter::Grammar::Python) python_rules.push_back(rule);
-      else if (rule.grammar == lmbetter::Grammar::Bash) bash_rules.push_back(rule);
+      if (rule.grammar == lmok::Grammar::C) c_rules.push_back(rule);
+      else if (rule.grammar == lmok::Grammar::Python) python_rules.push_back(rule);
+      else if (rule.grammar == lmok::Grammar::Bash) bash_rules.push_back(rule);
       else json_rules.push_back(rule);
     }
     // Directory args expand RECURSIVELY to their regular files: hidden files
@@ -495,7 +495,7 @@ int main(int argc, char **argv) {
     // Fail fast: the first unreadable file aborts the whole run (exit 3);
     // earlier files' findings were already printed.
     for (const auto &target : targets) {
-      const std::vector<lmbetter::LintRule> *active = &rules;
+      const std::vector<lmok::LintRule> *active = &rules;
       const std::string ext = fs::path(target.path).extension().string();
       if (ext == ".c" || ext == ".h") active = &c_rules;
       else if (ext == ".json") active = &json_rules;
@@ -507,10 +507,10 @@ int main(int argc, char **argv) {
       std::string raw;
       try { raw = read_file(target.path); }
       catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
-      std::vector<lmbetter::LintFinding> findings;
+      std::vector<lmok::LintFinding> findings;
       try {
-        findings = lmbetter::lint_text(*active, raw);
-      } catch (const lmbetter::QueryError &e) {
+        findings = lmok::lint_text(*active, raw);
+      } catch (const lmok::QueryError &e) {
         std::cerr << e.what() << "\n";
         return 3;
       } catch (const std::exception &e) { // oversized input, regex engine limits, allocation
@@ -529,13 +529,13 @@ int main(int argc, char **argv) {
   }
   if (argc >= 2 && std::string(argv[1]) == "check") {
     int argi = 2;
-    lmbetter::Grammar grammar = lmbetter::Grammar::Json;
+    lmok::Grammar grammar = lmok::Grammar::Json;
     if (argi + 1 < argc && std::string(argv[argi]) == "--lang") {
       const std::string lang = argv[argi + 1];
-      if (lang == "json") grammar = lmbetter::Grammar::Json;
-      else if (lang == "c") grammar = lmbetter::Grammar::C;
-      else if (lang == "python") grammar = lmbetter::Grammar::Python;
-      else if (lang == "bash") grammar = lmbetter::Grammar::Bash;
+      if (lang == "json") grammar = lmok::Grammar::Json;
+      else if (lang == "c") grammar = lmok::Grammar::C;
+      else if (lang == "python") grammar = lmok::Grammar::Python;
+      else if (lang == "bash") grammar = lmok::Grammar::Bash;
       else { std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash)\n"; return 2; }
       argi += 2;
     }
@@ -543,7 +543,7 @@ int main(int argc, char **argv) {
     for (int i = argi; i < argc; ++i) {
       if (std::string(argv[i]).empty() || std::string(argv[i]).rfind("--", 0) == 0) { std::cerr << usage; return 2; }
     }
-    const std::string schema(reinterpret_cast<const char *>(lmbetter::embedded_schema), lmbetter::embedded_schema_size);
+    const std::string schema(reinterpret_cast<const char *>(lmok::embedded_schema), lmok::embedded_schema_size);
     dslvm::Program program;
     try { program = dslvm::Program::load(dslvm::read_file(argv[argi++]), schema, reg); }
     catch (const dslvm::Error &error) { return dslvm::report_error("load", error); }
@@ -561,9 +561,9 @@ int main(int argc, char **argv) {
       program.run(context, reg); // configuration/effects once, not once per node or file
       for (; argi < argc; ++argi) {
         host.reset(); // transient body/file objects and findings do not escape an input
-        const lmbetter::Tree tree = lmbetter::parse(grammar, read_file(argv[argi]));
-        lmbetter::walk_nodes(tree, [&](const lmbetter::Node &node) {
-          const auto found = by_kind.find(lmbetter::node_kind(node));
+        const lmok::Tree tree = lmok::parse(grammar, read_file(argv[argi]));
+        lmok::walk_nodes(tree, [&](const lmok::Node &node) {
+          const auto found = by_kind.find(lmok::node_kind(node));
           if (found == by_kind.end()) return;
           const Value handle = host.hold_node(node); // per-file arena; Tree stays alive
           for (size_t entry : found->second) program.call(entry, context, reg, {handle});
@@ -583,8 +583,8 @@ int main(int argc, char **argv) {
         return 2;
       }
     }
-    const std::string schema(reinterpret_cast<const char *>(lmbetter::embedded_schema),
-                             lmbetter::embedded_schema_size);
+    const std::string schema(reinterpret_cast<const char *>(lmok::embedded_schema),
+                             lmok::embedded_schema_size);
     dslvm::Context context;
     context.set("ts", &host);
     std::vector<dslvm::Program> programs;

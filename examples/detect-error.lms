@@ -1,13 +1,13 @@
 # Chapter: Errors - detect malformed JSON
 # Shows: ts.parse, Tree.has_error, ERROR nodes in the s-expression tree
-# Run: lmscript examples/detect-error.lms      (then: build/lmbetter --dsl build/detect-error.dslb)
-# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Run: lmscript examples/detect-error.lms      (then: build/lmok --dsl build/detect-error.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
 # Data: the malformed JSON text is embedded below.
 # exit: 0
 # expect:
 #|malformed input detected
 #|(document (object (pair key: (string (string_content)) value: (number)) (ERROR)))
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 
 let tree = ts.parse("{\"a\": 1,,}");
 

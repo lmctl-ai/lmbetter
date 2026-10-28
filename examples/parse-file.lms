@@ -1,14 +1,14 @@
 # Chapter: Files - parse a JSON file from disk
 # Shows: file_read, ts.parse, Tree.sexp/has_error/node_count
-# Run: lmscript examples/parse-file.lms      (then: build/lmbetter --dsl build/parse-file.dslb)
-# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Run: lmscript examples/parse-file.lms      (then: build/lmok --dsl build/parse-file.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
 # Data: reads examples/data/sample.json, run from the repository root.
 # exit: 0
 # expect:
 #|(document (object (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (number)) (pair key: (string (string_content)) value: (true)) (pair key: (string (string_content)) value: (array (string (string_content)) (string (string_content))))))
 #|has_error -> false
 #|nodes -> 50
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 
 let text = file_read("examples/data/sample.json");
 let tree = ts.parse(text);

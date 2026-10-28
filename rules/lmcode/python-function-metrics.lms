@@ -1,13 +1,13 @@
 # Chapter: Rules (lmcode) - Python function metrics
 # Shows: @function_definition rules, Node arithmetic (end_row - start_row)
-# Run: lmscript rules/lmcode/python-function-metrics.lms   (then: lmbetter check --lang python build/rules-lmcode/python-function-metrics.dslb tests/fixtures/python-logic-violations.py)
+# Run: lmscript rules/lmcode/python-function-metrics.lms   (then: lmok check --lang python build/rules-lmcode/python-function-metrics.dslb tests/fixtures/python-logic-violations.py)
 # check: python tests/fixtures/python-logic-violations.py
 # Needs: nothing (offline); reads tests/fixtures/python-logic-violations.py
 # exit: 0
 # expect:
 #|[{"row":0,"col":0,"end_row":62,"end_col":16,"rule":"LBP101","severity":"major","message":"function too long (62 rows)"}]
 #|1 findings
-p = _lmcode_ cli="lmbetter";
+p = _lmcode_ cli="lmok";
 
 # Tier-1 rule that needs lmcode LOGIC (row arithmetic) — not expressible as
 # pack selector+regex. To use against your own file, copy the rule fn and

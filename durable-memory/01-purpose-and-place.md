@@ -1,6 +1,6 @@
 # Purpose and place
 
-lmbetter repackages tree-sitter as one statically linked, scriptable CLI: the
+lmok repackages tree-sitter as one statically linked, scriptable CLI: the
 upstream C library (v0.27.1, pinned in `deps.lock`) plus the tree-sitter-json
 (commit `254c42a`) and tree-sitter-c (commit `b780e47`, master) grammars (same
 lock) behind `parse`/`query` subcommands and an lmscript DSL host. Sibling of

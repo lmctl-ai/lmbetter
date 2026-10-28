@@ -1,6 +1,6 @@
 # Rule tiers
 
-lmbetter is deliberately a simple CLI, not a platform. Rules are classified by
+lmok is deliberately a simple CLI, not a platform. Rules are classified by
 what information they need; the tier decides when (or whether) they ship.
 
 See the [rule library and run commands](../rules/README.md) and
@@ -165,7 +165,7 @@ query as `#match?` predicates — same behavior, sharper form.)
   functions only (their calls must be same-file); LBC108 considers plain
   identifier callees only and uses a script-owned libc whitelist.
 - **E4: multi-file / directory lint — LANDED (v0.3.5), minus include
-  resolution.** `lmbetter lint` accepts directories: recursive expansion of
+  resolution.** `lmok lint` accepts directories: recursive expansion of
   regular files, hidden paths skipped, only known extensions (`.c`/`.h` → c,
   `.json` → json, `.py` → python, `.sh`/`.bash` → bash), paths sorted for
   byte-stable output, files whose language

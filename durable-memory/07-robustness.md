@@ -1,6 +1,6 @@
 # Adversarial robustness pass (2026-10-28)
 
-Workspace: `lmbetter-astra1`, branch `fix/robustness`. Linux x86-64,
+Workspace: `lmok-astra1`, branch `fix/robustness`. Linux x86-64,
 GCC/libstdc++ 13.3, system lmscript 0.2.442. Baseline: 53 checks passed.
 No version, workflow, dependency-pin, or vendored SDK changes.
 
@@ -82,14 +82,14 @@ status assertions and subprocess timeouts. Permission checks run on non-root
 POSIX; FIFO checks run where `os.mkfifo` exists. The INT64_MAX DSL argument is
 constructed as `9007199254740991 * 1024 + 1023`, because lmscript rejects integer
 literals beyond its exact-number range. Original 53 checks remain in place.
-The link check honors explicit `LMBETTER_FULL_STATIC=OFF` for sanitizer builds;
+The link check honors explicit `LMOK_FULL_STATIC=OFF` for sanitizer builds;
 the default release gate still requires a fully static binary.
 
 ASan setup (separate build directory):
 
 ```sh
 cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DLMBETTER_FULL_STATIC=OFF \
+  -DLMOK_FULL_STATIC=OFF \
   '-DCMAKE_C_FLAGS=-fsanitize=address -fno-omit-frame-pointer -fno-pie' \
   '-DCMAKE_CXX_FLAGS=-fsanitize=address -fno-omit-frame-pointer -fno-pie' \
   '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address -no-pie'

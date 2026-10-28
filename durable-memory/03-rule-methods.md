@@ -1,6 +1,9 @@
 # Rule methods (R47/R48)
 
-lmbetter exposes the tree-sitter CST to lmscript so analysis rules are
+Historical v5 adoption notes below. Current v6 execution/dispatch and compiler
+requirements are in [08-v6-entry-dispatch.md](08-v6-entry-dispatch.md).
+
+lmok exposes the tree-sitter CST to lmscript so analysis rules are
 user-redefinable scripts, not compiled per-rule classes (the SonarQube
 contrast is studied in docs/rule-snippets.md). Shipped in v0.2.0; needs
 `lmscript` >= 0.2.442 (first npm release containing the R47/R48 compiler
@@ -139,7 +142,7 @@ the TODO in scripts/select-compiler.sh).
 ./test.sh   # needs lmscript >= 0.2.442 on PATH; released 0.2.420 fails at
             # check 8: schema error "unknown top-level key interfaces"
 lmscript examples/cst-rules.lms build/cst-rules.dslb
-build/lmbetter --dsl build/cst-rules.dslb
+build/lmok --dsl build/cst-rules.dslb
 # finding: password key "password" at row 4 col 4
 # finding: placeholder string "TODO" at row 6 col 9
 # {"ok": true, "result": null}

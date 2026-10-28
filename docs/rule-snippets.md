@@ -1,7 +1,7 @@
 # Rules as lmscript snippets (SonarQube study)
 
 Goal: code-analysis rules expressed as small lmscript snippets running over a
-tree-sitter AST inside `lmbetter`, instead of SonarQube's compiled, rigid rule
+tree-sitter AST inside `lmok`, instead of SonarQube's compiled, rigid rule
 classes.
 
 ## What SonarQube actually does (study summary)
@@ -55,48 +55,54 @@ incidental weight. What a pure tree-sitter setup genuinely loses vs. sonar-java
 is semantic resolution (types, symbols) and CFG/symbolic execution — so scope
 snippet rules to syntax-level checks, or feed a separately-built symbol index.
 
-## The lmbetter mapping
+## The lmok mapping
 
 tree-sitter's query engine (`ts_query_*`, already compiled into our binary via
 `lib/src/lib.c`) is the native selector — S-expression patterns with captures,
 the direct analog of esquery selectors and `nodesToVisit()` combined.
 
-- **Rule = one `.lms` snippet.** Compile it to a v6 `.dslb`;
-  `lmbetter check rule.dslb FILE...` dispatches annotated entries by
-  tree-sitter node kind. `lmbetter --dsl rule.dslb` remains the body/configuration
+- **Rules = annotated functions in a `.lms` snippet.** Compile it to a v6 `.dslb`;
+  `lmok check rule.dslb FILE...` dispatches annotated entries by
+  tree-sitter node kind. `lmok --dsl rule.dslb` remains the body/configuration
   path, and `lmctl autorun rules/no-foo.lms` remains useful for scripts without
   host entry dispatch.
-- **Selector**: `ts.query(tree, pattern)` → matches with captures (planned DSL
-  addition; the C API is already linked in).
-- **Check**: ordinary lmscript over matches/nodes — node accessors
+- **Selector**: `@kind` for host entry dispatch; `ts.query(node, pattern)`
+  for captures inside a rule or body script (implemented).
+- **Check**: typed lmcode over matches/nodes — node accessors
   (`kind`, `text`, `start/end row/col`, child navigation) exposed on a `Node`
   type.
-- **Report**: a `report(node, message)` host sink collecting findings as
-  {rule, file, range, message}, emitted as JSON lines (scriptable, diffable,
-  CI-gateable).
-- **Metadata = data**: a map at the top of the snippet
-  (`let rule = {key: "LMB001", title: "...", severity: "minor", tags: [...]}`),
-  or a sibling JSON when a catalog is wanted. Activation = "run the snippet";
-  parameters = lmscript variables; suppression = a comment-convention the
-  snippet itself can check (trivia is reachable via tokens).
+- **Report**: `ts.report(node, message, rule, severity)` stores explicit
+  finding metadata. `check` prints the existing JSON array/count per input;
+  scripts may use `ts.report_json()` to build SARIF or apply policy.
+- **Metadata = explicit report data**: rule IDs and severity belong to
+  `ts.report` arguments or a companion catalog. Entry names are callable
+  identities, annotations are node-kind subscriptions. Body locals cannot be
+  captured by rules; outer LMScript values can be inserted with `${...}` at
+  compile time. Suppression remains script-owned policy.
 - **Testing**: the existing examples convention (`# expect:` / `#|` header
   lines, inline positive/negative fixtures) is exactly sonar-text's
   inline-examples model.
 
-### Sketch (JSON grammar, until more grammars are vendored)
+### Runnable rule (JSON grammar)
 
-```
-# rule: LMB001 — forbid "password" keys in JSON config
-p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
-let src   = file_read("config.json");
-let tree  = ts.parse(src);
-let hits  = ts.query(tree, "(pair key: (string (string_content) @k))");
-for (h in hits) {
-  if (h.text == "password") { report(h, "LMB001: do not store passwords in config"); }
+Compile from a directory containing `build/` with the local host on PATH, then
+run `lmok check build/lmb001.dslb config.json`:
+
+```lmscript
+p = _lmcode_ cli="lmok";
+@pair
+fn no_password(n: Node) -> void implements Rule {
+  if (n.child_count() > 0 && n.child(0).text() == "\"password\"") {
+    ts.report(n, "do not store passwords in config", "LMB001", "major");
+  }
 }
-end _dsl_
+end _lmcode_
 savedsl(p, "build/lmb001.dslb");
 ```
+
+The host walks once and supplies matching nodes. Finding IDs remain the explicit
+report payload, not the function name. Body-oriented examples are still valid
+with `--dsl`, including scripts that build SARIF files from `ts.report_json()`.
 
 ## Non-goals (v1)
 

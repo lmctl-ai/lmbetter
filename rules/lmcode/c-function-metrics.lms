@@ -1,13 +1,13 @@
 # Chapter: Rules (lmcode) - C function metrics
 # Shows: @function_definition rules, Node arithmetic (end_row - start_row), child-walk parameter counting
-# Run: lmscript rules/lmcode/c-function-metrics.lms   (then: lmbetter check --lang c build/rules-lmcode/c-function-metrics.dslb tests/fixtures/c-logic-violations.c)
+# Run: lmscript rules/lmcode/c-function-metrics.lms   (then: lmok check --lang c build/rules-lmcode/c-function-metrics.dslb tests/fixtures/c-logic-violations.c)
 # check: c tests/fixtures/c-logic-violations.c
 # Needs: nothing (offline); reads tests/fixtures/c-logic-violations.c
 # exit: 0
 # expect:
 #|[{"row":0,"col":0,"end_row":65,"end_col":1,"rule":"LBC101","severity":"major","message":"function too long (65 rows)"},{"row":67,"col":0,"end_row":69,"end_col":1,"rule":"LBC102","severity":"minor","message":"too many parameters (8)"}]
 #|2 findings
-p = _lmcode_ cli="lmbetter";
+p = _lmcode_ cli="lmok";
 
 # Tier-1 rules that need lmcode LOGIC (arithmetic, counting) — not expressible
 # as pack selector+regex. To use against your own file, copy the rule fn and

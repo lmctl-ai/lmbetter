@@ -1,13 +1,13 @@
 # Chapter: Rules (lmcode) - repeated string values in JSON objects
 # Shows: @object rule, per-object StrMap, source-text equality
-# Run: lmscript rules/lmcode/json-duplicate-values.lms   (then: lmbetter check --lang json build/rules-lmcode/json-duplicate-values.dslb tests/fixtures/json-dupvalues-violations.json)
+# Run: lmscript rules/lmcode/json-duplicate-values.lms   (then: lmok check --lang json build/rules-lmcode/json-duplicate-values.dslb tests/fixtures/json-dupvalues-violations.json)
 # check: json tests/fixtures/json-dupvalues-violations.json
 # Needs: nothing (offline); reads tests/fixtures/json-dupvalues-violations.json
 # exit: 0
 # expect:
 #|[{"row":2,"col":15,"end_row":2,"end_col":21,"rule":"LBJ105","severity":"minor","message":"repeated sibling string value \"same\""},{"row":3,"col":11,"end_row":3,"end_col":17,"rule":"LBJ105","severity":"minor","message":"repeated sibling string value \"same\""},{"row":9,"col":13,"end_row":9,"end_col":15,"rule":"LBJ105","severity":"minor","message":"repeated sibling string value \"\""},{"row":6,"col":14,"end_row":6,"end_col":21,"rule":"LBJ105","severity":"minor","message":"repeated sibling string value \"inner\""}]
 #|4 findings
-p = _lmcode_ cli="lmbetter";
+p = _lmcode_ cli="lmok";
 
 # Opt-in copy/paste heuristic: repeated sibling string values can be intentional.
 # Compare complete source spellings, not decoded JSON; escapes remain literal.

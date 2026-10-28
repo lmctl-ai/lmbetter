@@ -1,13 +1,13 @@
 # Chapter: Rules (lmcode) - duplicate keys in JSON objects
 # Shows: @object rule, per-object StrMap bookkeeping, pair key extraction
-# Run: lmscript rules/lmcode/json-duplicate-keys.lms   (then: lmbetter check --lang json build/rules-lmcode/json-duplicate-keys.dslb tests/fixtures/json-dupkeys-violations.json)
+# Run: lmscript rules/lmcode/json-duplicate-keys.lms   (then: lmok check --lang json build/rules-lmcode/json-duplicate-keys.dslb tests/fixtures/json-dupkeys-violations.json)
 # check: json tests/fixtures/json-dupkeys-violations.json
 # Needs: nothing (offline); reads tests/fixtures/json-dupkeys-violations.json
 # exit: 0
 # expect:
 #|[{"row":3,"col":2,"end_row":3,"end_col":8,"rule":"LBJ101","severity":"major","message":"duplicate key \"a\""},{"row":6,"col":4,"end_row":6,"end_col":10,"rule":"LBJ101","severity":"major","message":"duplicate key \"x\""}]
 #|2 findings
-p = _lmcode_ cli="lmbetter";
+p = _lmcode_ cli="lmok";
 
 # Duplicate keys are sibling relationships — a query pattern cannot express
 # "same text twice among siblings", so this is lmcode logic over a StrMap.

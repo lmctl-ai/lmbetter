@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-HOST = str(Path(sys.argv.pop(1)).resolve()) if len(sys.argv) > 1 else str(ROOT / 'build/lmbetter')
+HOST = str(Path(sys.argv.pop(1)).resolve()) if len(sys.argv) > 1 else str(ROOT / 'build/lmok')
 COMPILER = os.environ.get('LMSCRIPT_BIN', 'lmscript')
 
 class EntryChecks(unittest.TestCase):
@@ -24,7 +24,7 @@ class EntryChecks(unittest.TestCase):
     def compile(self, body):
         src = self.work / 'rules.lms'
         binary = self.work / 'rules.dslb'
-        src.write_text('p = _lmcode_ schema=' + json.dumps(str(ROOT / 'schema/lmbetter.host.json')) + ';\n' + body + '\nend _lmcode_\nsavedsl(p, ARGV[0]);\n')
+        src.write_text('p = _lmcode_ schema=' + json.dumps(str(ROOT / 'schema/lmok.host.json')) + ';\n' + body + '\nend _lmcode_\nsavedsl(p, ARGV[0]);\n')
         r = subprocess.run([COMPILER, str(src), str(binary)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         return binary

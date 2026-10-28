@@ -1,13 +1,13 @@
 # Chapter: Rules (lmcode) - scanf without field width (tier 2: query predicates)
 # Shows: #match? predicate selecting calls, two-capture pairing (fn + format), width heuristic
-# Run: lmscript rules/lmcode/c-scanf-width.lms   (then: lmbetter check --lang c build/rules-lmcode/c-scanf-width.dslb tests/fixtures/c-scanf-violations.c)
+# Run: lmscript rules/lmcode/c-scanf-width.lms   (then: lmok check --lang c build/rules-lmcode/c-scanf-width.dslb tests/fixtures/c-scanf-violations.c)
 # check: c tests/fixtures/c-scanf-violations.c
 # Needs: nothing (offline); reads tests/fixtures/c-scanf-violations.c
 # exit: 0
 # expect:
 #|[{"row":5,"col":2,"end_row":5,"end_col":7,"rule":"LBC106","severity":"major","message":"scanf-family call without field width in \"%s\""}]
 #|1 findings
-p = _lmcode_ cli="lmbetter";
+p = _lmcode_ cli="lmok";
 
 # Keep the original two-capture predicate query inside the current call.
 # Filter nested-call captures: each call is dispatched separately by the host.

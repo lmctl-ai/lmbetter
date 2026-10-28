@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace lmbetter {
+namespace lmok {
 // std::regex has neither a portable execution budget nor a stack bound.
 // Charge iterator operations shared by all backtracking copies. This bounds
 // both failed searches and recursive matching, without changing regex syntax.
@@ -77,4 +77,4 @@ inline std::regex bounded_regex(const std::string &pattern) {
   }
   return std::regex(pattern);
 }
-} // namespace lmbetter
+} // namespace lmok

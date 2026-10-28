@@ -1,6 +1,6 @@
 # The lint dispatcher (v0.2.8)
 
-`lmbetter lint RULES.json FILE...` is the host-side tree-walk dispatcher from
+`lmok lint RULES.json FILE...` is the host-side tree-walk dispatcher from
 the architecture review ("condition as data, action as annotated function").
 Today the conditions are JSON rule packs; the dispatch core is built so the
 v6 bytecode rule entry table (host-callable annotated lmcode fns) plugs into

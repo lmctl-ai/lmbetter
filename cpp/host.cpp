@@ -1,4 +1,4 @@
-// lmbetter wrapper over tree-sitter. The only translation unit that includes
+// lmok wrapper over tree-sitter. The only translation unit that includes
 // tree-sitter headers; see host.hpp for the interface contract.
 #include "host.hpp"
 #include "bounded_regex.hpp"
@@ -16,7 +16,7 @@ extern "C" const TSLanguage *tree_sitter_c(void);
 extern "C" const TSLanguage *tree_sitter_python(void);
 extern "C" const TSLanguage *tree_sitter_bash(void);
 
-namespace lmbetter {
+namespace lmok {
 
 static const TSLanguage *language_of(Grammar grammar) {
   switch (grammar) {
@@ -284,7 +284,7 @@ bool regex_search_bounded(const std::string &text, const std::regex &re) {
     if (!warned) {
       warned = true;
       std::fprintf(stderr,
-                   "lmbetter: regex not applied to a %zu-byte node text (limit %zu bytes: "
+                   "lmok: regex not applied to a %zu-byte node text (limit %zu bytes: "
                    "std::regex recursion overflows the stack on long text); treated as no match\n",
                    text.size(), kRegexTextCap);
     }
@@ -503,4 +503,4 @@ NodeList node_query(const Node &root_node, const std::string &pattern, Grammar g
   return list;
 }
 
-} // namespace lmbetter
+} // namespace lmok

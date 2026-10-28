@@ -7,7 +7,7 @@ Use `lmscript` >= 0.2.444 with the matching host on PATH:
 export PATH="$PWD/build:$PATH"
 mkdir -p build
 lmscript examples/parse-string.lms
-build/lmbetter --dsl build/parse-string.dslb
+build/lmok --dsl build/parse-string.dslb
 ```
 
 The outer script's `savedsl` call chooses the output filename. A second
@@ -17,8 +17,9 @@ its tree, `has_error -> false`, `nodes -> 34`, and the host success record
 `{"ok": true, "result": null}`. Each script's `# expect:` / `#|` comments
 list its expected program output; `--dsl` adds the success record.
 
-The `install="github:lmctl-ai/lmbetter@latest"` declaration can resolve a
-published host when one is not on PATH. It follows the latest release,
+The `install="github:lmctl-ai/lmok@latest"` declaration can resolve a
+published host when one is not on PATH, once maintainers publish renamed
+`lmok-OS-ARCH` release assets. The repo rename alone does not create those assets. It follows the latest release,
 not a fixed version pin. Compilation is offline once the local host and
 compiler are available. Raw URL invocation and its working-directory
 requirements are covered in the [README](../README.md#published-host-and-raw-urls).
@@ -30,7 +31,7 @@ for source in examples/*.lms; do
   lmscript "$source" || exit 1
   case "$source" in
     examples/lint-repo.lms) ;; # runs subprocesses directly; no saved bytecode
-    *) build/lmbetter --dsl "build/$(basename "$source" .lms).dslb" || exit 1 ;;
+    *) build/lmok --dsl "build/$(basename "$source" .lms).dslb" || exit 1 ;;
   esac
 done
 ```
@@ -72,7 +73,7 @@ nonzero process exit status.
   `Tree.edit` + `ts.reparse_c` re-parse against the old tree,
   `ts.changed_ranges` shows what moved, and the re-linted NEW tree finds the
   inserted unsafe call
-- `lint-repo.lms` — outer-lmscript composition: drives the `lmbetter lint`
+- `lint-repo.lms` — outer-lmscript composition: drives the `lmok lint`
   CLI dispatcher as a subprocess via `dsl_cli` + `system`, asserts exit
   codes, counts findings in stdout
 - `rules/` — demo rule packs for the `lint` subcommand (`c-security.json`:
@@ -87,7 +88,7 @@ idiom that replaces it for whole-tree scans; `report-json.lms` shows the
 `ts.report` sink that replaces the predicate-helper/counting idiom from
 `lint-json.lms`; `query-json.lms` shows S-expression selectors replacing
 structural navigation. Rule annotations (`@PAIR`, `@STRING`, `@NUMBER`) are
-v6 entry dispatch keys when the compiled file is run through `lmbetter check`.
+v6 entry dispatch keys when the compiled file is run through `lmok check`.
 The ordinary `--dsl` examples remain body-driven and keep their explicit loops.
 Node rows/columns are 0-based (tree-sitter convention); `ts.report` findings
 carry row/col/end_row/end_col plus the message, and the 4-arg overload adds
@@ -104,7 +105,7 @@ To run the entry dispatcher over an existing rule file and a C input, use the
 explicit language flag:
 
 ```sh
-lmbetter check --lang c build/c-function-metrics.dslb examples/data/sample.c
+lmok check --lang c build/c-function-metrics.dslb examples/data/sample.c
 ```
 
 The command parses each named input once and resets transient trees/findings

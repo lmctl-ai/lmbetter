@@ -11,4 +11,4 @@
 # Compiled DSL bytecode
 *.dslb
 
-/schema/lmbetter.dsl.json
+/schema/lmok.dsl.json

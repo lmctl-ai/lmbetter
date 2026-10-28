@@ -1,7 +1,7 @@
 #pragma once
-// lmbetter wrapper over the tree-sitter incremental parsing engine.
+// lmok wrapper over the tree-sitter incremental parsing engine.
 //
-// This is the only lmbetter-authored interface to tree-sitter: all
+// This is the only lmok-authored interface to tree-sitter: all
 // tree_sitter/api.h fallout stays in host.cpp; the CLI host (main.cpp) talks
 // to this plain interface only. Parsed trees and nodes are held as opaque
 // values so no tree-sitter header leaks into this file.
@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace lmbetter {
+namespace lmok {
 
 struct Node;
 
@@ -189,4 +189,4 @@ Node node_parent(const Node &node);
 // host.cpp helpers). Returns nullptr for a moved-from handle.
 const void *tree_handle(const Tree &tree);
 
-} // namespace lmbetter
+} // namespace lmok

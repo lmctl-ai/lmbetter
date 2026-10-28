@@ -16,7 +16,7 @@ or missing setup; low = inventory/navigation or nonblocking diagnostic.
 | --- | --- | --- |
 | High | No prerequisite list: the build requires CMake >= 3.24, Ninja, C/C++17 compilers and Linux static runtime libraries; dependency sync requires Bash, curl, tar and SHA-256 utilities. | Fixed: explicit prerequisites and Ubuntu/macOS setup notes. All tools were present on the review machine; these were missing from docs, not missing locally. |
 | High | npm setup omitted Node's version floor. Published `@lmctl-ai/lmctl@0.2.442` metadata requires Node >= 24.15.0; tests additionally require Python 3. | Fixed: tested npm version and runtime floor, Python requirement, compiler version check. |
-| High | No clone/cd instruction or PATH export; `lmbetter` is not installed by CMake. lmscript also needs a host for schema discovery. | Fixed: clone, repo-root working directory, absolute build PATH, explicit `build/lmbetter` example commands. |
+| High | No clone/cd instruction or PATH export; `lmok` is not installed by CMake. lmscript also needs a host for schema discovery. | Fixed: clone, repo-root working directory, absolute build PATH, explicit `build/lmok` example commands. |
 | High | Raw URL in an empty directory fails at `savedsl`: `cannot write build/parse-string.dslb: ENOENT`. | Fixed: `mkdir -p build` before raw-URL compilation. |
 | High | The exact rules README command fails at `savedsl`: `cannot write build/rules-lmcode/c-function-metrics.dslb: ENOENT`. | Fixed: create `build/rules-lmcode` before compiling rules. |
 | High | SARIF header says to execute `build/sarif-results.dslb`; the script actually saves `build/sarif-report.dslb`. | Fixed: header command only. The `.sarif` artifact remains `build/sarif-results.sarif`. |
@@ -25,7 +25,7 @@ or missing setup; low = inventory/navigation or nonblocking diagnostic.
 | Medium | "Each compiles to bytecode" is false for `lint-repo.lms`, which runs subprocesses and never saves a bytecode file. | Fixed: all-example loop special-cases it; documented its one-line result. |
 | Medium | "Nothing (offline)" headers omit the compiler, host/schema, output directory and cwd requirements. | Fixed: example headers refer to setup; docs distinguish offline-after-setup from first network resolution. Rule header shorthand is qualified by rules/README setup. |
 | Medium | Raw URL execution does not fetch data files. `parse-file.lms` compiles in an empty directory but the host exits 3 with `file_read: examples/data/sample.json: No such file or directory`. | Fixed: explain repository fixtures and cwd requirements. Inline-data parse-string works without a checkout once the output directory exists. |
-| Medium | `install="github:lmctl-ai/lmbetter@latest"` is described as a pin; it follows a moving release. Installation also does not put the executable on shell PATH. | Fixed: explain release resolution, printed executable path, PATH setup, fixed `@v0.4.0`, and the separate rolling dist branch. No packaging/code fix needed on tested platform. |
+| Medium | `install="github:lmctl-ai/lmok@latest"` is described as a pin; it follows a moving release. Installation also does not put the executable on shell PATH. | Fixed: explain release resolution, printed executable path, PATH setup, fixed `@v0.4.0`, and the separate rolling dist branch. No packaging/code fix needed on tested platform. |
 | Medium | Rule reuse instructions imply every check is one annotated SAM function. scanf pairing and symbol/cross-file checks require helper/set/dispatch logic too. | Fixed: describe both forms and copying their calling logic. |
 | Low | JSON pack says five rules but contains six including LBJ104; tier inventory puts LBJ104 under lmcode; cross-file demo/LBC110 is omitted and E3 still calls cross-file references impossible. | Fixed: counts, placement, cross-file inventory and stale E3 wording. |
 | Low | Paths to tier docs and examples are plain code text, and relative navigation is unclear from subdirectories. | Fixed: clickable repository-relative links across the four requested documents; link targets checked locally. |
@@ -36,10 +36,10 @@ or missing setup; low = inventory/navigation or nonblocking diagnostic.
 ## Published install verification
 
 The release flow works on Linux ARM64; there is **no observed dist/release
-layout blocker**. With no `lmbetter` on PATH, raw-URL compilation resolved
+layout blocker**. With no `lmok` on PATH, raw-URL compilation resolved
 and downloaded the host into a fresh cache under the review workspace.
-Its release metadata identifies `v0.4.0`, asset `lmbetter-linux-arm64`.
-The executable reports `lmbetter 0.4.0`; its actual SHA-256 is:
+Its release metadata identifies `v0.4.0`, asset `lmok-linux-arm64`.
+The executable reports `lmok 0.4.0`; its actual SHA-256 is:
 
 ```
 725352922dec53b4ceaef138eb697fa4cfbae66e3f97b910e6b849ae64555c5f
@@ -47,7 +47,7 @@ The executable reports `lmbetter 0.4.0`; its actual SHA-256 is:
 
 That matches the ARM64 entry in the published
 [dist SHA256SUMS](https://github.com/lmctl-ai/lmok/blob/dist/SHA256SUMS).
-Both `lmscript install github:lmctl-ai/lmbetter@latest` and the explicit
+Both `lmscript install github:lmctl-ai/lmok@latest` and the explicit
 `@v0.4.0` selector resolved successfully. The
 [v0.4.0 release](https://github.com/lmctl-ai/lmok/releases/tag/v0.4.0)
 and [dist branch](https://github.com/lmctl-ai/lmok/tree/dist) each expose

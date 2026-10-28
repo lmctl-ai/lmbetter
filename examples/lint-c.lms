@@ -1,13 +1,13 @@
 # Chapter: Rules - lint C code for unsafe calls and FIXMEs
 # Shows: ts.parse_c/query_c (C grammar), @call_expression/@comment rules, ts.report with rule key + severity
-# Run: lmscript examples/lint-c.lms      (then: build/lmbetter --dsl build/lint-c.dslb)
-# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Run: lmscript examples/lint-c.lms      (then: build/lmok --dsl build/lint-c.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
 # Data: the C source is embedded below.
 # exit: 0
 # expect:
 #|[{"row":5,"col":2,"end_row":5,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"},{"row":6,"col":2,"end_row":6,"end_col":8,"rule":"LBC001","severity":"critical","message":"unsafe call 'strcpy'"},{"row":7,"col":2,"end_row":7,"end_col":9,"rule":"LBC001","severity":"critical","message":"unsafe call 'sprintf'"},{"row":6,"col":24,"end_row":6,"end_col":54,"rule":"LBC002","severity":"minor","message":"unresolved FIXME comment"}]
 #|4 findings
-p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _lmcode_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 
 # SonarQube-style security rules over real C, with analyzer-style metadata:
 # every finding carries a rule key and a severity (free-form strings — policy
