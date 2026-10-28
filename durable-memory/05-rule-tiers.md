@@ -14,8 +14,10 @@ plan then build), real semantics (tier 3, defer).
   definitions (`((function_definition (declaration)) @kr)` — the extra
   grouping parens make the capture land once on the outer node), object-like
   macros, register, snake_case function names, commented-out code.
-- `rules/json-tier1.json` — 5 rules (LBJ001–LBJ005): credential keys,
-  placeholder strings, null values, snake_case keys, numbers-as-strings.
+- `rules/json-tier1.json` — 11 rules (LBJ001–LBJ010 plus LBJ104): credential
+  keys, placeholder strings, null values, snake_case keys, numbers-as-strings,
+  exact sensitive credential keys, HTTP URL values, unpinned versions, empty
+  containers, long source strings, and exact password key.
 - Guard fixtures: `tests/fixtures/{c,json}-tier1-{violations,clean}.*` —
   every rule fires exactly where expected on the violations fixture
   (byte-exact output pinned in test.sh), and the clean fixture must produce
@@ -141,3 +143,20 @@ re-parse (v0.4.0). Re-scoped: E3 same-file symbol index (performance/
 cross-file only — the symbol-ish rules turned out to be scriptable, see "E3
 reality check" above). Tier 2 is COMPLETE. Tier 3 (types, CFG, dataflow,
 taint) stays deferred.
+
+## JSON expansion
+
+The previous inventory said five JSON rules but omitted the already-shipped
+LBJ104: the pack now contains eleven. New LBJ006–LBJ010 use verified vendored
+JSON node kinds (`pair`, `string`, `array`, `object`). Whole-string matching
+avoids fragmentation at escape sequences. LBJ010 fits a pack regex and counts
+>200 source bytes between quotes, not decoded characters. Fixtures include the
+200/201 boundary and escaped strings. LBJ008 intentionally treats any pair value
+`*`/`latest` as unpinned; this is a configuration heuristic, not schema inference.
+
+`json-duplicate-values.lms` adds LBJ105 with an annotated `implements Rule`
+function and a local StrMap per object. Reports each repeated string value after
+the first; nested scopes are independent, array values and non-strings excluded.
+Equality is source spelling (no JSON unescaping), and repeated values may be
+intentional. Its violations/clean fixtures use the existing test.sh sed path
+substitution; the explicit rule-file loop now includes ten files.

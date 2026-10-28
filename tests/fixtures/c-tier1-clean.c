@@ -11,6 +11,11 @@ int main(void) {
     return 1;
   }
   printf("hello %s\n", name);
+  char *scratch = malloc(16);
+  if (scratch == NULL) {
+    return 1;
+  }
+  free(scratch);
   if (add_numbers(1, 2) == 3) {
     return 0;
   }

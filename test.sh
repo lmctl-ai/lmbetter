@@ -257,12 +257,13 @@ cat >"$WORK/c-tier1.expected" <<'EXPECTED_C'
 {"row":15,"col":2,"end_row":15,"end_col":19,"rule":"LBC010","severity":"minor","message":"commented-out code"}
 {"row":16,"col":2,"end_row":16,"end_col":29,"rule":"LBC002","severity":"minor","message":"unresolved FIXME/TODO comment"}
 {"row":20,"col":0,"end_row":22,"end_col":13,"rule":"LBC006","severity":"major","message":"K&R function definition (use ANSI prototypes)"}
-13 findings in tests/fixtures/c-tier1-violations.c
+{"row":27,"col":20,"end_row":27,"end_col":26,"rule":"LBC011","severity":"minor","message":"cast of 'malloc' result (redundant in C, can hide a missing prototype)"}
+14 findings in tests/fixtures/c-tier1-violations.c
 EXPECTED_C
 cmp "$WORK/c-tier1.expected" "$WORK/c-tier1.out" || { diff "$WORK/c-tier1.expected" "$WORK/c-tier1.out" >&2; fail "c-tier1 violations output"; }
 out="$("$HOST" lint rules/c-tier1.json tests/fixtures/c-tier1-clean.c)"
 [ "$out" = "0 findings in tests/fixtures/c-tier1-clean.c" ] || fail "c-tier1 clean: $out"
-ok "lint: c-tier1 pack, all 10 rules fire on violations, clean fixture silent"
+ok "lint: c-tier1 pack, all 11 rules fire on violations, clean fixture silent"
 
 "$HOST" lint rules/json-tier1.json tests/fixtures/json-tier1-violations.json >"$WORK/json-tier1.out" || fail "lint json-tier1 violations run"
 cat >"$WORK/json-tier1.expected" <<'EXPECTED_J'
@@ -274,12 +275,24 @@ cat >"$WORK/json-tier1.expected" <<'EXPECTED_J'
 {"row":7,"col":13,"end_row":7,"end_col":17,"rule":"LBJ002","severity":"minor","message":"placeholder string TODO"}
 {"row":8,"col":11,"end_row":8,"end_col":15,"rule":"LBJ003","severity":"minor","message":"null value present"}
 {"row":9,"col":11,"end_row":9,"end_col":15,"rule":"LBJ005","severity":"minor","message":"number encoded as string: 8080"}
-8 findings in tests/fixtures/json-tier1-violations.json
+{"row":10,"col":2,"end_row":10,"end_col":14,"rule":"LBJ006","severity":"critical","message":"sensitive credential key \"aws_secret\""}
+{"row":10,"col":3,"end_row":10,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"aws_secret\""}
+{"row":11,"col":2,"end_row":11,"end_col":15,"rule":"LBJ006","severity":"critical","message":"sensitive credential key \"private_key\""}
+{"row":12,"col":2,"end_row":12,"end_col":11,"rule":"LBJ006","severity":"critical","message":"sensitive credential key \"api_key\""}
+{"row":13,"col":14,"end_row":13,"end_col":35,"rule":"LBJ007","severity":"major","message":"insecure HTTP URL"}
+{"row":15,"col":4,"end_row":15,"end_col":24,"rule":"LBJ007","severity":"major","message":"insecure HTTP URL"}
+{"row":17,"col":13,"end_row":17,"end_col":16,"rule":"LBJ008","severity":"minor","message":"unpinned version \"*\""}
+{"row":18,"col":16,"end_row":18,"end_col":24,"rule":"LBJ008","severity":"minor","message":"unpinned version \"latest\""}
+{"row":19,"col":19,"end_row":19,"end_col":21,"rule":"LBJ009","severity":"minor","message":"empty container placeholder"}
+{"row":20,"col":20,"end_row":20,"end_col":22,"rule":"LBJ009","severity":"minor","message":"empty container placeholder"}
+{"row":21,"col":15,"end_row":21,"end_col":218,"rule":"LBJ010","severity":"minor","message":"string exceeds 200 source bytes"}
+{"row":22,"col":23,"end_row":22,"end_col":227,"rule":"LBJ010","severity":"minor","message":"string exceeds 200 source bytes"}
+20 findings in tests/fixtures/json-tier1-violations.json
 EXPECTED_J
 cmp "$WORK/json-tier1.expected" "$WORK/json-tier1.out" || { diff "$WORK/json-tier1.expected" "$WORK/json-tier1.out" >&2; fail "json-tier1 violations output"; }
 out="$("$HOST" lint rules/json-tier1.json tests/fixtures/json-tier1-clean.json)"
 [ "$out" = "0 findings in tests/fixtures/json-tier1-clean.json" ] || fail "json-tier1 clean: $out"
-ok "lint: json-tier1 pack, all 5 rules fire on violations, clean fixture silent"
+ok "lint: json-tier1 pack, all 11 rules fire on violations, clean fixture silent"
 
 # --- DSL bytecode ---
 cat > "$WORK/smoke.lms" <<EOF
@@ -400,7 +413,7 @@ ok "lint-repo: lmscript drives lmbetter lint and counts findings"
 
 # --- rules/lmcode (lmcode-native tier-1 rules) ---
 mkdir -p build/rules-lmcode
-for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits c-nesting-depth json-nesting-depth c-scanf-width c-symbol-rules c-cross-file; do
+for f in c-function-metrics c-switch-style json-duplicate-values json-duplicate-keys json-size-limits c-nesting-depth json-nesting-depth c-scanf-width c-symbol-rules c-cross-file; do
   "$LMSCRIPT" "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f rule compile"
   "$HOST" --dsl "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
   while IFS= read -r line; do
@@ -416,7 +429,7 @@ for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits 
   grep -qxF '[]' <<<"$out" || fail "$f clean fixture findings: $out"
   grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
 done
-ok "rules/lmcode: nine rule files fire on violations fixtures, silent on clean"
+ok "rules/lmcode: ten rule files fire on violations fixtures, silent on clean"
 
 # --- incremental reparse contract (E5) ---
 cat > "$WORK/reparse-contract.lms" <<EOF2

@@ -1,0 +1,14 @@
+{
+  "primary": "same",
+  "secondary": "different",
+  "nested": {"first": "same"},
+  "other": {"first": "same"},
+  "numbers": [1, 1],
+  "strings": ["same", "same"],
+  "one": 1,
+  "another_one": 1,
+  "enabled": true,
+  "active": true,
+  "escaped": "\u0073ame",
+  "empty": ""
+}

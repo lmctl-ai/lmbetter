@@ -5,31 +5,99 @@ scriptable CLI.
 
 lmbetter wraps [tree-sitter](https://tree-sitter.github.io) 0.27.1 together
 with the [tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json)
-grammar in one dependency-free executable that can be driven from the command
+and [tree-sitter-c](https://github.com/tree-sitter/tree-sitter-c) grammars in one dependency-free executable that can be driven from the command
 line or scripted with [lmscript](https://github.com/lmctl-ai). Feed it JSON
 and it prints the concrete syntax tree; from lmscript you get a typed `Tree`
 object to inspect.
 
-## Install lmctl
+## Build and run
 
-Everything in this repository runs through [lmctl](https://lmctl.com), the core tool of the lmctl family. Install it once, then run any `.lms` file or raw URL:
+The standalone CLI needs no Node runtime. Scripting and the test suite use
+[lmctl](https://lmctl.com), which supplies the `lmscript` command.
 
-```bash
-npm install -g @lmctl-ai/lmctl
-lmctl autorun examples/parse-string.lms
-lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmbetter/main/examples/parse-string.lms
-```
+Prerequisites for the commands below (Bash on Linux or macOS):
 
-## Build
+- Git, curl, tar, and SHA-256 tools (`sha256sum` or macOS `shasum`); internet
+  access for the pinned source archives and npm package.
+- CMake >= 3.24, Ninja, and C/C++ compilers with C++17 support (GCC or Clang).
+  Linux builds also need static C/C++ runtime libraries; on Ubuntu these
+  come with `build-essential`. On macOS install Xcode Command Line Tools.
+- Node.js >= 24.15.0 and npm for `@lmctl-ai/lmctl@0.2.442`.
+- Python 3 for `./test.sh`, plus the usual Unix shell utilities. The SDK
+  headers are already checked in; no sibling `lmcode-cpp` checkout is needed.
+
+On Ubuntu, `sudo apt-get install build-essential cmake ninja-build git curl
+python3` installs the build tools (check CMake's version). Install Node
+separately if your distribution's package is older than 24.15.0. On macOS,
+install CMake and Ninja as well as the command-line compiler tools.
 
 ```sh
-scripts/sync-deps.sh   # download the pinned tree-sitter sources (third_party/, git-ignored)
+git clone https://github.com/lmctl-ai/lmbetter.git
+cd lmbetter
+npm install -g @lmctl-ai/lmctl@0.2.442
+lmscript --version   # lmscript 0.2.442
+scripts/sync-deps.sh   # pinned tree-sitter sources (third_party/, git-ignored)
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
+export PATH="$PWD/build:$PATH"
+./test.sh
 ```
+
+Run all repository examples from this directory, in the same shell. The
+absolute PATH entry lets lmscript find the locally built host's schema and
+makes the `lmbetter` commands below work. If npm's commands are not found,
+add its global executable directory to PATH too.
 
 Produces `build/lmbetter`: one statically linked executable (`ldd` reports
 "not a dynamic executable" on Linux; macOS links only system libraries).
+The test suite rebuilds the host, checks dependency pins, and runs examples
+and rule fixtures; on Linux this revision ends with `PASS: 53 checks`.
+
+```sh
+lmscript examples/parse-string.lms
+build/lmbetter --dsl build/parse-string.dslb
+```
+
+The first command saves bytecode; the second prints the JSON text, its tree,
+`has_error -> false`, `nodes -> 34`, then the host's success record
+`{"ok": true, "result": null}`. See [all examples](examples/README.md).
+
+## Published host and raw URLs
+
+To use a published binary without building C++, install Node/npm and lmctl
+as above, then:
+
+```sh
+lmscript install github:lmctl-ai/lmbetter@latest
+```
+
+This prints the resolved release tag, executable path, and SHA-256. It
+resolves v0.4.0 at the time of writing; releases contain Linux x64/ARM64,
+macOS x64/ARM64, and Windows x64 executables. It caches the host rather than
+adding a `lmbetter` command to your shell PATH. Add the directory printed in
+`path:` to PATH to run the CLI by name. The rolling `dist` branch also holds
+platform binaries; `@latest` resolves a GitHub release, not that branch.
+Use `@v0.4.0` when you need a fixed release instead of a moving `@latest`.
+
+From the repository root (or an empty directory for this inline-data example):
+
+```sh
+mkdir -p build
+lmctl autorun https://raw.githubusercontent.com/lmctl-ai/lmbetter/main/examples/parse-string.lms
+lmbetter --dsl build/parse-string.dslb
+```
+
+With a local build, use `build/lmbetter` for the second command. The local
+form `lmctl autorun examples/parse-string.lms` works too. `autorun` runs the
+outer script, whose `savedsl` call writes `build/parse-string.dslb`; it does
+not execute that bytecode or print the tree. The `install=` declaration lets
+lmscript resolve a host when one is not on PATH. `@latest` is not a fixed
+version pin, and initial resolution needs network access.
+
+Raw URLs fetch the script, not a repository checkout or its data files.
+Examples reading `examples/data/` or `tests/fixtures/` still need the clone
+and repository-root working directory. The examples' output directories
+must exist before compilation.
 
 ## CLI
 
@@ -127,29 +195,34 @@ small demos; the canonical rule library is `rules/` (see below).
 ## Rule tiers
 
 Rules are classified by the information they need: tier 1 (CST shape + text)
-ships as packs in `rules/` — `c-tier1.json` (10 rules: unsafe calls, command
+ships as packs in `rules/` — `c-tier1.json` (11 rules: unsafe calls, command
 exec, assignment-in-condition, K&R definitions, goto, FIXME/TODO, object-like
-macros, register, naming, commented-out code) and `json-tier1.json` (5 rules:
+macros, register, naming, commented-out code, malloc-result casts) and `json-tier1.json` (11 rules:
 credential keys, placeholders, nulls, key naming, numbers-as-strings, exact
-password key) — plus lmcode-native rules in `rules/lmcode/` for checks that
-need logic (function metrics, switch/if style, duplicate JSON keys, object
-size, nesting depth via `Node.has_parent()`/`parent()`, scanf width via
+password key, sensitive credential keys, HTTP URLs, unpinned versions, empty
+containers, long strings) — plus lmcode-native rules in `rules/lmcode/` for
+checks that need logic (function metrics, switch/if style, duplicate JSON
+keys and sibling string values, object size, nesting depth via `Node.has_parent()`/`parent()`, scanf width via
 query predicates, same-file symbol rules via set algebra). Since v0.4.0,
 trees are incremental: `Tree.edit(start, old_end, new_end)` records a
 byte-offset edit, `ts.reparse`/`ts.reparse_c(old, new_text)` re-parse against
 the old tree (which stays alive), and `ts.changed_ranges(old, new)` returns
 the changed ranges as a JSON array string — the edit → reparse → re-lint loop
-is `examples/incremental-reparse.lms`. Tier-2 extensions E1 (query
+is [examples/incremental-reparse.lms](examples/incremental-reparse.lms). Tier-2 extensions E1 (query
 predicates) and E2 (parent) are landed; E3 re-scoped to
 performance/cross-file after the symbol rules proved scriptable; E4/E5 landed
 in v0.3.5/v0.4.0; tier 3 (real semantics) is deferred.
-The framework, inventory, and extension plan: `docs/rule-tiers.md`.
+The framework, inventory, and extension plan: [rule tiers](docs/rule-tiers.md).
 
 ```sh
-lmbetter lint rules/c-tier1.json myfile.c
+lmbetter lint rules/c-tier1.json examples/data/sample.c
 ```
 
 ## Scripting
+
+Save this as `build/show.lms` after the setup above, run
+`lmscript build/show.lms`, then `build/lmbetter --dsl build/show.dslb`.
+The script saves bytecode; `--dsl` executes it.
 
 ```lmscript
 p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
@@ -171,23 +244,23 @@ root) and `.parent()` (a located run-time error at the root). The schema also de
 `Rule(n: Node) -> void`: top-level lmcode functions can carry a `@NODE-KIND`
 annotation and an `implements Rule` clause (checked at compile time), so
 analysis rules are user-redefinable scripts over the CST — see
-`examples/cst-rules.lms` and `durable-memory/03-rule-methods.md`. Rule methods
+[examples/cst-rules.lms](examples/cst-rules.lms) and [durable-memory/03-rule-methods.md](durable-memory/03-rule-methods.md). Rule methods
 require `lmscript` >= 0.2.442. Since v0.2.1, `Tree.nodes()` returns a
 `NodeList` (flat pre-order list of named nodes, root first; `.len()` and
 bounds-checked `.at(i)`), so `for (n in tree.nodes())` runs a whole-tree scan
-in one foreach — see `examples/lint-json.lms`. Since v0.2.2, the host keeps a
+in one foreach — see [examples/lint-json.lms](examples/lint-json.lms). Since v0.2.2, the host keeps a
 per-run findings sink: `ts.report(node, message)` appends a finding
 {row, col, end_row, end_col, message} (0-based positions, capped at 65536 per
 run), read back with `ts.report_count()` and `ts.report_json()` (a JSON array
 string with stable key order) — the script decides the rendering, see
-`examples/report-json.lms`. Since v0.2.5, `ts.report(node, message, rule,
+[examples/report-json.lms](examples/report-json.lms). Since v0.2.5, `ts.report(node, message, rule,
 severity)` also attaches rule metadata: `rule`/`severity` are free-form
 strings (policy belongs to the script; the host validates nothing), emitted
 by `report_json()` only when present (key order row, col, end_row, end_col,
-rule, severity, message) — see `examples/rule-catalog.lms` for per-severity
-summaries and a quality gate computed in lmcode, `examples/suppress-findings.lms`
+rule, severity, message) — see [examples/rule-catalog.lms](examples/rule-catalog.lms) for per-severity
+summaries and a quality gate computed in lmcode, [examples/suppress-findings.lms](examples/suppress-findings.lms)
 for `// nosonar`-style suppression implemented entirely script-side, and
-`examples/sarif-report.lms` for SARIF 2.1.0 emission (GitHub code scanning /
+[examples/sarif-report.lms](examples/sarif-report.lms) for SARIF 2.1.0 emission (GitHub code scanning /
 VS Code interop) in pure lmcode. Since v0.2.3, `ts.query(root, pattern)` runs a
 tree-sitter S-expression query over the subtree at `root` and returns every
 captured node as a `NodeList` (match/byte order; duplicates kept; a pattern
@@ -201,7 +274,7 @@ the tree-sitter CLI does. Published query files using these predicates now
 work as written. Since v0.2.4, a
 second grammar is vendored: tree-sitter-c (pinned in `deps.lock`) with
 `ts.parse_c(text)` / `ts.query_c(root, pattern)` mirroring the JSON pair — see
-`examples/lint-c.lms` for real security rules over C. See `examples/` for
+[examples/lint-c.lms](examples/lint-c.lms) for real security rules over C. See `examples/` for
 runnable scripts.
 
 ## Repository layout
@@ -210,7 +283,7 @@ runnable scripts.
 - `docs/` — design documents (e.g. `rule-snippets.md`: analysis rules as lmscript snippets)
 - `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.442 supplies the built-in standard library implicitly)
 - `examples/` — lmscript examples (plus `examples/rules/` demo packs)
-- `rules/` — the canonical rule library: tier-1 packs plus `rules/lmcode/` logic rules (see `rules/README.md`, `docs/rule-tiers.md`)
+- `rules/` — the canonical rule library: tier-1 packs plus `rules/lmcode/` logic rules (see [rules/README.md](rules/README.md), [docs/rule-tiers.md](docs/rule-tiers.md))
 - `tests/fixtures/` — lint fixtures (violations fire every rule; clean guards false positives)
 - `scripts/` — vendoring (tree-sitter sources pinned in `deps.lock`, `lmcode-cpp` SDK pinned in `sdk.lock`) and compiler selection
 - `third_party/` — downloaded upstream sources (git-ignored, pinned by `deps.lock`)
@@ -218,6 +291,6 @@ runnable scripts.
 ## License and company
 
 lmbetter-authored code is MIT licensed (see `LICENSE`). It builds against
-tree-sitter and tree-sitter-json, both MIT licensed (`THIRD_PARTY_NOTICES.md`;
+tree-sitter, tree-sitter-json, and tree-sitter-c, all MIT licensed (`THIRD_PARTY_NOTICES.md`;
 also embedded in the binary, see `lmbetter --notices`). Made by
 **Lattice Systems LLC**.

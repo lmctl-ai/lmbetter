@@ -23,3 +23,8 @@ int a;
 { return a; }
 
 implicit_ok(void) { return 0; }
+
+void *alloc_cast(void) {
+  char *p = (char *)malloc(8);
+  return p;
+}

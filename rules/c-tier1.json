@@ -40,13 +40,8 @@
     },
     {
       "id": "LBC007",
-      "query": "(function_definition !type) @f",
-      "message": "function definition without return type (implicit int)",
-      "severity": "major"
-    },
-    {
-      "id": "LBC007",
       "on": "preproc_def",
+      "text_matches": "^#define[ \\t]+[A-Za-z_][A-Za-z0-9_]*[ \\t]+\\S",
       "message": "object-like macro (prefer const or enum)",
       "severity": "minor"
     },
@@ -59,7 +54,7 @@
     },
     {
       "id": "LBC009",
-      "query": "(function_declarator declarator: (identifier) @name)",
+      "query": "((function_definition declarator: (function_declarator declarator: (identifier) @name)) (#not-match? @name \"^[A-Z_][A-Z0-9_]*$\"))\n((function_definition declarator: (pointer_declarator declarator: (function_declarator declarator: (identifier) @name))) (#not-match? @name \"^[A-Z_][A-Z0-9_]*$\"))",
       "text_matches": "[A-Z]",
       "message": "function name not snake_case: {text}",
       "severity": "minor"
@@ -67,8 +62,14 @@
     {
       "id": "LBC010",
       "on": "comment",
-      "text_matches": "(=.*;)|(;[ \\t]*$)",
+      "text_matches": "^(//|/\\*)(([^\\n]*=[^\\n]*;)|([^\\n]*;[ \\t]*$))",
       "message": "commented-out code",
+      "severity": "minor"
+    },
+    {
+      "id": "LBC011",
+      "query": "(cast_expression value: (call_expression function: (identifier) @fn) (#match? @fn \"^(malloc|calloc|realloc)$\"))",
+      "message": "cast of '{text}' result (redundant in C, can hide a missing prototype)",
       "severity": "minor"
     }
   ]

@@ -3,6 +3,9 @@
 lmbetter is deliberately a simple CLI, not a platform. Rules are classified by
 what information they need; the tier decides when (or whether) they ship.
 
+See the [rule library and run commands](../rules/README.md) and
+[examples](../examples/README.md) for runnable entry points.
+
 ## The membership test
 
 **What information does the rule need?**
@@ -21,7 +24,10 @@ what information they need; the tier decides when (or whether) they ship.
 
 ## Tier 1 — shipped (rules/)
 
-### C (`rules/c-tier1.json`, 10 rules)
+### C ([rules/c-tier1.json](../rules/c-tier1.json), 11 rules)
+
+Real-world validated against sds, kilo and cJSON (see
+[durable-memory/06-realworld-validation.md](../durable-memory/06-realworld-validation.md) for the TP/FP triage).
 
 | id | rule | mechanism | reference |
 | --- | --- | --- | --- |
@@ -31,12 +37,13 @@ what information they need; the tier decides when (or whether) they ship.
 | LBC004 | command-exec calls `system`/`popen`/`execl*`/`execvp` | same query as LBC001 + anchored regex | CWE-78 |
 | LBC005 | assignment inside `if`/`while` condition | two query patterns through `parenthesized_expression` | CERT EXP45-C; cf. MISRA C:2012 13.4 |
 | LBC006 | K&R function definition | query `((function_definition (declaration)) @kr)` (a definition with direct `declaration` children) | — |
-| LBC007 | object-like `#define` macro | `on: preproc_def` | — |
+| LBC007 | object-like `#define` macro with a replacement value | `on: preproc_def` + regex requiring a value after the name (value-less include guards / feature macros skipped) | — |
 | LBC008 | `register` storage class | `on: storage_class_specifier` + regex `^register$` | — |
-| LBC009 | function name not snake_case | query function declarators + regex `[A-Z]` | — (convention rule) |
-| LBC010 | commented-out code | `on: comment` + heuristic regex `(=.*;)\|(;\s*$)` | cf. SonarQube S125 |
+| LBC009 | function name not snake_case | two query patterns over `function_definition` declarators (incl. pointer-returning) + regex `[A-Z]`; all-caps names exempt (macro convention) | — (convention rule) |
+| LBC010 | commented-out code | `on: comment` + heuristic regex anchored to the comment's FIRST line (`=…;` or trailing `;`) | cf. SonarQube S125 |
+| LBC011 | cast of `malloc`/`calloc`/`realloc` result | query `cast_expression` of a call + `#match?` on the callee | CERT MEM02-C |
 
-### JSON (`rules/json-tier1.json`, 5 rules)
+### JSON ([rules/json-tier1.json](../rules/json-tier1.json), 11 rules)
 
 | id | rule | mechanism |
 | --- | --- | --- |
@@ -45,15 +52,30 @@ what information they need; the tier decides when (or whether) they ship.
 | LBJ003 | null value present | `on: null` |
 | LBJ004 | key not snake_case | query pair key + regex `[A-Z]` |
 | LBJ005 | number encoded as string (`"port": "8080"`) | query pair value string + regex `^[0-9]+$` |
+| LBJ006 | sensitive keys (`aws_secret`, `aws_secret_access_key`, `private_key`, `api_key`) | pair key whole string + anchored regex |
+| LBJ007 | insecure `http://` URL values | pair/array string values + prefix regex |
+| LBJ008 | unpinned version strings (`*`, `latest`) | pair string values + exact regex |
+| LBJ009 | empty array/object placeholders | array/object query + whitespace-only contents regex |
+| LBJ010 | string source longer than 200 bytes (excluding quotes) | `on: string` + regex `^".{201,}"$` |
+| LBJ104 | exact `password` key | pair key query + `#eq?` predicate |
+
+These are opt-in configuration policies: empty containers and repeated values
+can be legitimate. LBJ008 treats any pair value equal to `*` or `latest` as a
+version placeholder; it does not infer a package schema. LBJ006 is case-sensitive
+and intentionally overlaps LBJ001 for `aws_secret`. LBJ007 checks pair values
+and direct array elements, not keys or URLs embedded within prose. LBJ009 accepts
+whitespace inside empty containers but does not match comment-only containers.
+LBJ010 is pack-expressible: regex counts source bytes, including escape spelling,
+not decoded Unicode characters. It matches whole strings (keys included), so
+escape-split `string_content` nodes do not hide long source strings.
 
 ### Further tier-1 candidates (not shipped, judged pack/script-able)
 
 - multiple assignment (`a = b = 0`): nested `assignment_expression` query
 - empty `if`/`while` body (`;`): `on: expression_statement` + text `;` guard,
   or a query for empty consequences
-- `malloc` result cast to a pointer type: `cast_expression` + regex
 
-### Shipped as lmcode rules (rules/lmcode/) — tier 1 with logic
+### Shipped as lmcode rules (rules/lmcode/) — logic over the CST
 
 | id | rule | mechanism |
 | --- | --- | --- |
@@ -62,14 +84,15 @@ what information they need; the tier decides when (or whether) they ship.
 | LBC103 | switch without default | child-walk; default = `case_statement` text prefix |
 | LBC104 | if without braces | consequence child kind != `compound_statement` |
 | LBJ101 | duplicate keys in one object | `@object` + per-object StrMap over pair keys |
+| LBJ105 | repeated sibling string values | `@object` + per-object StrMap; source-text equality, excludes arrays/non-strings |
 | LBJ102 | object too large (>50 entries) | pair-child counting |
 | LBC105 | control structure nested >4 deep | parent() chain walk (needs E2) |
 | LBJ103 | JSON value nested >6 levels deep | parent() chain walk (needs E2) |
 | LBC106 | `scanf`/`fscanf` without field width | query + `#match?` predicate selecting the callee (needs E1); width heuristic in lmcode |
-| LBJ104 | key literally `password` (exact, no `password_hint` false positive) | query + `#eq?` predicate (needs E1) |
 | LBC107 | static function never called | two queries + StrMap set difference in lmcode (no host index) |
 | LBC108 | call to undefined function (same-file) | call set minus (defined + script-side libc whitelist) |
 | LBC109 | direct recursion | per-definition subtree query for self-calls |
+| LBC110 | call to a function defined in none of the input files | cross-file set union in lmcode (E4) |
 
 (LBC001/LBC004 moved their callee regexes from pack `text_matches` into the
 query as `#match?` predicates — same behavior, sharper form.)
@@ -101,13 +124,13 @@ query as `#match?` predicates — same behavior, sharper form.)
 - **E3: same-file symbol index — RE-SCOPED (v0.3.4) after reality check.**
   The symbol-ish rules it was meant to unlock turned out to be expressible in
   pure lmcode today: two queries + StrMap set algebra (see
-  `rules/lmcode/c-symbol-rules.lms`: LBC107 unused static function, LBC108
+  [rules/lmcode/c-symbol-rules.lms](../rules/lmcode/c-symbol-rules.lms): LBC107 unused static function, LBC108
   undefined call, LBC109 direct recursion). No host index was needed. E3
   remains only as a PERFORMANCE optimization for very large files (the
   script-side approach is O(defs × subtree) for recursion) and as an E4
-  adjunct. Genuinely still impossible script-side: cross-file references,
-  function-pointer/callback targets, typedef-aware name resolution (those are
-  E4/tier-3 territory). Conservative choices shipped: LBC107 flags STATIC
+  adjunct. Cross-file defined/called sets are now scriptable (E4 below).
+  Function-pointer/callback targets and typedef-aware name resolution remain
+  outside this model (tier-3 territory). Conservative choices shipped: LBC107 flags STATIC
   functions only (their calls must be same-file); LBC108 considers plain
   identifier callees only and uses a script-owned libc whitelist.
 - **E4: multi-file / directory lint — LANDED (v0.3.5), minus include
@@ -116,7 +139,7 @@ query as `#match?` predicates — same behavior, sharper form.)
   `.json` → json), paths sorted for byte-stable output, files whose language
   has no pack rules skipped silently, an empty expansion is exit 2, and
   unreadable files still fail fast (exit 3). The cross-file half is
-  script-side: `rules/lmcode/c-cross-file.lms` (LBC110, call to a function
+  script-side: [rules/lmcode/c-cross-file.lms](../rules/lmcode/c-cross-file.lms) (LBC110, call to a function
   defined in NO file) unions defined/called sets over multiple parsed files
   in pure lmcode. Still out of scope: include-graph resolution and
   header/source pairing heuristics (fine-grained C project semantics stay
@@ -127,7 +150,7 @@ query as `#match?` predicates — same behavior, sharper form.)
   bad offsets are a located run-time error). `ts.reparse`/`ts.reparse_c(old,
   new_text)` return the new tree; the old tree stays alive for
   `ts.changed_ranges(old, new) -> string` (JSON array of [start,end] pairs).
-  `examples/incremental-reparse.lms` shows the edit → reparse → re-lint loop.
+  [examples/incremental-reparse.lms](../examples/incremental-reparse.lms) shows the edit → reparse → re-lint loop.
 
 ## Tier-2 retrospective (all extensions landed or re-scoped, v0.4.0)
 

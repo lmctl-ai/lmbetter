@@ -1,7 +1,8 @@
 # Chapter: Incremental - edit, reparse, re-lint (tier-2 E5)
 # Shows: Tree.edit, ts.reparse_c, ts.changed_ranges, re-linting the NEW tree
-# Run: lmscript examples/incremental-reparse.lms      (then: lmbetter --dsl build/incremental-reparse.dslb)
-# Needs: nothing (offline); the C source is embedded below.
+# Run: lmscript examples/incremental-reparse.lms      (then: build/lmbetter --dsl build/incremental-reparse.dslb)
+# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Data: the C source is embedded below.
 # exit: 0
 # expect:
 #|before: 0 findings

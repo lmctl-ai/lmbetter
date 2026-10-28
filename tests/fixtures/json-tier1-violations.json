@@ -7,5 +7,18 @@
   "api_secret": "x",
   "status": "TODO",
   "retry": null,
-  "port": "8080"
+  "port": "8080",
+  "aws_secret": "sample",
+  "private_key": "sample",
+  "api_key": "sample",
+  "endpoint": "http://example.test",
+  "mirrors": [
+    "http://mirror.test"
+  ],
+  "version": "*",
+  "dependency": "latest",
+  "pending_items": [],
+  "pending_config": {},
+  "long_text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "escaped_long_text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
 }

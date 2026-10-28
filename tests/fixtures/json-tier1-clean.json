@@ -2,5 +2,21 @@
   "service_name": "demo",
   "port": 8080,
   "enabled": true,
-  "tags": ["alpha", "beta"]
+  "tags": [
+    "alpha",
+    "beta"
+  ],
+  "endpoint": "https://example.test",
+  "mirrors": [
+    "https://mirror.test"
+  ],
+  "version": "1.2.3",
+  "dependency": "latest-stable",
+  "api_key_hint": "configured externally",
+  "config": {
+    "active": true
+  },
+  "max_text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "escaped_text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "description": "Use http:// only in examples"
 }
