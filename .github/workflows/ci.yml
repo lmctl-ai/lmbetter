@@ -83,7 +83,10 @@ jobs:
         if: env.ONLY_OK == 'true'
         shell: bash
         run: |
-          npm i -g @lmctl-ai/lmctl@0.2.420
+          # TODO: confirm first release containing R47/R48 rule methods
+          # (staging publish pending); must match MIN_VERSION in
+          # scripts/select-compiler.sh.
+          npm i -g @lmctl-ai/lmctl@0.2.441
           scripts/select-compiler.sh | tee compiler.txt
           grep -q lmscript compiler.txt || { echo "no v5 compiler available"; exit 1; }
 

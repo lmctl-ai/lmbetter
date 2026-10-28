@@ -74,7 +74,7 @@ import sys
 work=Path(sys.argv[1])
 registry=set((work/'registry-signatures.txt').read_text().splitlines())
 standard=set((work/'standard-signatures.txt').read_text().splitlines())
-assert len(standard)==72, len(standard)
+assert len(standard)==181, len(standard)  # POC branch: sdk.lock pins lmcode-cpp d70a12c, matching the POC compiler's implicit std
 (work/'host-signatures.txt').write_bytes(''.join(line+'\n' for line in sorted(registry-standard)).encode('utf-8'))
 PYHOST
 diff -u <("$LMSCRIPT" --dsl-signatures schema/lmbetter.dsl.json --without-std) "$WORK/host-signatures.txt" || fail "host-only registry/compiler signatures differ"
@@ -175,7 +175,7 @@ ok "multiple bytecode files run sequentially"
 
 # --- examples compile and run ---
 mkdir -p build
-for f in parse-string parse-file detect-error; do
+for f in parse-string parse-file detect-error cst-rules; do
   "$LMSCRIPT" "examples/$f.lms" "build/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f example compile"
   "$HOST" --dsl "build/$f.dslb" >"$WORK/$f.out" || fail "$f example run"
   # every '# expect:' line must appear in the program output

@@ -2,12 +2,20 @@
 // tree-sitter headers; see host.hpp for the interface contract.
 #include "host.hpp"
 
+#include <algorithm>
 #include <cstdlib>
+#include <new>
 #include <tree_sitter/api.h>
 
 extern "C" const TSLanguage *tree_sitter_json(void);
 
 namespace lmbetter {
+
+static_assert(sizeof(TSNode) <= sizeof(Node::bytes) && alignof(TSNode) <= alignof(void *),
+              "Node::bytes must hold a TSNode");
+
+static TSNode &ts(Node &node) { return *reinterpret_cast<TSNode *>(node.bytes); }
+static const TSNode &ts(const Node &node) { return *reinterpret_cast<const TSNode *>(node.bytes); }
 
 const void *tree_handle(const Tree &tree) { return tree.tree_; }
 
@@ -15,12 +23,15 @@ Tree::~Tree() {
   if (tree_) ts_tree_delete(static_cast<TSTree *>(tree_));
 }
 
-Tree::Tree(Tree &&other) noexcept : tree_(other.tree_) { other.tree_ = nullptr; }
+Tree::Tree(Tree &&other) noexcept : tree_(other.tree_), source_(std::move(other.source_)) {
+  other.tree_ = nullptr;
+}
 
 Tree &Tree::operator=(Tree &&other) noexcept {
   if (this != &other) {
     if (tree_) ts_tree_delete(static_cast<TSTree *>(tree_));
     tree_ = other.tree_;
+    source_ = std::move(other.source_);
     other.tree_ = nullptr;
   }
   return *this;
@@ -32,6 +43,7 @@ Tree parse_json(const std::string &text) {
   Tree result;
   result.tree_ = ts_parser_parse_string(parser, nullptr, text.data(),
                                         static_cast<uint32_t>(text.size()));
+  result.source_ = text;
   ts_parser_delete(parser);
   return result;
 }
@@ -51,6 +63,41 @@ bool tree_has_error(const Tree &tree) { return ts_node_has_error(root(tree)); }
 
 int64_t tree_node_count(const Tree &tree) {
   return static_cast<int64_t>(ts_node_descendant_count(root(tree))) + 1;
+}
+
+Node node_root(const Tree &tree) {
+  Node node;
+  node.owner = &tree;
+  new (node.bytes) TSNode(root(tree));
+  return node;
+}
+
+std::string node_kind(const Node &node) { return ts_node_type(ts(node)); }
+
+std::string node_text(const Node &node) {
+  const std::string &source = node.owner->source_;
+  const uint32_t start = ts_node_start_byte(ts(node));
+  const uint32_t end = ts_node_end_byte(ts(node));
+  if (end <= start || start >= source.size()) return "";
+  return source.substr(start, std::min<uint32_t>(end, source.size()) - start);
+}
+
+bool node_is_named(const Node &node) { return ts_node_is_named(ts(node)); }
+
+int64_t node_start_row(const Node &node) { return ts_node_start_point(ts(node)).row; }
+int64_t node_start_col(const Node &node) { return ts_node_start_point(ts(node)).column; }
+int64_t node_end_row(const Node &node) { return ts_node_end_point(ts(node)).row; }
+int64_t node_end_col(const Node &node) { return ts_node_end_point(ts(node)).column; }
+
+int64_t node_child_count(const Node &node) {
+  return static_cast<int64_t>(ts_node_named_child_count(ts(node)));
+}
+
+Node node_child(const Node &node, int64_t index) {
+  Node child;
+  child.owner = node.owner;
+  new (child.bytes) TSNode(ts_node_named_child(ts(node), static_cast<uint32_t>(index)));
+  return child;
 }
 
 } // namespace lmbetter

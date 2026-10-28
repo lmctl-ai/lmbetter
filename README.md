@@ -68,15 +68,23 @@ end _dsl_
 savedsl(p, "build/show.dslb");
 ```
 
-The DSL surface is deliberately small (v0.1.0): `ts.parse(text)` returns a
-`Tree` with `.sexp()`, `.has_error()`, and `.node_count()`. See `examples/`
-for runnable scripts.
+The DSL surface is deliberately small: `ts.parse(text)` returns a `Tree` with
+`.sexp()`, `.has_error()`, `.node_count()`, and `.root()`. The `root()` handle
+is a `Node` with `.kind()`, `.text()`, `.is_named()`,
+`.start_row()/.start_col()/.end_row()/.end_col()` (all **0-based**,
+tree-sitter convention), `.child_count()`, and `.child(i)` (named children
+only, bounds-checked). The schema also declares the SAM interface
+`Rule(n: Node) -> void`: top-level lmcode functions can carry a `@NODE-KIND`
+annotation and an `implements Rule` clause (checked at compile time), so
+analysis rules are user-redefinable scripts over the CST — see
+`examples/cst-rules.lms` and `durable-memory/03-rule-methods.md`. Rule methods
+require `lmscript` >= 0.2.441. See `examples/` for runnable scripts.
 
 ## Repository layout
 
 - `cpp/` — the CLI host: DSL VM integration plus the tree-sitter wrapper
 - `docs/` — design documents (e.g. `rule-snippets.md`: analysis rules as lmscript snippets)
-- `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.420 supplies the built-in standard library implicitly)
+- `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.441 supplies the built-in standard library implicitly)
 - `examples/` — lmscript examples
 - `scripts/` — vendoring (tree-sitter sources pinned in `deps.lock`, `lmcode-cpp` SDK pinned in `sdk.lock`) and compiler selection
 - `third_party/` — downloaded upstream sources (git-ignored, pinned by `deps.lock`)

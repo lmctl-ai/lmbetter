@@ -33,6 +33,72 @@
             "params": [],
             "returns": "int"
           }
+        ],
+        "root": [
+          {
+            "params": [],
+            "returns": "Node"
+          }
+        ]
+      }
+    },
+    "Node": {
+      "methods": {
+        "kind": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ],
+        "text": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ],
+        "is_named": [
+          {
+            "params": [],
+            "returns": "bool"
+          }
+        ],
+        "start_row": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "start_col": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "end_row": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "end_col": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "child_count": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "child": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "Node"
+          }
         ]
       }
     }
@@ -49,5 +115,16 @@
   },
   "context": {
     "ts": "Ts"
+  },
+  "interfaces": {
+    "Rule": {
+      "params": [
+        {
+          "name": "n",
+          "type": "Node"
+        }
+      ],
+      "returns": "void"
+    }
   }
 }

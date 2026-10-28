@@ -1,0 +1,71 @@
+# Chapter: Rules - CST rules as annotated lmcode functions
+# Shows: @NODE-KIND annotations, fn ... implements Rule, Tree.root, Node.kind/text/start_row/start_col/child_count/child
+# Run: lmscript examples/cst-rules.lms      (then: lmbetter --dsl build/cst-rules.dslb)
+# Needs: lmscript >= 0.2.441 (R47/R48 rule methods); nothing else (offline).
+# exit: 0
+# expect:
+#|finding: password key "password" at row 4 col 4
+#|finding: placeholder string "TODO" at row 6 col 9
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# One rule = one annotated top-level fn implementing the schema's SAM interface
+# Rule (params: n: Node, returns: void). The annotation names the tree-sitter
+# CST node kind the rule subscribes to; it is compile-time metadata only (no
+# dispatch table exists yet), so the walk below calls every rule on every node
+# and each rule re-checks n.kind() itself. lmcode has no recursion, so the walk
+# is spelled out as fixed-depth nested loops (see examples/README.md).
+
+@PAIR
+fn no_password_key(n: Node) -> void implements Rule {
+  # A pair's first named child is the key string node.
+  if (n.kind() == "pair" && str_contains(n.child(0).text(), "password")) {
+    println("finding: password key " + n.child(0).text()
+            + " at row " + str(n.start_row()) + " col " + str(n.start_col()));
+  }
+}
+
+@STRING
+fn no_placeholder(n: Node) -> void implements Rule {
+  # A string node's first named child is its string_content (no quotes).
+  if (n.kind() == "string" && n.child_count() > 0) {
+    let content = n.child(0).text();
+    if (content == "TODO" || content == "CHANGEME") {
+      println("finding: placeholder string " + n.text()
+              + " at row " + str(n.start_row()) + " col " + str(n.start_col()));
+    }
+  }
+}
+
+fn apply_rules(n: Node) -> void {
+  no_password_key(n);
+  no_placeholder(n);
+}
+
+let tree = ts.parse("{\n  \"app\": \"demo\",\n  \"db\": {\n    \"host\": \"localhost\",\n    \"password\": \"secret\"\n  },\n  \"fix\": \"TODO\"\n}");
+let r = tree.root();
+
+# The walk: root + 5 nested loop levels reaches every node of this fixture
+# (the "password" pair sits at depth 4).
+apply_rules(r);
+for (a in range(0, r.child_count())) {
+  let n1 = r.child(a);
+  apply_rules(n1);
+  for (b in range(0, n1.child_count())) {
+    let n2 = n1.child(b);
+    apply_rules(n2);
+    for (c in range(0, n2.child_count())) {
+      let n3 = n2.child(c);
+      apply_rules(n3);
+      for (d in range(0, n3.child_count())) {
+        let n4 = n3.child(d);
+        apply_rules(n4);
+        for (e in range(0, n4.child_count())) {
+          apply_rules(n4.child(e));
+        }
+      }
+    }
+  }
+}
+
+end _lmcode_
+savedsl(p, "build/cst-rules.dslb");

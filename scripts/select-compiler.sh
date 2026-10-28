@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-MIN_VERSION="0.2.420"
+# TODO: confirm first release containing R47/R48 rule methods (staging publish
+# pending); the floor must target the npm @lmctl-ai/lmctl release numbering.
+NEED_VERSION="0.2.441"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/lmcode-compiler-XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 case "$(uname -s)" in
@@ -8,9 +10,9 @@ case "$(uname -s)" in
 esac
 candidate="${LMSCRIPT_BIN:-}"
 if [[ -z "$candidate" ]]; then candidate="$(command -v lmscript || true)"; fi
-if [[ -z "$candidate" ]]; then echo "error: no lmscript compiler found; install @lmctl-ai/lmctl >= $MIN_VERSION or set LMSCRIPT_BIN" >&2; exit 2; fi
+if [[ -z "$candidate" ]]; then echo "error: no lmscript compiler found; install @lmctl-ai/lmctl >= $NEED_VERSION or set LMSCRIPT_BIN" >&2; exit 2; fi
 version="$("$candidate" --version 2>/dev/null || true)"
-python3 - "$version" "$MIN_VERSION" <<'PY'
+python3 - "$version" "$NEED_VERSION" <<'PY'
 import re, sys
 def parse(value):
     match = re.search(r'^lmscript\s+(\d+)\.(\d+)\.(\d+)(?:\+[A-Za-z0-9.-]+)?\s*$', value)

@@ -27,6 +27,7 @@ using dslvm::Value;
 // ---- arena for schema object handles ----
 struct Host {
   std::vector<std::unique_ptr<lmbetter::Tree>> trees;
+  std::vector<std::unique_ptr<lmbetter::Node>> nodes;
   template <class T>
   Value hold(std::vector<std::unique_ptr<T>> &arena, const char *type, T value) {
     if (arena.size() >= 65536)
@@ -42,6 +43,12 @@ lmbetter::Tree *tree_of(void *p, const char *who) {
   auto *t = self<lmbetter::Tree>(p);
   if (!t) throw dslvm::Error(std::string(who) + ": stale Tree handle");
   return t;
+}
+
+lmbetter::Node *node_of(void *p, const char *who) {
+  auto *n = self<lmbetter::Node>(p);
+  if (!n) throw dslvm::Error(std::string(who) + ": stale Node handle");
+  return n;
 }
 
 std::string read_file(const std::string &path) {
@@ -76,6 +83,40 @@ void register_host(dslvm::Registry &reg, Host &host) {
   });
   reg.method("Tree", "node_count", {}, "int", [](void *s, Args &) {
     return Value::integer(lmbetter::tree_node_count(*tree_of(s, "node_count")));
+  });
+  reg.method("Tree", "root", {}, "Node", [&host](void *s, Args &) {
+    return host.hold(host.nodes, "Node", lmbetter::node_root(*tree_of(s, "root")));
+  });
+
+  const auto node_string_method = [&reg](const char *name, auto impl) {
+    reg.method("Node", name, {}, "string", [name, impl](void *s, Args &) {
+      return Value::string(impl(node_of(s, name)));
+    });
+  };
+  node_string_method("kind", [](const lmbetter::Node *n) { return lmbetter::node_kind(*n); });
+  node_string_method("text", [](const lmbetter::Node *n) { return lmbetter::node_text(*n); });
+  reg.method("Node", "is_named", {}, "bool", [](void *s, Args &) {
+    return Value::boolean(lmbetter::node_is_named(*node_of(s, "is_named")));
+  });
+  const auto node_point_method = [&reg](const char *name, auto impl) {
+    reg.method("Node", name, {}, "int", [name, impl](void *s, Args &) {
+      return Value::integer(impl(node_of(s, name)));
+    });
+  };
+  node_point_method("start_row", [](const lmbetter::Node *n) { return lmbetter::node_start_row(*n); });
+  node_point_method("start_col", [](const lmbetter::Node *n) { return lmbetter::node_start_col(*n); });
+  node_point_method("end_row", [](const lmbetter::Node *n) { return lmbetter::node_end_row(*n); });
+  node_point_method("end_col", [](const lmbetter::Node *n) { return lmbetter::node_end_col(*n); });
+  reg.method("Node", "child_count", {}, "int", [](void *s, Args &) {
+    return Value::integer(lmbetter::node_child_count(*node_of(s, "child_count")));
+  });
+  reg.method("Node", "child", {"int"}, "Node", [&host](void *s, Args &args) {
+    const lmbetter::Node *n = node_of(s, "child");
+    const int64_t count = lmbetter::node_child_count(*n);
+    if (args[0].i < 0 || args[0].i >= count)
+      throw dslvm::Error("Node.child index " + std::to_string(args[0].i) +
+                         " out of range (named child count " + std::to_string(count) + ")");
+    return host.hold(host.nodes, "Node", lmbetter::node_child(*n, args[0].i));
   });
 }
 
