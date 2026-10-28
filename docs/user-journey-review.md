@@ -30,7 +30,7 @@ or missing setup; low = inventory/navigation or nonblocking diagnostic.
 | Low | JSON pack says five rules but contains six including LBJ104; tier inventory puts LBJ104 under lmcode; cross-file demo/LBC110 is omitted and E3 still calls cross-file references impossible. | Fixed: counts, placement, cross-file inventory and stale E3 wording. |
 | Low | Paths to tier docs and examples are plain code text, and relative navigation is unclear from subdirectories. | Fixed: clickable repository-relative links across the four requested documents; link targets checked locally. |
 | Low | Intro and license summary omit the shipped C grammar. | Fixed: name and link tree-sitter-c. |
-| Low | `test.sh` check 38 still says "all 5 rules" for the six-rule JSON pack. | Needs follow-up outside this doc-only scope: update the test's diagnostic label. Assertions pass; no behavioral defect found. |
+| Low | `test.sh` check 38 still says "all 5 rules" for the six-rule JSON pack. | Fixed by the concurrent JSON-rule expansion merged during publication; the original review found no behavioral defect. |
 | Low | GCC emits an unused-function warning for `ts(Node&)` in `cpp/host.cpp`. | Needs optional code cleanup; build succeeds. No code changed. |
 
 ## Published install verification
@@ -76,6 +76,15 @@ A second `./test.sh` run started with no `build/` directory and passed
 **53/53 checks** again; downloaded, hash-verified dependencies were retained.
 The revised documented all-example and all-rule loops were also exercised.
 
-No blocking code defect was found. Remaining follow-ups are the diagnostic
-label and unused-helper warning above, plus execution on other platforms.
-Nothing was pushed; no workflow or executable source was edited.
+No blocking code defect was found. Remaining follow-ups are the unused-helper warning above and execution on
+other platforms. The counts above describe the original review revision.
+No workflow or executable source was edited by this documentation change.
+
+## Publication integration
+
+After push authorization, main advanced to `eec706f` (JSON rule expansion).
+The documentation conflicts were reconciled to retain all new rules: 11 JSON
+pack rules and ten lmcode demos, including LBJ105 (four fixture findings).
+The concurrent implementation and all its checks were retained unchanged.
+The integrated suite passed **53/53 checks** from a fresh build directory,
+including all ten lmcode violation/clean pairs, before pushing.

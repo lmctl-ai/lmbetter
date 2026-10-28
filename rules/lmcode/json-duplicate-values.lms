@@ -1,0 +1,40 @@
+# Chapter: Rules (lmcode) - repeated string values in JSON objects
+# Shows: @object rule, per-object StrMap, source-text equality
+# Run: lmscript rules/lmcode/json-duplicate-values.lms   (then: lmbetter --dsl build/rules-lmcode/json-duplicate-values.dslb)
+# Needs: nothing (offline); reads tests/fixtures/json-dupvalues-violations.json
+# exit: 0
+# expect:
+#|[{"row":2,"col":15,"end_row":2,"end_col":21,"rule":"LBJ105","severity":"minor","message":"repeated sibling string value \"same\""},{"row":3,"col":11,"end_row":3,"end_col":17,"rule":"LBJ105","severity":"minor","message":"repeated sibling string value \"same\""},{"row":9,"col":13,"end_row":9,"end_col":15,"rule":"LBJ105","severity":"minor","message":"repeated sibling string value \"\""},{"row":6,"col":14,"end_row":6,"end_col":21,"rule":"LBJ105","severity":"minor","message":"repeated sibling string value \"inner\""}]
+#|4 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# Opt-in copy/paste heuristic: repeated sibling string values can be intentional.
+# Compare complete source spellings, not decoded JSON; escapes remain literal.
+# Each object has its own scope. Arrays and non-string values are excluded.
+@object
+fn no_duplicate_values(n: Node) -> void implements Rule {
+  let seen = str_map();
+  for (i in range(0, n.child_count())) {
+    let pair = n.child(i);
+    if (pair.kind() == "pair") {
+      # Last named child is the value, even with comments between key and value.
+      let value = pair.child(pair.child_count() - 1);
+      if (value.kind() == "string") {
+        let text = value.text();
+        if (seen.has(text)) {
+          ts.report(value, "repeated sibling string value " + text, "LBJ105", "minor");
+        } else {
+          seen.set(text, "1");
+        }
+      }
+    }
+  }
+}
+
+let tree = ts.parse(file_read("tests/fixtures/json-dupvalues-violations.json"));
+for (o in ts.query(tree.root(), "(object) @o")) { no_duplicate_values(o); }
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/rules-lmcode/json-duplicate-values.dslb");

@@ -6,7 +6,12 @@ Three delivery forms, by how much logic a rule needs:
   dispatcher: a tree-sitter `query` pattern or an `on` node kind, an optional
   `text_matches` regex, message, severity. No code. See [rule tiers](../docs/rule-tiers.md)
   for the framework and [Rule packs](../README.md#rule-packs) for the format.
-  Shipped: `c-tier1.json` (10 rules), `json-tier1.json` (6 rules).
+  Shipped: `c-tier1.json` (10 rules), `json-tier1.json` (11 rules:
+  LBJ001–LBJ010 and LBJ104).
+  JSON checks cover credential keys, placeholders, nulls, key naming, numeric
+  strings, HTTP URLs, unpinned versions, empty containers, and long source
+  strings. The length threshold is >200 source bytes excluding quotes, not
+  decoded characters; see the inventory for each policy's scope.
 
 - **lmcode rules** (`rules/lmcode/*.lms`) — rules that need LOGIC beyond
   selector+regex: arithmetic (`end_row - start_row`), counting children,
@@ -16,7 +21,9 @@ Three delivery forms, by how much logic a rule needs:
   functions or chunk-level logic. Shipped: `c-function-metrics.lms` (LBC101 function too
   long, LBC102 too many parameters), `c-switch-style.lms` (LBC103 switch
   without default, LBC104 if without braces), `json-duplicate-keys.lms`
-  (LBJ101), `json-size-limits.lms` (LBJ102), `c-nesting-depth.lms` (LBC105)
+  (LBJ101), `json-duplicate-values.lms` (LBJ105 repeated sibling string values,
+  an opt-in copy/paste heuristic using exact source spellings),
+  `json-size-limits.lms` (LBJ102), `c-nesting-depth.lms` (LBC105)
   and `json-nesting-depth.lms` (LBJ103) — the last two need `Node.parent()`
   (tier-2 extension E2, landed in v0.3.2) — plus `c-scanf-width.lms` (LBC106,
   needs E1 query predicates) and `c-symbol-rules.lms` (LBC107 unused static
@@ -51,7 +58,7 @@ Expect a findings array containing LBC101 and LBC102, `2 findings`, then
 the bytecode filename; passing another argument to `lmscript` does not
 change it.
 
-Run all nine rule demos:
+Run all ten rule demos:
 
 ```sh
 for source in rules/lmcode/*.lms; do
@@ -62,7 +69,7 @@ done
 
 Expected finding counts: function metrics 2, switch style 2, duplicate keys
 2, size limits 1, C nesting 1, JSON nesting 1, scanf width 1, same-file
-symbols 3, cross-file calls 1. Exact findings appear in each script's
+symbols 3, cross-file calls 1, sibling duplicate values 4. Exact findings appear in each script's
 `# expect:` / `#|` comments. Findings do not make the process fail.
 
 For the data-only packs, no lmscript compilation is needed:
@@ -73,7 +80,7 @@ build/lmbetter lint rules/json-tier1.json tests/fixtures/json-tier1-clean.json
 ```
 
 Each prints `0 findings in <fixture path>`. The JSON pack includes LBJ104
-(exact password key) as well as LBJ001–LBJ005; both credential-key rules can
+(exact password key) as well as LBJ001–LBJ010; both credential-key rules can
 report the same `password` key.
 
 `./test.sh` compiles and runs every rule against its violations fixture

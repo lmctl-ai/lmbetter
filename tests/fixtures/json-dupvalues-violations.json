@@ -1,0 +1,11 @@
+{
+  "primary": "same",
+  "secondary": "same",
+  "third": "same",
+  "nested": {
+    "first": "inner",
+    "second": "inner"
+  },
+  "empty_a": "",
+  "empty_b": ""
+}
