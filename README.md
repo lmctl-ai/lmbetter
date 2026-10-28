@@ -67,6 +67,13 @@ The first command saves bytecode; the second prints the JSON text, its tree,
 
 ## Published host and raw URLs
 
+Releases are automatic: every push to `main` builds and tests the five platform
+binaries (CI), and when all pass it publishes a GitHub Release (next patch after
+the latest `v*` tag, or the `VERSION` in `CMakeLists.txt` when that is higher;
+`lmok --version` in the release prints that tag) and updates the rolling `dist`
+branch. Pushing a `v*` tag by hand publishes that tag the same way.
+`lmscript install github:lmctl-ai/lmok` fetches the newest release.
+
 To use a published binary without building C++, install Node/npm and lmctl
 as above, then:
 

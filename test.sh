@@ -27,6 +27,15 @@ ok "SDK headers match sdk.lock"
 scripts/sync-deps.sh --verify >/dev/null || fail "deps pin mismatch"
 ok "third_party/ tree-sitter, tree-sitter-json, tree-sitter-c, tree-sitter-python and tree-sitter-bash match deps.lock"
 
+# release versioning (CI stamps this into the build; see scripts/next-version.sh)
+nv() { LMOK_TAGS="$1" scripts/next-version.sh; }
+[ "$(nv 'v7.0.0')" = 7.0.1 ] || fail "next-version bumps the patch of the latest tag"
+[ "$(nv 'v7.0.9
+v7.0.10')" = 7.0.11 ] || fail "next-version sorts versions numerically"
+[ "$(nv 'v0.0.1')" = "$(sed -n 's/^project(lmok VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)" ] || fail "next-version uses CMakeLists' VERSION when it is ahead of every tag"
+[ "$(GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.3 scripts/next-version.sh)" = 1.2.3 ] || fail "next-version on a tag is the tag"
+ok "release version selection (scripts/next-version.sh)"
+
 cmake -S . -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release >"$WORK/cmake.log" 2>&1 ||
   { tail -30 "$WORK/cmake.log" >&2; fail "cmake configure ($BUILD_DIR)"; }
 cmake --build "$BUILD_DIR" -j2 >"$WORK/build.log" 2>&1 ||

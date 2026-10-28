@@ -15,9 +15,13 @@ on:
 
 # tree-sitter upstream is portable C and the vendored lmcode-cpp SDK is
 # standard-library-only C++17 with _WIN32 paths, so the matrix covers Linux,
-# macOS, and Windows (MinGW). Every main push updates the rolling `dist`
-# branch; pushing a v* tag additionally cuts a GitHub Release with the same
-# five tested binaries.
+# macOS, and Windows (MinGW). Every main push builds and tests the five
+# binaries; when ALL pass it (1) updates the rolling `dist` branch and
+# (2) cuts a GitHub Release automatically (version = scripts/next-version.sh:
+# latest v* tag + 1 patch, or CMakeLists' VERSION when that is higher). The
+# version is stamped into the ephemeral workspace before the build so that
+# `lmok --version` equals the release tag (lmscript install ...@latest checks
+# that). A manual v* tag push still publishes that tag with the same binaries.
 permissions:
   contents: read
 
@@ -26,7 +30,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - id: v
+        run: echo "version=$(scripts/next-version.sh)" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -48,6 +64,13 @@ jobs:
         if: env.ONLY_OK == 'true'
         with:
           persist-credentials: false
+
+      - name: stamp the release version (workspace only, not committed)
+        if: env.ONLY_OK == 'true'
+        run: |
+          sed -i.bak "s/^project(lmok VERSION [0-9.]*/project(lmok VERSION ${{ needs.version.outputs.version }}/" CMakeLists.txt
+          rm -f CMakeLists.txt.bak
+          grep -n '^project(lmok' CMakeLists.txt
 
       - name: sync deps (deps.lock) and verify vendored sdk headers
         if: env.ONLY_OK == 'true'
@@ -156,10 +179,13 @@ jobs:
           fi
           git push --force-with-lease origin dist
 
-  # Tag a commit v* and the same five tested binaries become a GitHub Release.
+  # Push-and-publish, release flavor: after a green main push (or a manual v*
+  # tag push) the same five tested binaries become a GitHub Release. On main
+  # the tag is created by `gh release create --target $GITHUB_SHA`; tags made
+  # with GITHUB_TOKEN do not start another workflow run.
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && github.event_name == 'push')
+    needs: [version, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -179,10 +205,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release already published; preserving its verified assets and checksums."
+          tag="v${{ needs.version.outputs.version }}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag already published; preserving its verified assets and checksums."
           else
-            gh release create "$GITHUB_REF_NAME" dist/lmok-* dist/SHA256SUMS \
-              --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
-              --notes "Five tested platform binaries (Linux x64/arm64, macOS arm64/x64, Windows x64) plus SHA256SUMS. Rolling latest-main builds live on the dist branch."
+            gh release create "$tag" dist/lmok-* dist/SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$tag" --latest \
+              --notes "Five tested platform binaries (Linux x64/arm64, macOS arm64/x64, Windows x64) plus SHA256SUMS, built from ${GITHUB_SHA}. lmscript install github:lmctl-ai/lmok@${tag}. Rolling latest-main builds live on the dist branch."
           fi
