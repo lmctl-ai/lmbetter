@@ -3,6 +3,7 @@
 // subcommand (JSON grammar).
 #include "host.hpp"
 #include "lint.hpp"
+#include "input.hpp"
 #include "dslvm.hpp"
 #include "stdlib/string.hpp"
 #include "stdlib/collections.hpp"
@@ -73,18 +74,29 @@ lmbetter::NodeList *nodelist_of(void *p, const char *who) {
 }
 
 std::string read_file(const std::string &path) {
-  std::ifstream in(path, std::ios::binary);
-  if (!in) throw dslvm::Error("cannot read " + path);
-  std::ostringstream data;
-  data << in.rdbuf();
-  if (in.bad()) throw dslvm::Error("cannot read " + path);
-  return data.str();
+  return lmbetter::read_input_file(path);
 }
 
 // JSON string escaping for ts.report_json output.
 std::string json_escape(const std::string &s) {
   std::string out;
-  for (unsigned char c : s) {
+  for (size_t i = 0; i < s.size(); ++i) {
+    const unsigned char c = static_cast<unsigned char>(s[i]);
+    if (c >= 0x80) {
+      size_t length = c >= 0xc2 && c <= 0xdf ? 2 :
+                      c >= 0xe0 && c <= 0xef ? 3 :
+                      c >= 0xf0 && c <= 0xf4 ? 4 : 0;
+      bool valid = length && length <= s.size() - i;
+      for (size_t j = 1; valid && j < length; ++j) {
+        const unsigned char next = static_cast<unsigned char>(s[i + j]);
+        valid = next >= 0x80 && next <= 0xbf;
+        if (j == 1 && ((c == 0xe0 && next < 0xa0) || (c == 0xed && next >= 0xa0) ||
+                       (c == 0xf0 && next < 0x90) || (c == 0xf4 && next >= 0x90))) valid = false;
+      }
+      if (valid) { out.append(s, i, length); i += length - 1; }
+      else out += "\\ufffd"; // malformed source bytes must not corrupt JSON output
+      continue;
+    }
     switch (c) {
     case '"': out += "\\\""; break;
     case '\\': out += "\\\\"; break;
@@ -384,15 +396,19 @@ int main(int argc, char **argv) {
         for (fs::recursive_directory_iterator it(fs::path(argv[i]), ec);
              !ec && it != end; it.increment(ec)) {
           const fs::path &p = it->path();
-          if (!it->is_regular_file(ec)) continue;
           bool hidden = false;
           for (const auto &part : p) {
             const std::string name = part.string();
             if (name != "." && name != ".." && name.rfind(".", 0) == 0) hidden = true; // C++17: no starts_with
           }
-          if (hidden) continue;
+          if (hidden) { it.disable_recursion_pending(); continue; }
+          if (!it->is_regular_file(ec)) continue;
           const std::string ext = p.extension().string();
           if (ext == ".c" || ext == ".h" || ext == ".json") found.push_back(canonical(p.string()));
+        }
+        if (ec) {
+          std::cerr << "cannot traverse " << canonical(argv[i]) << "\n";
+          return 3;
         }
         if (found.empty()) {
           std::cerr << "no lintable files in " << canonical(argv[i]) << " (want .c/.h/.json)\n";
@@ -448,7 +464,10 @@ int main(int argc, char **argv) {
     std::vector<dslvm::Program> programs;
     for (int i = 2; i < argc; ++i) {
       try {
-        programs.push_back(dslvm::Program::load(dslvm::read_file(argv[i]), schema, reg));
+        std::string bytes;
+        try { bytes = read_file(argv[i]); }
+        catch (const dslvm::Error &e) { throw dslvm::Error("LOAD_BAD_BYTECODE", e.what()); }
+        programs.push_back(dslvm::Program::load(bytes, schema, reg));
       } catch (const dslvm::Error &error) {
         return dslvm::report_error("load", error);
       }

@@ -1,6 +1,8 @@
 // lmbetter wrapper over tree-sitter. The only translation unit that includes
 // tree-sitter headers; see host.hpp for the interface contract.
 #include "host.hpp"
+#include "bounded_regex.hpp"
+#include <memory>
 
 #include <algorithm>
 #include <cstdlib>
@@ -274,12 +276,15 @@ static bool predicates_ok(const TSQuery *query, const TSQueryMatch &match, const
       const std::string operand(sv, slen);
       if (opname == "match?" || opname == "not-match?") {
         std::regex re;
-        try { re = std::regex(operand); }
+        try { re = bounded_regex(operand); }
+        catch (const std::length_error &e) { throw QueryError(e.what()); }
         catch (const std::regex_error &) {
           throw QueryError("invalid #match? regex '" + operand + "'");
         }
-        for (const auto &t : texts)
-          if (static_cast<bool>(std::regex_search(t, re)) != positive) { all_ok = false; break; }
+        try {
+          for (const auto &t : texts)
+            if (bounded_regex_search(t, re) != positive) { all_ok = false; break; }
+        } catch (const RegexLimit &e) { throw QueryError(e.what()); }
       } else {
         for (const auto &t : texts)
           if ((t == operand) != positive) { all_ok = false; break; }
@@ -291,6 +296,27 @@ static bool predicates_ok(const TSQuery *query, const TSQueryMatch &match, const
 }
 
 NodeList node_query(const Node &root_node, const std::string &pattern, Grammar grammar) {
+  // tree-sitter's query compiler recurses on nested patterns. Bound nesting
+  // before calling it, ignoring delimiters inside strings and comments.
+  size_t depth = 0;
+  bool quoted = false, escaped = false, comment = false;
+  for (size_t i = 0; i < pattern.size(); ++i) {
+    const char c = pattern[i];
+    if (comment) { if (c == '\n') comment = false; continue; }
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (c == '\\') escaped = true;
+      else if (c == '"') quoted = false;
+      continue;
+    }
+    if (c == ';') { comment = true; continue; }
+    if (c == '"') { quoted = true; continue; }
+    if (c == '(' || c == '[') {
+      if (++depth > 256)
+        throw QueryError("query error at byte offset " + std::to_string(i) +
+                         ": nesting limit exceeded (256)");
+    } else if ((c == ')' || c == ']') && depth) --depth;
+  }
   uint32_t error_offset = 0;
   TSQueryError error_type = TSQueryErrorNone;
   TSQuery *query = ts_query_new(language_of(grammar), pattern.data(),
@@ -299,7 +325,9 @@ NodeList node_query(const Node &root_node, const std::string &pattern, Grammar g
   if (!query)
     throw QueryError("query error at byte offset " + std::to_string(error_offset) +
                      ": " + query_error_word(error_type));
+  std::unique_ptr<TSQuery, decltype(&ts_query_delete)> query_owner(query, ts_query_delete);
   TSQueryCursor *cursor = ts_query_cursor_new();
+  std::unique_ptr<TSQueryCursor, decltype(&ts_query_cursor_delete)> cursor_owner(cursor, ts_query_cursor_delete);
   ts_query_cursor_exec(cursor, query, ts(root_node));
   NodeList list;
   TSQueryMatch match;
@@ -312,8 +340,6 @@ NodeList node_query(const Node &root_node, const std::string &pattern, Grammar g
       list.items.push_back(node);
     }
   }
-  ts_query_cursor_delete(cursor);
-  ts_query_delete(query);
   return list;
 }
 

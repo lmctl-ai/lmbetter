@@ -458,8 +458,140 @@ elif [[ "$UNAME_S" == MINGW* || "$UNAME_S" == MSYS* || "$UNAME_S" == CYGWIN* ]];
   ok "host runs on Windows ($(stat_size "$HOST") bytes, static C++ runtime)"
 else
   LDD_OUT="$(ldd "$HOST" 2>&1 || true)"
+  if grep -qx 'LMBETTER_FULL_STATIC:BOOL=OFF' "$BUILD_DIR/CMakeCache.txt"; then
+    [[ "$LDD_OUT" != *'not a dynamic executable'* ]] || fail "dynamic build unexpectedly static"
+    ok "host uses requested dynamic linkage (sanitizer-compatible)"
+  else
   [[ "$LDD_OUT" == *'not a dynamic executable'* ]] || fail "host is not fully static: $LDD_OUT"
   ok "host is fully static ($(stat_size "$HOST") bytes, ldd clean)"
+  fi
 fi
+
+# --- adversarial robustness (host limits and filesystem failures) ---
+python3 - "$HOST" "$WORK" <<'PY'
+import pathlib, subprocess, sys
+host, work = sys.argv[1:]; w = pathlib.Path(work)
+for name, data in [('zero', b''), ('whitespace', b' \t\r\n')]:
+    p = w / name; p.write_bytes(data)
+    for lang, tree in [('json', '(document)\n'), ('c', '(translation_unit)\n')]:
+        r = subprocess.run([host, 'parse', '--lang', lang, str(p)], capture_output=True, timeout=5)
+        assert (r.returncode, r.stdout, r.stderr) == (0, tree.encode(), b''), r
+r = subprocess.run([host, 'parse', work], capture_output=True, timeout=5)
+assert (r.returncode, r.stdout, r.stderr) == (3, b'', f'cannot read {work}\n'.encode()), r
+PY
+ok "robustness: empty/whitespace trees and directory input refusal (exact bytes)"
+
+python3 - "$HOST" "$WORK" <<'PY'
+import json, pathlib, subprocess, sys
+host, work = sys.argv[1:]; w = pathlib.Path(work)
+p = w / 'robust-pack.json'; source = w / 'robust-input.json'
+for regex, text, code, message in [
+    ('(a+)+$', 'a'*30+'!', 3, 'rule X: regex work limit exceeded (4096)\n'),
+    ('a+$', 'a'*100000, 3, 'rule X: regex work limit exceeded (4096)\n'),
+    ('a'*50000, 'a', 2, f'rules pack {p}: rule X: regex pattern limit exceeded (1024 bytes)\n'),
+    ('a{30000}', 'a', 2, f'rules pack {p}: rule X: regex repetition limit exceeded (1024)\n'),
+    ('(a{32}){33}', 'a', 2, f'rules pack {p}: rule X: regex repetition limit exceeded (1024)\n'),
+]:
+    p.write_text(json.dumps({'lang':'json','rules':[{'id':'X','on':'string_content','message':'m','text_matches':regex}]}))
+    source.write_text(json.dumps(text))
+    r = subprocess.run([host,'lint',str(p),str(source)], capture_output=True, timeout=5)
+    assert (r.returncode,r.stdout,r.stderr) == (code,b'',message.encode()), r
+PY
+ok "robustness: regex backtracking, long match, compilation and repeat limits (exact bytes)"
+
+python3 - "$HOST" "$WORK" <<'PY'
+import json, pathlib, subprocess, sys
+host, work = sys.argv[1:]; w = pathlib.Path(work); p = w / 'query-input.json'
+p.write_text(json.dumps('a'*30+'!'))
+for pattern, message in [
+    ('((string_content) @s (#match? @s "(a+)+$"))', 'regex work limit exceeded (4096)\n'),
+    ('((string_content) @s (#match? @s "["))', "invalid #match? regex '['\n"),
+    ('(array '*300+'(number) @n'+')'*300, 'query error at byte offset 1792: nesting limit exceeded (256)\n'),
+]:
+    r = subprocess.run([host,'query',pattern,str(p)], capture_output=True, timeout=5)
+    assert (r.returncode,r.stdout,r.stderr) == (3,b'',message.encode()), r
+r = subprocess.run([host,'query','',str(p)],capture_output=True,timeout=5)
+assert (r.returncode,r.stdout,r.stderr) == (0,b'',b''), r
+# Delimiters in literals/comments do not count toward structural nesting.
+p.write_text(json.dumps('('*300))
+pattern = '((string_content) @s (#eq? @s "'+'('*300+'")) ;'+'('*300
+r = subprocess.run([host,'query',pattern,str(p)],capture_output=True,timeout=5)
+assert (r.returncode,r.stdout,r.stderr) == (0,b'string_content 0:1-0:301\n',b''), r
+PY
+ok "robustness: query nesting, regex predicate errors and empty queries (exact bytes)"
+
+python3 - "$HOST" "$WORK" <<'PY'
+import os, pathlib, subprocess, sys
+host, work = sys.argv[1:]; d = pathlib.Path(work) / 'special'; d.mkdir()
+p = d / 'a.c'; p.write_text('int a;')
+if hasattr(os, 'mkfifo'):
+    fifo = d / 'pipe.c'; os.mkfifo(fifo)
+    r = subprocess.run([host,'lint','rules/c-tier1.json',str(d)],capture_output=True,timeout=5)
+    assert (r.returncode,r.stdout,r.stderr) == (0,f'0 findings in {p.as_posix()}\n'.encode(),b''), r
+    r = subprocess.run([host,'lint','rules/c-tier1.json',str(fifo)],capture_output=True,timeout=5)
+    assert (r.returncode,r.stdout,r.stderr) == (3,b'',f'cannot read {fifo}\n'.encode()), r
+if os.name == 'posix' and os.geteuid() != 0:
+    p.chmod(0)
+    try:
+        r = subprocess.run([host,'lint','rules/c-tier1.json',str(d)],capture_output=True,timeout=5)
+        assert (r.returncode,r.stdout,r.stderr) == (3,b'',f'cannot read {p}\n'.encode()), r
+    finally: p.chmod(0o644)
+    sub = d / 'blocked'; sub.mkdir(); sub.chmod(0)
+    try:
+        r = subprocess.run([host,'lint','rules/c-tier1.json',str(d)],capture_output=True,timeout=5)
+        assert (r.returncode,r.stdout,r.stderr) == (3,b'',f'cannot traverse {d}\n'.encode()), r
+    finally: sub.chmod(0o755)
+    sub.rename(d / '.hidden'); sub = d / '.hidden'; sub.chmod(0)
+    try:
+        r = subprocess.run([host,'lint','rules/c-tier1.json',str(d)],capture_output=True,timeout=5)
+        assert (r.returncode,r.stdout,r.stderr) == (0,f'0 findings in {p.as_posix()}\n'.encode(),b''), r
+    finally: sub.chmod(0o755)
+PY
+ok "robustness: FIFO and permission handling; hidden directories pruned (where supported)"
+
+for index in -1 4294967296 9223372036854775807; do
+expression="$index"
+if [ "$index" = 9223372036854775807 ]; then expression="9007199254740991 * 1024 + 1023"; fi
+cat > "$WORK/child-index.lms" <<EOF_CHILD
+p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+let r = ts.parse("{}").root();
+r.child($expression);
+end _dsl_
+savedsl(p, "$WORK/child-index.dslb");
+EOF_CHILD
+"$LMSCRIPT" "$WORK/child-index.lms" "$WORK/child-index.dslb" >/dev/null || fail "child-index compile"
+set +e; out="$("$HOST" --dsl "$WORK/child-index.dslb" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [ "$out" = '{"ok": false, "phase": "run", "code": "RUN_HOST", "message": "dsl line 3:3: Node.child index '"$index"' out of range (named child count 1)", "line": 3, "column": 3}' ] || fail "child-index (exit $code): $out"
+done
+ok "robustness: negative, uint32 overflow and int64-max Node.child indices (exact bytes)"
+
+python3 - "$HOST" "$WORK" <<'PY'
+import pathlib, subprocess, sys
+host, work = sys.argv[1:]; p = pathlib.Path(work) / 'corrupt.dslb'
+for data, message in [(b'', "not a DSL bytecode file: bad magic (expected 'DSLB')"),
+                      (b'XSLB\x00\x05', "not a DSL bytecode file: bad magic (expected 'DSLB')"),
+                      (b'DSLB', 'bytecode is truncated: wanted 2 byte(s) at offset 4, file has 4')]:
+    p.write_bytes(data)
+    r = subprocess.run([host,'--dsl',str(p)],capture_output=True,timeout=5)
+    expected = '{"ok": false, "phase": "load", "code": "LOAD_BAD_BYTECODE", "message": "'+message+'"}\n'
+    assert (r.returncode,r.stdout,r.stderr) == (3,expected.encode(),b''), r
+PY
+ok "robustness: empty, corrupted and truncated bytecode (exact bytes)"
+
+python3 - "$HOST" "$WORK" <<'PY_UTF8'
+import json, pathlib, subprocess, sys
+host, work = sys.argv[1:]; w = pathlib.Path(work)
+p = w / 'utf8-pack.json'; source = w / 'utf8-source.json'
+p.write_text(json.dumps({'lang':'json','rules':[{'id':'X','on':'string_content','message':'{text}'}]}))
+source.write_bytes(b'"\xff\xfe"')
+r = subprocess.run([host,'lint',str(p),str(source)],capture_output=True,timeout=5)
+expected = b'{"row":0,"col":1,"end_row":0,"end_col":3,"rule":"X","severity":"minor","message":"\\ufffd\\ufffd"}\n'+f'1 findings in {source.as_posix()}\n'.encode()
+assert (r.returncode,r.stdout,r.stderr) == (0,expected,b''), r
+source.write_text('"é水😀"', encoding='utf-8')
+r = subprocess.run([host,'lint',str(p),str(source)],capture_output=True,timeout=5)
+expected = '{"row":0,"col":1,"end_row":0,"end_col":10,"rule":"X","severity":"minor","message":"é水😀"}\n'+f'1 findings in {source.as_posix()}\n'
+assert (r.returncode,r.stdout,r.stderr) == (0,expected.encode(),b''), r
+PY_UTF8
+ok "robustness: invalid UTF-8 replaced in JSON findings; valid UTF-8 preserved (exact bytes)"
 
 echo "PASS: $pass checks"
