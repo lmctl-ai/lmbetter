@@ -20,6 +20,22 @@
             "returns": "Tree"
           }
         ],
+        "parse_python": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
+        "parse_bash": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
         "report": [
           {
             "params": [
@@ -68,6 +84,24 @@
             "returns": "NodeList"
           }
         ],
+        "query_python": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "NodeList"
+          }
+        ],
+        "query_bash": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "NodeList"
+          }
+        ],
         "reparse": [
           {
             "params": [
@@ -78,6 +112,24 @@
           }
         ],
         "reparse_c": [
+          {
+            "params": [
+              "Tree",
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
+        "reparse_python": [
+          {
+            "params": [
+              "Tree",
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
+        "reparse_bash": [
           {
             "params": [
               "Tree",

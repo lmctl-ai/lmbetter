@@ -1,0 +1,62 @@
+{
+  "lang": "python",
+  "rules": [
+    {
+      "id": "LBP001",
+      "query": "((call function: (attribute attribute: (identifier) @fn)) (#match? @fn \"^(system|popen)$\"))",
+      "message": "os shell-out call '{text}'",
+      "severity": "critical"
+    },
+    {
+      "id": "LBP002",
+      "query": "(keyword_argument name: (identifier) @name value: (true))",
+      "text_matches": "^shell$",
+      "message": "shell=True subprocess call",
+      "severity": "critical"
+    },
+    {
+      "id": "LBP003",
+      "query": "((call function: (identifier) @fn) (#match? @fn \"^(eval|exec)$\"))",
+      "message": "dynamic eval/exec call '{text}'",
+      "severity": "critical"
+    },
+    {
+      "id": "LBP004",
+      "on": "assert_statement",
+      "message": "assert used (removed under python -O)",
+      "severity": "minor"
+    },
+    {
+      "id": "LBP005",
+      "on": "comment",
+      "text_matches": "FIXME|TODO",
+      "message": "unresolved FIXME/TODO comment",
+      "severity": "minor"
+    },
+    {
+      "id": "LBP006",
+      "on": "wildcard_import",
+      "message": "wildcard import (from x import *)",
+      "severity": "major"
+    },
+    {
+      "id": "LBP007",
+      "on": "except_clause",
+      "text_matches": "^except\\s*:",
+      "message": "bare except clause",
+      "severity": "major"
+    },
+    {
+      "id": "LBP008",
+      "query": "((call function: (identifier) @fn) (#eq? @fn \"print\"))",
+      "message": "print() call left in code",
+      "severity": "minor"
+    },
+    {
+      "id": "LBP009",
+      "query": "(default_parameter value: (list) @m)\n(default_parameter value: (dictionary) @m)\n(default_parameter value: (set) @m)",
+      "message": "mutable default argument (use None and build inside)",
+      "severity": "major"
+    }
+  ]
+}

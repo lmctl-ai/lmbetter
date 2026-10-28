@@ -119,6 +119,12 @@ void register_host(dslvm::Registry &reg, Host &host) {
   reg.method("Ts", "parse_c", {"string"}, "Tree", [&host](void *, Args &args) {
     return host.hold(host.trees, "Tree", lmbetter::parse(lmbetter::Grammar::C, args[0].s));
   });
+  reg.method("Ts", "parse_python", {"string"}, "Tree", [&host](void *, Args &args) {
+    return host.hold(host.trees, "Tree", lmbetter::parse(lmbetter::Grammar::Python, args[0].s));
+  });
+  reg.method("Ts", "parse_bash", {"string"}, "Tree", [&host](void *, Args &args) {
+    return host.hold(host.trees, "Tree", lmbetter::parse(lmbetter::Grammar::Bash, args[0].s));
+  });
   // The findings sink: rules are void fns, so they report into the host and
   // the chunk body reads the collection back (count / JSON array string).
   const auto report_impl = [&host](void *, Args &args) {
@@ -164,6 +170,8 @@ void register_host(dslvm::Registry &reg, Host &host) {
   };
   query_method("query", lmbetter::Grammar::Json);
   query_method("query_c", lmbetter::Grammar::C);
+  query_method("query_python", lmbetter::Grammar::Python);
+  query_method("query_bash", lmbetter::Grammar::Bash);
   const auto reparse_method = [&reg, &host](const char *name, lmbetter::Grammar grammar) {
     reg.method("Ts", name, {"Tree", "string"}, "Tree", [&host, grammar](void *, Args &args) {
       return host.hold(host.trees, "Tree",
@@ -172,6 +180,8 @@ void register_host(dslvm::Registry &reg, Host &host) {
   };
   reparse_method("reparse", lmbetter::Grammar::Json);
   reparse_method("reparse_c", lmbetter::Grammar::C);
+  reparse_method("reparse_python", lmbetter::Grammar::Python);
+  reparse_method("reparse_bash", lmbetter::Grammar::Bash);
   reg.method("Ts", "changed_ranges", {"Tree", "Tree"}, "string", [](void *, Args &args) {
     return Value::string(lmbetter::changed_ranges_json(*tree_of(args[0].obj, "changed_ranges"),
                                                        *tree_of(args[1].obj, "changed_ranges")));
@@ -270,8 +280,8 @@ int main(int argc, char **argv) {
   register_host(reg, host);
   const std::string usage =
       "usage: lmbetter --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
-      "       lmbetter parse [--lang json|c] FILE\n"
-      "       lmbetter query [--lang json|c] PATTERN FILE\n"
+      "       lmbetter parse [--lang json|c|python|bash] FILE\n"
+      "       lmbetter query [--lang json|c|python|bash] PATTERN FILE\n"
       "       lmbetter lint RULES.json FILE...\n"
       "       lmbetter --dsl FILE [FILE ...]\n";
   if (argc == 2 && std::string(argv[1]) == "--version") {
@@ -308,8 +318,10 @@ int main(int argc, char **argv) {
       const std::string lang = argv[argi + 1];
       if (lang == "json") grammar = lmbetter::Grammar::Json;
       else if (lang == "c") grammar = lmbetter::Grammar::C;
+      else if (lang == "python") grammar = lmbetter::Grammar::Python;
+      else if (lang == "bash") grammar = lmbetter::Grammar::Bash;
       else {
-        std::cerr << "unknown language '" << lang << "' (known: json, c)\n" << usage;
+        std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash)\n" << usage;
         return 2;
       }
       argi += 2;
@@ -358,15 +370,17 @@ int main(int argc, char **argv) {
       return 2;
     }
     // Per-grammar rule lists for extension-based filtering.
-    std::vector<lmbetter::LintRule> c_rules, json_rules;
+    std::vector<lmbetter::LintRule> c_rules, json_rules, python_rules, bash_rules;
     for (const auto &rule : rules) {
       if (rule.grammar == lmbetter::Grammar::C) c_rules.push_back(rule);
+      else if (rule.grammar == lmbetter::Grammar::Python) python_rules.push_back(rule);
+      else if (rule.grammar == lmbetter::Grammar::Bash) bash_rules.push_back(rule);
       else json_rules.push_back(rule);
     }
     // Directory args expand RECURSIVELY to their regular files: hidden files
-    // and dirs are skipped, only known extensions (.c/.h -> c, .json -> json)
-    // are lintable, and paths are sorted for byte-stable output. An explicit
-    // file keeps its argument order.
+    // and dirs are skipped, only known extensions (.c/.h -> c, .json -> json,
+    // .py -> python, .sh/.bash -> bash) are lintable, and paths are sorted for
+    // byte-stable output. An explicit file keeps its argument order.
     // Output canonicalization: all printed paths use forward slashes
     // (fs::path::generic_string), on every OS — pinned outputs are
     // platform-independent.
@@ -392,10 +406,11 @@ int main(int argc, char **argv) {
           }
           if (hidden) continue;
           const std::string ext = p.extension().string();
-          if (ext == ".c" || ext == ".h" || ext == ".json") found.push_back(canonical(p.string()));
+          if (ext == ".c" || ext == ".h" || ext == ".json" || ext == ".py" ||
+              ext == ".sh" || ext == ".bash") found.push_back(canonical(p.string()));
         }
         if (found.empty()) {
-          std::cerr << "no lintable files in " << canonical(argv[i]) << " (want .c/.h/.json)\n";
+          std::cerr << "no lintable files in " << canonical(argv[i]) << " (want .c/.h/.json/.py/.sh/.bash)\n";
           return 2;
         }
         std::sort(found.begin(), found.end());
@@ -411,6 +426,8 @@ int main(int argc, char **argv) {
       const std::string ext = fs::path(target.path).extension().string();
       if (ext == ".c" || ext == ".h") active = &c_rules;
       else if (ext == ".json") active = &json_rules;
+      else if (ext == ".py") active = &python_rules;
+      else if (ext == ".sh" || ext == ".bash") active = &bash_rules;
       // A file whose language has no rules in the pack: skipped silently when
       // it came from a directory; an explicitly named file still reports.
       if (active->empty() && target.from_dir) continue;

@@ -59,9 +59,13 @@ the TODO in scripts/select-compiler.sh).
   `ts.parse_c(text)` / `ts.query_c(root, pattern)` next to the JSON pair, and
   `--lang json|c` on the CLI (`json` default; unknown lang exits 2 with the
   known-languages list). `examples/lint-c.lms` runs real security rules
-  (unsafe `gets`/`strcpy`/`sprintf` calls, FIXME comments) over C. Adding a
-  THIRD grammar should generalize this to a language parameter instead of
-  another parse_x/query_x pair.
+  (unsafe `gets`/`strcpy`/`sprintf` calls, FIXME comments) over C. EXTENDED
+  after v0.4.0: tree-sitter-python (v0.23.6, ABI 14) and tree-sitter-bash
+  (v0.25.1, ABI 15) vendored the same way — the FIRST grammars with an
+  external scanner, so `src/scanner.c` joined the CMake TS_SOURCES list.
+  The DSL surface stayed explicit per grammar on purpose:
+  adding a FIFTH grammar should generalize this to a language parameter
+  instead of another parse_x/query_x pair.
 - **Void rules can't count** (R35 forbids caller-local captures, and
   `implements Rule` fixes the signature to `(Node) -> void`), so
   `examples/lint-json.lms` needs int predicate helpers evaluated twice.

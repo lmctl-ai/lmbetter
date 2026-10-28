@@ -4,9 +4,11 @@ tree-sitter's incremental parsing engine as a single statically-linked,
 scriptable CLI.
 
 lmbetter wraps [tree-sitter](https://tree-sitter.github.io) 0.27.1 together
-with the [tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json)
-and [tree-sitter-c](https://github.com/tree-sitter/tree-sitter-c) grammars in one dependency-free executable that can be driven from the command
-line or scripted with [lmscript](https://github.com/lmctl-ai). Feed it JSON
+with the [tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json),
+[tree-sitter-c](https://github.com/tree-sitter/tree-sitter-c),
+[tree-sitter-python](https://github.com/tree-sitter/tree-sitter-python) and
+[tree-sitter-bash](https://github.com/tree-sitter/tree-sitter-bash) grammars in one dependency-free executable that can be driven from the command
+line or scripted with [lmscript](https://github.com/lmctl-ai). Feed it source text
 and it prints the concrete syntax tree; from lmscript you get a typed `Tree`
 object to inspect.
 
@@ -106,8 +108,8 @@ lmbetter --version
 lmbetter --notices
 lmbetter --dsl-schema [--json]
 lmbetter --dsl-signatures
-lmbetter parse [--lang json|c] FILE          # '-' reads stdin
-lmbetter query [--lang json|c] PATTERN FILE  # '-' reads stdin
+lmbetter parse [--lang json|c|python|bash] FILE          # '-' reads stdin
+lmbetter query [--lang json|c|python|bash] PATTERN FILE  # '-' reads stdin
 lmbetter lint RULES.json FILE...
 lmbetter --dsl FILE [FILE ...]
 ```
@@ -118,8 +120,8 @@ regions appear as `(ERROR ...)` nodes — and still exits 0; tree-sitter always
 produces a tree. `query` runs a tree-sitter S-expression pattern over the
 document and prints one line per captured node, `kind
 start_row:start_col-end_row:end_col` (0-based). Both default to the JSON
-grammar; `--lang c` switches to C (an unknown language exits 2 with the
-known-languages list). `lint` runs a rule pack (below) over each file and
+grammar; `--lang c|python|bash` switches grammars (an unknown language exits
+2 with the known-languages list). `lint` runs a rule pack (below) over each file and
 prints one JSON finding per line plus `N findings in <file>`; exit codes:
 0 ok (findings never fail the run — gating is the caller's job), 2 usage or
 rule-pack error, 3 input/DSL error (unreadable file aborts the run fast; an
@@ -174,7 +176,7 @@ structured access to parsed trees.
   `regex_search` (unanchored — anchor with `^`/`$` yourself) to the
   candidate's text as a post-match filter.
 - Language: `rule.lang` overrides the pack-level `lang`; a rule with neither
-  is a pack error. Known languages: `json`, `c`.
+  is a pack error. Known languages: `json`, `c`, `python`, `bash`.
 - Dispatch: per file, parse once per grammar used. `on` rules share ONE
   pre-order walk over the named nodes with a kind→rules index; `query` rules
   run one query cursor each over the root (merging them into the walk is a
@@ -183,8 +185,9 @@ structured access to parsed trees.
   `ts.report_json` (row, col, end_row, end_col, rule, severity, message),
   then `N findings in <file>`.
 - **Directories**: a FILE argument that is a directory expands recursively to
-  its regular files — hidden files/dirs skipped, only `.c`/`.h` (c) and
-  `.json` (json) are lintable, paths sorted for byte-stable output, a file
+  its regular files — hidden files/dirs skipped, only `.c`/`.h` (c),
+  `.json` (json), `.py` (python) and `.sh`/`.bash` (bash) are lintable, paths
+  sorted for byte-stable output, a file
   whose language has no rules in the pack is skipped silently, and a
   directory with no lintable files is a usage error (exit 2). File and
   directory args mix freely.
@@ -200,10 +203,14 @@ exec, assignment-in-condition, K&R definitions, goto, FIXME/TODO, object-like
 macros, register, naming, commented-out code, malloc-result casts) and `json-tier1.json` (11 rules:
 credential keys, placeholders, nulls, key naming, numbers-as-strings, exact
 password key, sensitive credential keys, HTTP URLs, unpinned versions, empty
-containers, long strings) — plus lmcode-native rules in `rules/lmcode/` for
+containers, long strings), `python-tier1.json` (9 rules: os shell-out,
+shell=True, eval/exec, assert, FIXME/TODO, wildcard imports, bare except,
+print(), mutable default args) and `bash-tier1.json` (6 rules: rm -rf,
+FIXME/TODO, backticks, unguarded cd, chmod 777, eval) — plus lmcode-native rules in `rules/lmcode/` for
 checks that need logic (function metrics, switch/if style, duplicate JSON
 keys and sibling string values, object size, nesting depth via `Node.has_parent()`/`parent()`, scanf width via
-query predicates, same-file symbol rules via set algebra). Since v0.4.0,
+query predicates, same-file symbol rules via set algebra, unquoted bash
+variables via the parent chain). Since v0.4.0,
 trees are incremental: `Tree.edit(start, old_end, new_end)` records a
 byte-offset edit, `ts.reparse`/`ts.reparse_c(old, new_text)` re-parse against
 the old tree (which stays alive), and `ts.changed_ranges(old, new)` returns
@@ -274,7 +281,11 @@ the tree-sitter CLI does. Published query files using these predicates now
 work as written. Since v0.2.4, a
 second grammar is vendored: tree-sitter-c (pinned in `deps.lock`) with
 `ts.parse_c(text)` / `ts.query_c(root, pattern)` mirroring the JSON pair — see
-[examples/lint-c.lms](examples/lint-c.lms) for real security rules over C. See `examples/` for
+[examples/lint-c.lms](examples/lint-c.lms) for real security rules over C. Two more grammars
+follow the same pattern: tree-sitter-python (`ts.parse_python` /
+`ts.query_python`) and tree-sitter-bash (`ts.parse_bash` / `ts.query_bash`),
+both pinned in `deps.lock` — these are the first grammars with an external
+scanner (`src/scanner.c`), wired into the CMake source list. See `examples/` for
 runnable scripts.
 
 ## Repository layout

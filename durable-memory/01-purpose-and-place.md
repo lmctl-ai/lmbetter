@@ -22,8 +22,13 @@ since v0.2.0 — `Tree.root() -> Node`, the `Node` navigation methods and the
 v0.2.1 `Tree.nodes() -> NodeList`; since v0.2.2 the `ts.report*` findings
 sink; since v0.2.3 `ts.query(root, pattern) -> NodeList` (S-expression
 selectors); since v0.2.4 the C grammar via `ts.parse_c` / `ts.query_c` and
-`--lang json|c` on the CLI. The per-grammar surface is explicit on purpose:
-adding a THIRD grammar should trigger generalizing to a language parameter
+`--lang json|c` on the CLI; the python and bash grammars via
+`ts.parse_python` / `ts.query_python` / `ts.parse_bash` / `ts.query_bash`
+(plus `reparse_python` / `reparse_bash`) and `--lang python|bash` landed
+after v0.4.0 (first scanner grammars — `src/scanner.c` in CMake). The
+per-grammar
+surface is explicit on purpose:
+adding a FIFTH grammar should trigger generalizing to a language parameter
 instead of another parse_x/query_x pair. No cursor API yet.
 
 The lmcode-cpp SDK pin (`sdk.lock`) must match the implicit std set of the

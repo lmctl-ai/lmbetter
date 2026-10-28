@@ -16,9 +16,10 @@ namespace lmbetter {
 struct Node;
 
 // The vendored grammars. The DSL surface is explicit per grammar
-// (ts.parse / ts.parse_c, ts.query / ts.query_c); a third grammar should
-// trigger generalizing this to a language parameter.
-enum class Grammar { Json, C };
+// (ts.parse / ts.parse_c / ts.parse_python / ts.parse_bash, same for query and
+// reparse); a fifth grammar should trigger generalizing this to a language
+// parameter.
+enum class Grammar { Json, C, Python, Bash };
 
 // Owning handle for one parsed tree plus a copy of its source text (kept
 // alive so Node text() stays valid). Never throws: the tree-sitter parser

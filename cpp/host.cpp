@@ -10,6 +10,8 @@
 
 extern "C" const TSLanguage *tree_sitter_json(void);
 extern "C" const TSLanguage *tree_sitter_c(void);
+extern "C" const TSLanguage *tree_sitter_python(void);
+extern "C" const TSLanguage *tree_sitter_bash(void);
 
 namespace lmbetter {
 
@@ -17,6 +19,8 @@ static const TSLanguage *language_of(Grammar grammar) {
   switch (grammar) {
   case Grammar::Json: return tree_sitter_json();
   case Grammar::C: return tree_sitter_c();
+  case Grammar::Python: return tree_sitter_python();
+  case Grammar::Bash: return tree_sitter_bash();
   }
   return tree_sitter_json();
 }

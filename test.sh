@@ -25,7 +25,7 @@ LMSCRIPT="$(scripts/select-compiler.sh)"
 scripts/sync-sdk.sh --verify >/dev/null || fail "SDK header pin mismatch"
 ok "SDK headers match sdk.lock"
 scripts/sync-deps.sh --verify >/dev/null || fail "deps pin mismatch"
-ok "third_party/ tree-sitter, tree-sitter-json and tree-sitter-c match deps.lock"
+ok "third_party/ tree-sitter, tree-sitter-json, tree-sitter-c, tree-sitter-python and tree-sitter-bash match deps.lock"
 
 cmake -S . -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release >"$WORK/cmake.log" 2>&1 ||
   { tail -30 "$WORK/cmake.log" >&2; fail "cmake configure ($BUILD_DIR)"; }
@@ -142,7 +142,7 @@ identifier 5:2-5:8' ] || fail "query --lang c captures: $out"
 ok "query --lang c: called-function identifiers (gets, printf)"
 
 set +e; out="$("$HOST" parse --lang rust examples/data/sample.c 2>&1)"; code=$?; set -e
-[ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust' (known: json, c)"* ]] || fail "unknown --lang (exit $code): $out"
+[ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust' (known: json, c, python, bash)"* ]] || fail "unknown --lang (exit $code): $out"
 ok "unknown --lang refused with the known-languages list (exit 2)"
 
 # --- query predicates (E1) ---
@@ -474,5 +474,90 @@ else
   [[ "$LDD_OUT" == *'not a dynamic executable'* ]] || fail "host is not fully static: $LDD_OUT"
   ok "host is fully static ($(stat_size "$HOST") bytes, ldd clean)"
 fi
+
+# --- --lang python / --lang bash ---
+cat > "$WORK/sample.py" <<'EOF_PY'
+import os
+
+def greet(name):
+    return os.path.join("hi", name)
+EOF_PY
+out="$("$HOST" parse --lang python "$WORK/sample.py")"
+echo "$out" | grep -qF '(module (import_statement name: (dotted_name (identifier))) (function_definition name: (identifier)' \
+  || fail "parse --lang python sexp head: $out"
+echo "$out" | grep -qF '(call function: (attribute object: (attribute object: (identifier) attribute: (identifier)) attribute: (identifier))' \
+  || fail "parse --lang python os.path.join call: $out"
+ok "parse --lang python: module with import and dotted attribute call"
+
+out="$("$HOST" query --lang python '(call function: (attribute attribute: (identifier) @a))' "$WORK/sample.py")"
+[ "$out" = 'identifier 3:19-3:23' ] || fail "query --lang python captures: $out"
+ok "query --lang python: called attribute identifier (join)"
+
+cat > "$WORK/sample.sh" <<'EOF_SH'
+#!/bin/sh
+TARGET=$1
+echo "hi $TARGET"
+EOF_SH
+out="$("$HOST" parse --lang bash "$WORK/sample.sh")"
+echo "$out" | grep -qF '(program (comment) (variable_assignment name: (variable_name) value: (simple_expansion (variable_name)))' \
+  || fail "parse --lang bash sexp head: $out"
+echo "$out" | grep -qF '(string (string_content) (simple_expansion (variable_name)))' \
+  || fail "parse --lang bash quoted expansion: $out"
+ok "parse --lang bash: program with assignment and quoted expansion"
+
+out="$("$HOST" query --lang bash '(command name: (command_name (word) @w))' "$WORK/sample.sh")"
+[ "$out" = 'word 2:0-2:4' ] || fail "query --lang bash captures: $out"
+ok "query --lang bash: command name (echo)"
+
+# --- tier-1 rule packs: python and bash ---
+"$HOST" lint rules/python-tier1.json tests/fixtures/python-tier1-violations.py >"$WORK/python-tier1.out" || fail "lint python-tier1 violations run"
+cat >"$WORK/python-tier1.expected" <<'EXPECTED_PY'
+{"row":2,"col":15,"end_row":2,"end_col":16,"rule":"LBP006","severity":"major","message":"wildcard import (from x import *)"}
+{"row":4,"col":0,"end_row":4,"end_col":28,"rule":"LBP005","severity":"minor","message":"unresolved FIXME/TODO comment"}
+{"row":6,"col":19,"end_row":6,"end_col":21,"rule":"LBP009","severity":"major","message":"mutable default argument (use None and build inside)"}
+{"row":7,"col":13,"end_row":7,"end_col":17,"rule":"LBP003","severity":"critical","message":"dynamic eval/exec call 'eval'"}
+{"row":8,"col":4,"end_row":8,"end_col":9,"rule":"LBP008","severity":"minor","message":"print() call left in code"}
+{"row":9,"col":7,"end_row":9,"end_col":13,"rule":"LBP001","severity":"critical","message":"os shell-out call 'system'"}
+{"row":10,"col":29,"end_row":10,"end_col":34,"rule":"LBP002","severity":"critical","message":"shell=True subprocess call"}
+{"row":14,"col":4,"end_row":14,"end_col":16,"rule":"LBP004","severity":"minor","message":"assert used (removed under python -O)"}
+{"row":17,"col":4,"end_row":18,"end_col":12,"rule":"LBP007","severity":"major","message":"bare except clause"}
+9 findings in tests/fixtures/python-tier1-violations.py
+EXPECTED_PY
+cmp "$WORK/python-tier1.expected" "$WORK/python-tier1.out" || { diff "$WORK/python-tier1.expected" "$WORK/python-tier1.out" >&2; fail "python-tier1 violations output"; }
+out="$("$HOST" lint rules/python-tier1.json tests/fixtures/python-tier1-clean.py)"
+[ "$out" = "0 findings in tests/fixtures/python-tier1-clean.py" ] || fail "python-tier1 clean: $out"
+ok "lint: python-tier1 pack, all 9 rules fire on violations, clean fixture silent"
+
+"$HOST" lint rules/bash-tier1.json tests/fixtures/bash-tier1-violations.sh >"$WORK/bash-tier1.out" || fail "lint bash-tier1 violations run"
+cat >"$WORK/bash-tier1.expected" <<'EXPECTED_SH'
+{"row":1,"col":0,"end_row":1,"end_col":26,"rule":"LBS002","severity":"minor","message":"unresolved FIXME/TODO comment"}
+{"row":3,"col":0,"end_row":3,"end_col":2,"rule":"LBS004","severity":"major","message":"cd without guard (use 'cd ... || exit')"}
+{"row":4,"col":0,"end_row":4,"end_col":14,"rule":"LBS001","severity":"critical","message":"rm with recursive force flags"}
+{"row":5,"col":0,"end_row":5,"end_col":4,"rule":"LBS006","severity":"critical","message":"eval used"}
+{"row":6,"col":6,"end_row":6,"end_col":15,"rule":"LBS003","severity":"minor","message":"backtick command substitution (use $(...))"}
+{"row":7,"col":0,"end_row":7,"end_col":23,"rule":"LBS005","severity":"major","message":"world-writable chmod 777"}
+6 findings in tests/fixtures/bash-tier1-violations.sh
+EXPECTED_SH
+cmp "$WORK/bash-tier1.expected" "$WORK/bash-tier1.out" || { diff "$WORK/bash-tier1.expected" "$WORK/bash-tier1.out" >&2; fail "bash-tier1 violations output"; }
+out="$("$HOST" lint rules/bash-tier1.json tests/fixtures/bash-tier1-clean.sh)"
+[ "$out" = "0 findings in tests/fixtures/bash-tier1-clean.sh" ] || fail "bash-tier1 clean: $out"
+ok "lint: bash-tier1 pack, all 6 rules fire on violations, clean fixture silent"
+
+# --- rules/lmcode: python and bash logic rules ---
+mkdir -p build/rules-lmcode
+for f in python-function-metrics bash-unquoted-vars; do
+  "$LMSCRIPT" "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f rule compile"
+  "$HOST" --dsl "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
+  while IFS= read -r line; do
+    grep -qxF "${line:2}" "$WORK/$f.out" || fail "$f output missing: ${line:2} (got $(cat "$WORK/$f.out"))"
+  done < <(grep '^#|' "rules/lmcode/$f.lms")
+  sed -e 's/-violations\./-clean./' -e "s|build/rules-lmcode/$f.dslb|$WORK/$f-clean.dslb|" \
+    "rules/lmcode/$f.lms" > "$WORK/$f-clean.lms"
+  "$LMSCRIPT" "$WORK/$f-clean.lms" "$WORK/$f-clean.dslb" >/dev/null 2>&1 || fail "$f clean compile"
+  out="$("$HOST" --dsl "$WORK/$f-clean.dslb")"
+  grep -qxF '[]' <<<"$out" || fail "$f clean fixture findings: $out"
+  grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
+done
+ok "rules/lmcode: python and bash rule files fire on violations fixtures, silent on clean"
 
 echo "PASS: $pass checks"

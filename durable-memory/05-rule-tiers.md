@@ -70,6 +70,52 @@ header/source pairing stay out of scope (tier 3). Fixtures:
 `tests/fixtures/cross/{a,b,clean-a,clean-b}.c`; the rules/lmcode clean-variant
 sed chain gained `cross/a.c → cross/clean-a.c` substitutions.
 
+## Python + bash grammars and tier-1 packs (post-v0.4.0)
+
+Two grammars vendored (`deps.lock` pins, tags not commits this time):
+tree-sitter-python v0.23.6 (ABI 14) and tree-sitter-bash v0.25.1 (ABI 15) —
+the FIRST external-scanner grammars, so both `src/scanner.c` files joined
+CMake `TS_SOURCES` (the old "parser.c only" comment died). Grammar enum grew
+to `{Json, C, Python, Bash}`; DSL surface mirrors the C pair
+(`ts.parse_python`/`ts.query_python`/`ts.reparse_python`, same for bash);
+CLI `--lang python|bash`; lint extension map `.py` → python, `.sh`/`.bash` →
+bash (directory expansion filter widened too). One existing test.sh pin had
+to move: the unknown-language error now lists all four languages.
+
+- `rules/python-tier1.json` — 9 rules (LBP001–LBP009): os.system/popen
+  (attribute-identifier query + `#match?`), shell=True keyword (`value:
+  (true)` in the query, `^shell$` as text_matches so ONE capture = one
+  finding), eval/exec, assert (`on: assert_statement`), FIXME/TODO, wildcard
+  import (`on: wildcard_import` — the node is just the `*`), bare except
+  (`on: except_clause` + `^except\s*:` — the clause node INCLUDES its block,
+  so the regex anchors at the head only), print() (`#eq?`), mutable default
+  args (three patterns: list/dictionary/set values of `default_parameter`).
+- `rules/bash-tier1.json` — 6 rules (LBS001–LBS006): rm -rf/fr, FIXME/TODO,
+  backticks, unguarded cd, chmod 777, eval. Two-capture trick for rm/chmod:
+  `((command name: (command_name (word) @w)) @cmd (#eq? @w "rm"))` — every
+  capture is a candidate, so the `text_matches` regex (`-…r…f` / `\b777\b`)
+  doubles as a filter that drops the bare-word capture and keeps the
+  whole-command one. Backticks: `$()` and `` `` `` both parse as
+  `command_substitution`; text_matches `^`` ` distinguishes. cd/eval capture
+  `command_name` with an exact `^cd$`/`^eval$` regex — cd is a heuristic
+  (guarded `cd x || exit` still fires; a pack can't see the enclosing `list`
+  node — that's lmcode/parent territory if ever needed).
+- lmcode: LBP101 python function too long (`@function_definition` + row
+  arithmetic, mirrors LBC101) and LBS101 unquoted bash variable
+  (`@simple_expansion`/`@expansion` fns over one `is_quoted` helper walking
+  the parent chain for a `string` ancestor — needs E2; two annotated fns
+  because the Rule SAM is single-kind). Fixtures `python-logic-*.py`,
+  `bash-logic-*.sh`; test.sh gained a second lmcode loop with the same
+  `-violations.` → `-clean.` sed chain.
+- Guard fixtures: `tests/fixtures/{python,bash}-tier1-{violations,clean}.*`,
+  byte-exact outputs pinned in test.sh; clean fixtures stay silent (python
+  clean uses `shell=False`, `except ValueError:`, `b=None` defaults; bash
+  clean uses `rm -r`, `$()`, `chmod 750`, no cd/eval).
+
+Dropped candidates (and why): none — everything on the shortlist was
+query-expressible once node-types.json was checked (`except_clause` block
+inclusion and the two-capture filter trick were the only surprises).
+
 ## E3 reality check: symbol rules need no host index (v0.3.4)
 
 Hypothesis confirmed: LBC107 (unused static function), LBC108 (undefined

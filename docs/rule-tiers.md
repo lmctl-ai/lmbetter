@@ -69,6 +69,31 @@ LBJ010 is pack-expressible: regex counts source bytes, including escape spelling
 not decoded Unicode characters. It matches whole strings (keys included), so
 escape-split `string_content` nodes do not hide long source strings.
 
+### Python (`rules/python-tier1.json`, 9 rules)
+
+| id | rule | mechanism |
+| --- | --- | --- |
+| LBP001 | os shell-out (`os.system`/`os.popen`) | query call attribute identifier + anchored `#match?` |
+| LBP002 | `shell=True` keyword argument | query `keyword_argument` with `value: (true)` + regex `^shell$` |
+| LBP003 | `eval`/`exec` call | query call identifier + anchored `#match?` |
+| LBP004 | `assert` used | `on: assert_statement` |
+| LBP005 | FIXME/TODO comments | `on: comment` + regex `FIXME\|TODO` |
+| LBP006 | wildcard import (`from x import *`) | `on: wildcard_import` |
+| LBP007 | bare `except:` | `on: except_clause` + regex `^except\s*:` |
+| LBP008 | `print()` left in code | query call identifier + `#eq?` |
+| LBP009 | mutable default argument (`def f(a=[])`) | three query patterns over `default_parameter` values (list/dictionary/set) |
+
+### Bash (`rules/bash-tier1.json`, 6 rules)
+
+| id | rule | mechanism |
+| --- | --- | --- |
+| LBS001 | `rm -rf` / `rm -fr` | query command named `rm` capturing word + command; regex `-[a-zA-Z]*r[a-zA-Z]*f` (or f…r) filters the word capture, keeps the command |
+| LBS002 | FIXME/TODO comments | `on: comment` + regex `FIXME\|TODO` |
+| LBS003 | backtick command substitution | `on: command_substitution` + regex `` ^` `` ($() parses to the same kind; text distinguishes) |
+| LBS004 | `cd` without guard | query command_name + regex `^cd$` (heuristic: a guarded `cd x \|\| exit` still fires — the pack cannot see the enclosing `list`) |
+| LBS005 | `chmod 777` | same two-capture trick as LBS001 + regex `\b777\b` |
+| LBS006 | `eval` used | query command_name + regex `^eval$` |
+
 ### Further tier-1 candidates (not shipped, judged pack/script-able)
 
 - multiple assignment (`a = b = 0`): nested `assignment_expression` query
@@ -93,6 +118,8 @@ escape-split `string_content` nodes do not hide long source strings.
 | LBC108 | call to undefined function (same-file) | call set minus (defined + script-side libc whitelist) |
 | LBC109 | direct recursion | per-definition subtree query for self-calls |
 | LBC110 | call to a function defined in none of the input files | cross-file set union in lmcode (E4) |
+| LBP101 | python function too long (>60 rows) | `@function_definition` + `end_row-start_row` arithmetic |
+| LBS101 | unquoted bash variable (`$x`/`${x}` outside a `string`) | `@simple_expansion`/`@expansion` + parent-chain walk (needs E2) |
 
 (LBC001/LBC004 moved their callee regexes from pack `text_matches` into the
 query as `#match?` predicates — same behavior, sharper form.)
@@ -136,7 +163,8 @@ query as `#match?` predicates — same behavior, sharper form.)
 - **E4: multi-file / directory lint — LANDED (v0.3.5), minus include
   resolution.** `lmbetter lint` accepts directories: recursive expansion of
   regular files, hidden paths skipped, only known extensions (`.c`/`.h` → c,
-  `.json` → json), paths sorted for byte-stable output, files whose language
+  `.json` → json, `.py` → python, `.sh`/`.bash` → bash), paths sorted for
+  byte-stable output, files whose language
   has no pack rules skipped silently, an empty expansion is exit 2, and
   unreadable files still fail fast (exit 3). The cross-file half is
   script-side: [rules/lmcode/c-cross-file.lms](../rules/lmcode/c-cross-file.lms) (LBC110, call to a function
