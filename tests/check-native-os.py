@@ -56,6 +56,22 @@ class NativeOS(unittest.TestCase):
         else:
             backslash = folder / 'literal\\name.json'; backslash.write_bytes(source.read_bytes())
             self.exact(self.run_host('query', '(number) @n', backslash), expected)
+        pack = self.work / 'pack 雪.json'
+        pack.write_text(json.dumps({'lang':'json','rules':[{'id':'N','on':'number','message':'number'}]}), encoding='utf-8')
+        for target in (source, folder):
+            result = self.run_host('lint', pack, target)
+            self.assertEqual((result.returncode, result.stderr), (0, b''))
+            self.assertNotIn(b'\r', result.stdout)
+            lines = result.stdout.decode('utf-8').splitlines()
+            self.assertEqual(json.loads(lines[0])['rule'], 'N')
+            self.assertEqual(lines[1], '1 findings in ' + source.as_posix())
+        bad = folder / 'bad 雪.dslb'; bad.write_bytes(b'not bytecode')
+        result = self.run_host('--dsl', bad)
+        self.assertEqual(result.returncode, 3)
+        self.assertEqual(result.stderr, b'')
+        error = json.loads(result.stdout)
+        self.assertEqual(error['code'], 'LOAD_BAD_BYTECODE')
+        self.assertIn('bad magic', error['message'])  # Proves the Unicode file was actually opened.
         link = folder / 'linked.json'
         try: link.symlink_to(source.name)
         except OSError as e:
@@ -171,4 +187,19 @@ if __name__ == '__main__':
             if not control.failures or control.errors:
                 raise AssertionError('mutation did not produce an assertion failure: ' + name + str(control.errors))
             print('ok - caught native-output/architecture mutant: ' + name)
+        if sys.platform.startswith('linux'):
+            # A real dynamically linked ELF must fail the static-binary promise.
+            MUTATE = False
+            with tempfile.TemporaryDirectory(prefix='dynamic-link-control-', dir=ROOT / 'build') as directory:
+                source = Path(directory) / 'control.c'
+                dynamic = Path(directory) / 'control'
+                source.write_text('int main(void) { return 0; }\n')
+                subprocess.run(['cc', str(source), '-o', str(dynamic)], check=True, capture_output=True)
+                HOST = dynamic
+                control = unittest.TestResult()
+                NativeOS('test_architecture_and_linkage').run(control)
+                if not control.failures or control.errors:
+                    raise AssertionError('dynamically linked negative control did not fail the linkage assertion')
+                print('ok - caught real dynamically linked ELF negative control')
+
     print('ok - native OS byte/path/linkage contracts (' + str(len(names)) + ' groups)')

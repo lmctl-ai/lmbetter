@@ -7,14 +7,15 @@
 
 namespace lmok {
 inline std::string read_input_file(const std::string &path) {
+  const auto native = std::filesystem::u8path(path);
   std::error_code ec;
   // Directories get the explicit suffix; other non-regular files (devices,
   // FIFOs — opening a FIFO can block) are refused with the plain message.
-  if (std::filesystem::is_directory(path, ec))
+  if (std::filesystem::is_directory(native, ec))
     throw dslvm::Error("cannot read " + path + ": is a directory");
-  if (!std::filesystem::is_regular_file(path, ec))
+  if (!std::filesystem::is_regular_file(native, ec))
     throw dslvm::Error("cannot read " + path);
-  std::ifstream in(path, std::ios::binary);
+  std::ifstream in(native, std::ios::binary);
   if (!in) throw dslvm::Error("cannot read " + path);
   std::ostringstream data;
   char buffer[8192];

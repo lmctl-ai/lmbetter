@@ -22,6 +22,10 @@
 #include <string>
 #include <vector>
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #include <io.h>
 #include <fcntl.h>
 #endif
@@ -94,6 +98,12 @@ lmok::NodeList *nodelist_of(void *p, const char *who) {
   auto *l = self<lmok::NodeList>(p);
   if (!l) throw dslvm::Error(std::string(who) + ": stale NodeList handle");
   return l;
+}
+
+// The CLI has UTF-8 paths; leave the pinned SDK reader unchanged.
+std::string read_bytecode(const std::string &path) {
+  try { return lmok::read_input_file(path); }
+  catch (const dslvm::Error &e) { throw dslvm::Error("LOAD_BAD_BYTECODE", e.what()); }
 }
 
 std::string read_file(const std::string &path) {
@@ -321,7 +331,7 @@ void print_schema_summary(const dslvm::Registry &reg) {
 }
 } // namespace
 
-int main(int argc, char **argv) {
+static int run_cli(int argc, char **argv) {
 #ifdef _WIN32
   _setmode(_fileno(stdin), _O_BINARY); // `parse -` must not CRLF-translate or stop at ^Z
   _setmode(_fileno(stdout), _O_BINARY);
@@ -441,17 +451,17 @@ int main(int argc, char **argv) {
     // .py -> python, .sh/.bash -> bash) are lintable, and paths are sorted for
     // byte-stable output. An explicit file keeps its argument order.
     // Output canonicalization: all printed paths use forward slashes
-    // (fs::path::generic_string), on every OS — pinned outputs are
+    // (fs::path::generic_u8string), on every OS — pinned outputs are
     // platform-independent.
     namespace fs = std::filesystem;
     const auto canonical = [](const std::string &path) {
-      return fs::path(path).generic_string();
+      return fs::u8path(path).generic_u8string();
     };
     struct Target { std::string path; bool from_dir; };
     std::vector<Target> targets;
     for (int i = 3; i < argc; ++i) {
       std::error_code ec;
-      const fs::path root(argv[i]);
+      const fs::path root = fs::u8path(argv[i]);
       if (fs::is_directory(root, ec)) {
         std::vector<std::string> found;
         const fs::recursive_directory_iterator end;
@@ -468,18 +478,18 @@ int main(int argc, char **argv) {
           // living under ~/.local or passed as ./.proj is still lintable.
           bool hidden = false;
           for (const auto &part : p.lexically_relative(root)) {
-            const std::string name = part.string();
+            const std::string name = part.u8string();
             if (name != "." && name != ".." && name.rfind(".", 0) == 0) hidden = true; // C++17: no starts_with
           }
           if (hidden) { it.disable_recursion_pending(); continue; } // prune hidden dirs
           std::error_code file_ec;
           if (!it->is_regular_file(file_ec)) continue;
-          const std::string ext = p.extension().string();
+          const std::string ext = p.extension().u8string();
           if (ext == ".c" || ext == ".h" || ext == ".json" || ext == ".py" ||
-              ext == ".sh" || ext == ".bash") found.push_back(canonical(p.string()));
+              ext == ".sh" || ext == ".bash") found.push_back(canonical(p.u8string()));
         }
         if (ec) {
-          std::cerr << "cannot read " << canonical(failed_at.string()) << ": " << ec.message() << "\n";
+          std::cerr << "cannot read " << canonical(failed_at.u8string()) << ": " << ec.message() << "\n";
           return 3;
         }
         if (found.empty()) {
@@ -496,7 +506,7 @@ int main(int argc, char **argv) {
     // earlier files' findings were already printed.
     for (const auto &target : targets) {
       const std::vector<lmok::LintRule> *active = &rules;
-      const std::string ext = fs::path(target.path).extension().string();
+      const std::string ext = fs::u8path(target.path).extension().u8string();
       if (ext == ".c" || ext == ".h") active = &c_rules;
       else if (ext == ".json") active = &json_rules;
       else if (ext == ".py") active = &python_rules;
@@ -545,7 +555,7 @@ int main(int argc, char **argv) {
     }
     const std::string schema(reinterpret_cast<const char *>(lmok::embedded_schema), lmok::embedded_schema_size);
     dslvm::Program program;
-    try { program = dslvm::Program::load(dslvm::read_file(argv[argi++]), schema, reg); }
+    try { program = dslvm::Program::load(read_bytecode(argv[argi++]), schema, reg); }
     catch (const dslvm::Error &error) { return dslvm::report_error("load", error); }
     std::map<std::string, std::vector<size_t>> by_kind;
     for (size_t i = 0; i < program.entries().size(); ++i) {
@@ -590,7 +600,7 @@ int main(int argc, char **argv) {
     std::vector<dslvm::Program> programs;
     for (int i = 2; i < argc; ++i) {
       try {
-        programs.push_back(dslvm::Program::load(dslvm::read_file(argv[i]), schema, reg));
+        programs.push_back(dslvm::Program::load(read_bytecode(argv[i]), schema, reg));
       } catch (const dslvm::Error &error) {
         return dslvm::report_error("load", error);
       }
@@ -614,3 +624,29 @@ int main(int argc, char **argv) {
   std::cerr << usage;
   return 2;
 }
+
+#ifdef _WIN32
+// The narrow CRT argv uses the Windows ANSI code page and loses Unicode paths.
+// Keep the CLI/DSL boundary UTF-8, converting only at the native entry point.
+int wmain(int argc, wchar_t **wide) {
+  std::vector<std::string> text;
+  text.reserve(argc);
+  for (int i = 0; i < argc; ++i) {
+    int size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide[i], -1, nullptr, 0, nullptr, nullptr);
+    if (size == 0) { std::cerr << "invalid Unicode command argument\n"; return 2; }
+    std::string value(static_cast<size_t>(size), '\0');
+    if (!WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide[i], -1, value.data(), size, nullptr, nullptr)) {
+      std::cerr << "invalid Unicode command argument\n"; return 2;
+    }
+    value.pop_back();
+    text.push_back(std::move(value));
+  }
+  std::vector<char *> argv;
+  argv.reserve(static_cast<size_t>(argc) + 1);
+  for (auto &value : text) argv.push_back(value.data());
+  argv.push_back(nullptr);
+  return run_cli(argc, argv.data());
+}
+#else
+int main(int argc, char **argv) { return run_cli(argc, argv); }
+#endif

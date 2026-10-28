@@ -100,3 +100,8 @@ if((CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang") AND NOT APPLE)
     target_link_options(lmok PRIVATE -static)
   endif()
 endif()
+
+# Use UTF-16 CRT arguments on MinGW, then convert once to the host UTF-8 API.
+if(MINGW)
+  target_link_options(lmok PRIVATE -municode)
+endif()
