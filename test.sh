@@ -464,7 +464,8 @@ ok "Tree.edit: out-of-range offsets refused (exit 3)"
 # C1: std::regex backtracks recursively; a 100 KB single-line comment with the
 # shipped LBC010 rule used to segfault (exit 139). Now bounded (16 KiB cap,
 # one stderr note), both for pack text_matches and query #match?.
-python3 -c "print('// x = ' + 'a'*100000 + ';')" > "$WORK/longcomment.c"
+# (binary write: Python's text mode would emit CRLF on Windows and shift the byte count)
+python3 -c "import sys; sys.stdout.buffer.write(b'// x = ' + b'a'*100000 + b';\n')" > "$WORK/longcomment.c"
 set +e; out="$("$HOST" lint rules/c-tier1.json "$WORK/longcomment.c" 2>"$WORK/longcomment.err")"; code=$?; set -e
 [ "$code" = 0 ] && [ "$out" = "0 findings in $WORK/longcomment.c" ] || fail "long comment lint (exit $code): $out"
 grep -q 'regex not applied to a 100008-byte node text' "$WORK/longcomment.err" || fail "long comment lint: missing stderr note: $(cat "$WORK/longcomment.err")"
