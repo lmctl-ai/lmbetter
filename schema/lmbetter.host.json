@@ -161,6 +161,18 @@
             ],
             "returns": "Node"
           }
+        ],
+        "has_parent": [
+          {
+            "params": [],
+            "returns": "bool"
+          }
+        ],
+        "parent": [
+          {
+            "params": [],
+            "returns": "Node"
+          }
         ]
       }
     },

@@ -35,6 +35,20 @@ path (and the savedsl target) into a scratch copy and asserts zero findings.
 Nothing turned out non-tier-1 in this batch — all four rule families fit
 current lmcode.
 
+## E2 landed: Node.parent() (v0.3.2)
+
+Contract: `Node.has_parent() -> bool` (false at root) + `Node.parent() ->
+Node` which throws a located run-time error on the root (exit 3) — no fake
+self-node, so `while (n.has_parent()) { n = n.parent(); }` is the idiom.
+Parents reuse the existing Node arena (same tree, same lifetime). Unlocked
+rules: LBC105 control nesting depth >4 (`c-nesting-depth.lms`) and LBJ103
+JSON value nesting >6 (`json-nesting-depth.lms`) — both walk the parent chain
+counting kind-matched ancestors; only the deepest offender fires by
+construction. The LBC103 innermost-switch caveat from v0.3.1 turned out to be
+a non-issue: the rule walks DIRECT children of each switch body, which is
+already correct association (an inner switch's default is not a direct child
+of the outer body), so no parent() fix was needed.
+
 ## Dropped candidates (and why)
 
 - **Implicit-int function definitions** (`!type` query): not expressible.

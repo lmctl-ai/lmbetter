@@ -209,6 +209,15 @@ void register_host(dslvm::Registry &reg, Host &host) {
                          " out of range (named child count " + std::to_string(count) + ")");
     return host.hold(host.nodes, "Node", lmbetter::node_child(*n, args[0].i));
   });
+  reg.method("Node", "has_parent", {}, "bool", [](void *s, Args &) {
+    return Value::boolean(lmbetter::node_has_parent(*node_of(s, "has_parent")));
+  });
+  reg.method("Node", "parent", {}, "Node", [&host](void *s, Args &) {
+    const lmbetter::Node *n = node_of(s, "parent");
+    if (!lmbetter::node_has_parent(*n))
+      throw dslvm::Error("Node.parent: root node has no parent");
+    return host.hold(host.nodes, "Node", lmbetter::node_parent(*n));
+  });
 
   reg.method("NodeList", "len", {}, "int", [](void *s, Args &) {
     return Value::integer(static_cast<int64_t>(nodelist_of(s, "len")->items.size()));

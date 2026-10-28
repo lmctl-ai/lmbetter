@@ -273,6 +273,19 @@ set +e; out="$("$HOST" --dsl "$WORK/oob.dslb" 2>&1)"; code=$?; set -e
 [ "$code" = 3 ] && [[ "$out" == *'out of range'* ]] || fail "StrList.at bounds (exit $code): $out"
 ok "StrList.at bounds refused at runtime (exit 3)"
 
+cat > "$WORK/root-parent.lms" <<EOF
+p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+let r = ts.parse("{}").root();
+if (r.has_parent()) { println("bad"); }
+r.parent();
+end _dsl_
+savedsl(p, "$WORK/root-parent.dslb");
+EOF
+"$LMSCRIPT" "$WORK/root-parent.lms" "$WORK/root-parent.dslb" >/dev/null || fail "root-parent compile"
+set +e; out="$("$HOST" --dsl "$WORK/root-parent.dslb" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'root node has no parent'* ]] || fail "Node.parent on root (exit $code): $out"
+ok "Node.parent: has_parent() false at root, parent() on root refused (exit 3)"
+
 set +e; out="$("$HOST" 2>&1)"; code=$?; set -e
 [ "$code" = 2 ] && [[ "$out" == *'usage: lmbetter'* ]] || fail "bad args refusal (exit $code): $out"
 ok "bad arguments refused (exit 2)"
@@ -325,7 +338,7 @@ ok "lint-repo: lmscript drives lmbetter lint and counts findings"
 
 # --- rules/lmcode (lmcode-native tier-1 rules) ---
 mkdir -p build/rules-lmcode
-for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits; do
+for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits c-nesting-depth json-nesting-depth; do
   "$LMSCRIPT" "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f rule compile"
   "$HOST" --dsl "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
   while IFS= read -r line; do
@@ -340,7 +353,7 @@ for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits;
   grep -qxF '[]' <<<"$out" || fail "$f clean fixture findings: $out"
   grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
 done
-ok "rules/lmcode: four rule files fire on violations fixtures, silent on clean"
+ok "rules/lmcode: six rule files fire on violations fixtures, silent on clean"
 
 if [ "$UNAME_S" = "Darwin" ]; then
   BAD_LIBS="$(otool -L "$HOST" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/\|^/System/Library/' || true)"

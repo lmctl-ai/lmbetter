@@ -115,6 +115,13 @@ int64_t node_child_count(const Node &node);
 // (the DSL registry in main.cpp performs the check and throws).
 Node node_child(const Node &node, int64_t index);
 
+// False for the root node (ts_node_parent of the root is a null node).
+bool node_has_parent(const Node &node);
+
+// The parent node. Root is a contract violation: the DSL registry checks
+// node_has_parent first and throws (exit 3); C++ callers must do the same.
+Node node_parent(const Node &node);
+
 // Opaque access to the wrapped tree (implementation detail; used only by
 // host.cpp helpers). Returns nullptr for a moved-from handle.
 const void *tree_handle(const Tree &tree);

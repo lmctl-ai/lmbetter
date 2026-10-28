@@ -127,6 +127,17 @@ Node node_child(const Node &node, int64_t index) {
   return child;
 }
 
+bool node_has_parent(const Node &node) {
+  return !ts_node_is_null(ts_node_parent(ts(node)));
+}
+
+Node node_parent(const Node &node) {
+  Node parent;
+  parent.owner = node.owner;
+  new (parent.bytes) TSNode(ts_node_parent(ts(node)));
+  return parent;
+}
+
 static const char *query_error_word(TSQueryError error) {
   switch (error) {
   case TSQueryErrorSyntax: return "syntax";

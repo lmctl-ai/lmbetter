@@ -1,0 +1,43 @@
+# Chapter: Rules (lmcode) - deep control nesting in C (tier 2: Node.parent)
+# Shows: Node.has_parent/parent chain walk, kind predicates, @if_statement rule
+# Run: lmscript rules/lmcode/c-nesting-depth.lms   (then: lmbetter --dsl build/rules-lmcode/c-nesting-depth.dslb)
+# Needs: nothing (offline); reads tests/fixtures/c-nesting-violations.c
+# exit: 0
+# expect:
+#|[{"row":5,"col":10,"end_row":7,"end_col":11,"rule":"LBC105","severity":"major","message":"control structure nested 5 deep (max 4)"}]
+#|1 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# Nesting depth needs UPWARD navigation — impossible in tier 1 without
+# Node.parent() (extension E2). has_parent() is the loop guard; parent() on
+# the root is a run-time error.
+
+fn is_control(n: Node) -> int {
+  let hit = 0;
+  let k = n.kind();
+  if (k == "if_statement" || k == "for_statement" || k == "while_statement") { hit = 1; }
+  return hit;
+}
+
+@if_statement
+fn no_deep_nesting(n: Node) -> void implements Rule {
+  if (is_control(n) == 1) {
+    let depth = 1;
+    let cur = n;
+    while (cur.has_parent()) {
+      cur = cur.parent();
+      if (is_control(cur) == 1) { depth = depth + 1; }
+    }
+    if (depth > 4) {
+      ts.report(n, "control structure nested " + str(depth) + " deep (max 4)", "LBC105", "major");
+    }
+  }
+}
+
+let tree = ts.parse_c(file_read("tests/fixtures/c-nesting-violations.c"));
+for (n in tree.nodes()) { no_deep_nesting(n); }
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/rules-lmcode/c-nesting-depth.dslb");

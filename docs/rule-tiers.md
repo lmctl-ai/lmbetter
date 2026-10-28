@@ -63,6 +63,8 @@ what information they need; the tier decides when (or whether) they ship.
 | LBC104 | if without braces | consequence child kind != `compound_statement` |
 | LBJ101 | duplicate keys in one object | `@object` + per-object StrMap over pair keys |
 | LBJ102 | object too large (>50 entries) | pair-child counting |
+| LBC105 | control structure nested >4 deep | parent() chain walk (needs E2) |
+| LBJ103 | JSON value nested >6 levels deep | parent() chain walk (needs E2) |
 
 ## Tier 2 — needs a named extension
 
@@ -70,11 +72,14 @@ what information they need; the tier decides when (or whether) they ship.
   Unlocks: case-insensitive credential-key matching (`(#match? @key
   "(?i)password")`); value-aware rules (key equals "password" AND value
   empty); "call X with literal argument Y" without a post-regex.
-- **E2: `Node.parent()` upward navigation.** Unlocks: nesting-depth rules
-  (walk up to count ancestors); context-sensitive rules ("identifier X only
-  inside function Y"); assignment-in-loop-body (not just conditions);
-  commented-out-code refinement (comment inside a function body vs. file
-  top level).
+- **E2: `Node.parent()` upward navigation — LANDED (v0.3.2).** Contract:
+  `Node.has_parent() -> bool` (false at root) and `Node.parent() -> Node`
+  (root call is a located run-time error, exit 3 — no fake self-node).
+  Shipped with it: LBC105 (control nesting depth), LBJ103 (JSON nesting
+  depth). Remaining ideas in this extension's orbit: context-sensitive rules
+  ("identifier X only inside function Y"), assignment-in-loop-body (not just
+  conditions), commented-out-code refinement (comment inside a function body
+  vs. file top level).
 - **E3: same-file symbol index.** Unlocks: unused function detection;
   calls to undefined functions; direct recursion detection; duplicate
   function definitions.

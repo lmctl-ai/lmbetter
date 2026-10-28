@@ -126,8 +126,10 @@ exec, assignment-in-condition, K&R definitions, goto, FIXME/TODO, object-like
 macros, register, naming, commented-out code) and `json-tier1.json` (5 rules:
 credential keys, placeholders, nulls, key naming, numbers-as-strings) — plus
 lmcode-native rules in `rules/lmcode/` for tier-1 checks that need logic
-(function metrics, switch/if style, duplicate JSON keys, object size) —
-tier 2 waits on named host extensions, tier 3 (real semantics) is deferred.
+(function metrics, switch/if style, duplicate JSON keys, object size, nesting
+depth — the last via `Node.has_parent()`/`parent()`, tier-2 extension E2) —
+tier 2's remaining extensions (query predicates, symbol index, multi-file,
+incremental re-parse) are planned, tier 3 (real semantics) is deferred.
 The framework, inventory, and extension plan: `docs/rule-tiers.md`.
 
 ```sh
@@ -151,7 +153,8 @@ The DSL surface is deliberately small: `ts.parse(text)` returns a `Tree` with
 is a `Node` with `.kind()`, `.text()`, `.is_named()`,
 `.start_row()/.start_col()/.end_row()/.end_col()` (all **0-based**,
 tree-sitter convention), `.child_count()`, and `.child(i)` (named children
-only, bounds-checked). The schema also declares the SAM interface
+only, bounds-checked), plus upward navigation: `.has_parent()` (false at the
+root) and `.parent()` (a located run-time error at the root). The schema also declares the SAM interface
 `Rule(n: Node) -> void`: top-level lmcode functions can carry a `@NODE-KIND`
 annotation and an `implements Rule` clause (checked at compile time), so
 analysis rules are user-redefinable scripts over the CST — see

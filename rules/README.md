@@ -15,7 +15,9 @@ Three delivery forms, by how much logic a rule needs:
   key and severity. Shipped: `c-function-metrics.lms` (LBC101 function too
   long, LBC102 too many parameters), `c-switch-style.lms` (LBC103 switch
   without default, LBC104 if without braces), `json-duplicate-keys.lms`
-  (LBJ101), `json-size-limits.lms` (LBJ102).
+  (LBJ101), `json-size-limits.lms` (LBJ102), `c-nesting-depth.lms` (LBC105)
+  and `json-nesting-depth.lms` (LBJ103) — the last two need `Node.parent()`
+  (tier-2 extension E2, landed in v0.3.2).
 
 - **Teaching examples** (`examples/*.lms`) — the same techniques in
   narrative order; read these first.
