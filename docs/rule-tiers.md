@@ -110,9 +110,17 @@ query as `#match?` predicates — same behavior, sharper form.)
   E4/tier-3 territory). Conservative choices shipped: LBC107 flags STATIC
   functions only (their calls must be same-file); LBC108 considers plain
   identifier callees only and uses a script-owned libc whitelist.
-- **E4: multi-file / directory lint + include resolution.** Unlocks:
-  project-wide pack runs (`lmbetter lint rules/ src/`); unused-include
-  hygiene; cross-file duplicate symbols; the cross-file half of symbol rules.
+- **E4: multi-file / directory lint — LANDED (v0.3.5), minus include
+  resolution.** `lmbetter lint` accepts directories: recursive expansion of
+  regular files, hidden paths skipped, only known extensions (`.c`/`.h` → c,
+  `.json` → json), paths sorted for byte-stable output, files whose language
+  has no pack rules skipped silently, an empty expansion is exit 2, and
+  unreadable files still fail fast (exit 3). The cross-file half is
+  script-side: `rules/lmcode/c-cross-file.lms` (LBC110, call to a function
+  defined in NO file) unions defined/called sets over multiple parsed files
+  in pure lmcode. Still out of scope: include-graph resolution and
+  header/source pairing heuristics (fine-grained C project semantics stay
+  tier 3).
 - **E5: incremental re-parse.** Unlocks: watch/editor-mode lint (re-lint on
   save reusing unchanged subtrees); pre-commit speedup on large trees.
 

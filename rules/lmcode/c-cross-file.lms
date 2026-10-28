@@ -1,0 +1,50 @@
+# Chapter: Rules (lmcode) - cross-file symbol check (tier-2 E4, script-side)
+# Shows: two files, union defined/called sets via StrMap, report only on the calling file
+# Run: lmscript rules/lmcode/c-cross-file.lms   (then: lmbetter --dsl build/rules-lmcode/c-cross-file.dslb)
+# Needs: nothing (offline); reads tests/fixtures/cross/{a.c,b.c}
+# exit: 0
+# expect:
+#|[{"row":1,"col":28,"end_row":1,"end_col":36,"rule":"LBC110","severity":"minor","message":"call to undefined function 'ghost_fn' (any file)"}]
+#|1 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# Cross-file analysis needs no host machinery: parse each file, union the
+# defined and called name sets across all of them, report the difference.
+# (Findings carry positions in the CALLING file; multi-file reports that need
+# the file name keep it script-side, like everything else.)
+
+fn def_name(n: Node) -> string {
+  let name = "";
+  for (i in range(0, n.child_count())) {
+    let d = n.child(i);
+    if (d.kind() == "function_declarator") {
+      for (j in range(0, d.child_count())) {
+        if (d.child(j).kind() == "identifier") { name = d.child(j).text(); }
+      }
+    }
+  }
+  return name;
+}
+
+let tree_a = ts.parse_c(file_read("tests/fixtures/cross/a.c"));
+let tree_b = ts.parse_c(file_read("tests/fixtures/cross/b.c"));
+
+# Union of defined names over both files.
+let defined = str_map();
+for (d in ts.query_c(tree_a.root(), "(function_definition) @d")) { defined.set(def_name(d), "1"); }
+for (d in ts.query_c(tree_b.root(), "(function_definition) @d")) { defined.set(def_name(d), "1"); }
+
+# LBC110: calls in a.c whose target is defined in NEITHER file.
+let libc = "|printf|fgets|malloc|free|";
+for (c in ts.query_c(tree_a.root(), "(call_expression function: (identifier) @fn)")) {
+  let name = c.text();
+  if (!defined.has(name) && !str_contains(libc, "|" + name + "|")) {
+    ts.report(c, "call to undefined function '" + name + "' (any file)", "LBC110", "minor");
+  }
+}
+
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/rules-lmcode/c-cross-file.dslb");

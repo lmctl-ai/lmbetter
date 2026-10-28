@@ -10,6 +10,7 @@
 #include "notices_embedded.hpp"
 
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -334,15 +335,63 @@ int main(int argc, char **argv) {
       std::cerr << e.what() << "\n";
       return 2;
     }
+    // Per-grammar rule lists for extension-based filtering.
+    std::vector<lmbetter::LintRule> c_rules, json_rules;
+    for (const auto &rule : rules) {
+      if (rule.grammar == lmbetter::Grammar::C) c_rules.push_back(rule);
+      else json_rules.push_back(rule);
+    }
+    // Directory args expand RECURSIVELY to their regular files: hidden files
+    // and dirs are skipped, only known extensions (.c/.h -> c, .json -> json)
+    // are lintable, and paths are sorted for byte-stable output. An explicit
+    // file keeps its argument order.
+    struct Target { std::string path; bool from_dir; };
+    std::vector<Target> targets;
+    namespace fs = std::filesystem;
+    for (int i = 3; i < argc; ++i) {
+      std::error_code ec;
+      if (fs::is_directory(fs::path(argv[i]), ec)) {
+        std::vector<std::string> found;
+        const fs::recursive_directory_iterator end;
+        for (fs::recursive_directory_iterator it(fs::path(argv[i]), ec);
+             !ec && it != end; it.increment(ec)) {
+          const fs::path &p = it->path();
+          if (!it->is_regular_file(ec)) continue;
+          bool hidden = false;
+          for (const auto &part : p) {
+            const std::string name = part.string();
+            if (name != "." && name != ".." && name.rfind(".", 0) == 0) hidden = true; // C++17: no starts_with
+          }
+          if (hidden) continue;
+          const std::string ext = p.extension().string();
+          if (ext == ".c" || ext == ".h" || ext == ".json") found.push_back(p.string());
+        }
+        if (found.empty()) {
+          std::cerr << "no lintable files in " << argv[i] << " (want .c/.h/.json)\n";
+          return 2;
+        }
+        std::sort(found.begin(), found.end());
+        for (auto &f : found) targets.push_back({f, true});
+      } else {
+        targets.push_back({argv[i], false});
+      }
+    }
     // Fail fast: the first unreadable file aborts the whole run (exit 3);
     // earlier files' findings were already printed.
-    for (int i = 3; i < argc; ++i) {
+    for (const auto &target : targets) {
+      const std::vector<lmbetter::LintRule> *active = &rules;
+      const std::string ext = fs::path(target.path).extension().string();
+      if (ext == ".c" || ext == ".h") active = &c_rules;
+      else if (ext == ".json") active = &json_rules;
+      // A file whose language has no rules in the pack: skipped silently when
+      // it came from a directory; an explicitly named file still reports.
+      if (active->empty() && target.from_dir) continue;
       std::string raw;
-      try { raw = read_file(argv[i]); }
+      try { raw = read_file(target.path); }
       catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
       std::vector<lmbetter::LintFinding> findings;
       try {
-        findings = lmbetter::lint_text(rules, raw);
+        findings = lmbetter::lint_text(*active, raw);
       } catch (const lmbetter::QueryError &e) {
         std::cerr << e.what() << "\n";
         return 3;
@@ -353,7 +402,7 @@ int main(int argc, char **argv) {
                   << ",\"rule\":\"" << json_escape(f.rule)
                   << "\",\"severity\":\"" << json_escape(f.severity)
                   << "\",\"message\":\"" << json_escape(f.message) << "\"}\n";
-      std::cout << findings.size() << " findings in " << argv[i] << "\n";
+      std::cout << findings.size() << " findings in " << target.path << "\n";
     }
     return std::cout ? 0 : 4;
   }

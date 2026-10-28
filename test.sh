@@ -211,6 +211,36 @@ set +e; out="$("$HOST" lint examples/rules/c-security.json "$WORK/no-such.c" 2>&
 [ "$code" = 3 ] && [[ "$out" == *'cannot read'* ]] || fail "lint missing file (exit $code): $out"
 ok "lint: unreadable file aborts fast (exit 3)"
 
+# --- lint: directory expansion (E4) ---
+"$HOST" lint examples/rules/c-security.json tests/fixtures/lintdir >"$WORK/lintdir.out" || fail "lint dir run"
+cat >"$WORK/lintdir.expected" <<'EXPECTED_DIR'
+{"row":2,"col":2,"end_row":2,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"}
+{"row":3,"col":2,"end_row":3,"end_col":12,"rule":"LBC003","severity":"minor","message":"goto used"}
+2 findings in tests/fixtures/lintdir/a.c
+{"row":0,"col":0,"end_row":0,"end_col":24,"rule":"LBC002","severity":"minor","message":"unresolved FIXME comment"}
+1 findings in tests/fixtures/lintdir/b.c
+EXPECTED_DIR
+cmp "$WORK/lintdir.expected" "$WORK/lintdir.out" || { diff "$WORK/lintdir.expected" "$WORK/lintdir.out" >&2; fail "lint dir output"; }
+ok "lint: directory expands recursively (sorted, hidden/.txt skipped, .json skipped for c pack)"
+
+"$HOST" lint examples/rules/c-security.json examples/data/sample.c tests/fixtures/lintdir >"$WORK/lintmixed.out" || fail "lint mixed run"
+cat >"$WORK/lintmixed.expected" <<'EXPECTED_MIX'
+{"row":4,"col":2,"end_row":4,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"}
+1 findings in examples/data/sample.c
+{"row":2,"col":2,"end_row":2,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"}
+{"row":3,"col":2,"end_row":3,"end_col":12,"rule":"LBC003","severity":"minor","message":"goto used"}
+2 findings in tests/fixtures/lintdir/a.c
+{"row":0,"col":0,"end_row":0,"end_col":24,"rule":"LBC002","severity":"minor","message":"unresolved FIXME comment"}
+1 findings in tests/fixtures/lintdir/b.c
+EXPECTED_MIX
+cmp "$WORK/lintmixed.expected" "$WORK/lintmixed.out" || fail "lint mixed file+dir output"
+ok "lint: mixed file + directory args in order"
+
+mkdir -p "$WORK/emptydir"
+set +e; out="$("$HOST" lint examples/rules/c-security.json "$WORK/emptydir" 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *'no lintable files in'* ]] || fail "lint empty dir (exit $code): $out"
+ok "lint: directory with no lintable files refused (exit 2)"
+
 # --- tier-1 rule packs (canonical library in rules/) ---
 "$HOST" lint rules/c-tier1.json tests/fixtures/c-tier1-violations.c >"$WORK/c-tier1.out" || fail "lint c-tier1 violations run"
 cat >"$WORK/c-tier1.expected" <<'EXPECTED_C'
@@ -370,7 +400,7 @@ ok "lint-repo: lmscript drives lmbetter lint and counts findings"
 
 # --- rules/lmcode (lmcode-native tier-1 rules) ---
 mkdir -p build/rules-lmcode
-for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits c-nesting-depth json-nesting-depth c-scanf-width c-symbol-rules; do
+for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits c-nesting-depth json-nesting-depth c-scanf-width c-symbol-rules c-cross-file; do
   "$LMSCRIPT" "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f rule compile"
   "$HOST" --dsl "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
   while IFS= read -r line; do
@@ -378,14 +408,15 @@ for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits 
   done < <(grep '^#|' "rules/lmcode/$f.lms")
   # clean-fixture variant: substitute the fixture path AND the savedsl target
   # into a scratch copy, expect an empty findings array and a zero count
-  sed -e 's/-violations\./-clean./' -e "s|build/rules-lmcode/$f.dslb|$WORK/$f-clean.dslb|" \
+  sed -e 's/-violations\./-clean./' -e 's|cross/a\.c|cross/clean-a.c|g' -e 's|cross/b\.c|cross/clean-b.c|g' \
+      -e "s|build/rules-lmcode/$f.dslb|$WORK/$f-clean.dslb|" \
     "rules/lmcode/$f.lms" > "$WORK/$f-clean.lms"
   "$LMSCRIPT" "$WORK/$f-clean.lms" "$WORK/$f-clean.dslb" >/dev/null 2>&1 || fail "$f clean compile"
   out="$("$HOST" --dsl "$WORK/$f-clean.dslb")"
   grep -qxF '[]' <<<"$out" || fail "$f clean fixture findings: $out"
   grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
 done
-ok "rules/lmcode: eight rule files fire on violations fixtures, silent on clean"
+ok "rules/lmcode: nine rule files fire on violations fixtures, silent on clean"
 
 if [ "$UNAME_S" = "Darwin" ]; then
   BAD_LIBS="$(otool -L "$HOST" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/\|^/System/Library/' || true)"

@@ -35,6 +35,21 @@ path (and the savedsl target) into a scratch copy and asserts zero findings.
 Nothing turned out non-tier-1 in this batch — all four rule families fit
 current lmcode.
 
+## E4 landed: directory lint + script-side cross-file (v0.3.5)
+
+`lmbetter lint` takes directories: `std::filesystem::recursive_directory_iterator`
+(C++17, MinGW-safe — no POSIX-only calls; `starts_with` is C++20 so the hidden
+check uses `rfind(".", 0) == 0`, with `.`/`..` exempted so `lint pack .`
+works), expansion filtered to `.c`/`.h`/`.json`, hidden paths skipped, paths
+sorted for byte-stable output, lang-less files skipped silently, empty
+expansion exit 2, fail-fast unreadable exit 3 unchanged. Cross-file rule
+LBC110 (`rules/lmcode/c-cross-file.lms`) unions defined/called sets over two
+files in pure lmcode — no host multi-file magic. Include-graph resolution and
+header/source pairing stay out of scope (tier 3). Fixtures:
+`tests/fixtures/lintdir/` (2 C files + skipped .txt/.json + hidden dir) and
+`tests/fixtures/cross/{a,b,clean-a,clean-b}.c`; the rules/lmcode clean-variant
+sed chain gained `cross/a.c → cross/clean-a.c` substitutions.
+
 ## E3 reality check: symbol rules need no host index (v0.3.4)
 
 Hypothesis confirmed: LBC107 (unused static function), LBC108 (undefined
@@ -102,8 +117,9 @@ of the outer body), so no parent() fix was needed.
 
 ## Tier-2 extension plan
 
-LANDED: E1 query predicates (v0.3.3, above), E2 Node.parent() (v0.3.2).
-Remaining: E3 same-file symbol index (performance/cross-file only — the
-symbol-ish rules turned out to be scriptable, see "E3 reality check" above); E4 multi-file/directory lint; E5
+LANDED: E1 query predicates (v0.3.3), E2 Node.parent() (v0.3.2), E4
+multi-file/directory lint (v0.3.5, minus include resolution). Re-scoped: E3
+same-file symbol index (performance/cross-file only — the symbol-ish rules
+turned out to be scriptable, see "E3 reality check" above). Remaining: E5
 incremental re-parse. Rules each unlocks: docs/rule-tiers.md. Tier 3 (types,
 CFG, dataflow, taint) stays deferred.

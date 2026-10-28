@@ -114,6 +114,12 @@ structured access to parsed trees.
   (row, col), one JSON object per line with the same field order as
   `ts.report_json` (row, col, end_row, end_col, rule, severity, message),
   then `N findings in <file>`.
+- **Directories**: a FILE argument that is a directory expands recursively to
+  its regular files — hidden files/dirs skipped, only `.c`/`.h` (c) and
+  `.json` (json) are lintable, paths sorted for byte-stable output, a file
+  whose language has no rules in the pack is skipped silently, and a
+  directory with no lintable files is a usage error (exit 2). File and
+  directory args mix freely.
 
 Packs live in `examples/rules/` (`c-security.json`, `json-config.json`) as
 small demos; the canonical rule library is `rules/` (see below).
