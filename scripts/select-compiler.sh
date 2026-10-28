@@ -2,7 +2,7 @@
 set -euo pipefail
 # TODO: confirm first release containing R47/R48 rule methods (staging publish
 # pending); the floor must target the npm @lmctl-ai/lmctl release numbering.
-NEED_VERSION="0.2.441"
+NEED_VERSION="0.2.442"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/lmcode-compiler-XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 case "$(uname -s)" in

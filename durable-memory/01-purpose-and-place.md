@@ -21,6 +21,6 @@ No query API, no cursor API, no other grammars yet.
 
 The lmcode-cpp SDK pin (`sdk.lock`) must match the implicit std set of the
 compiler in use. Since v0.2.0 the pin is `d70a12c` (181 standard signatures),
-matching npm `lmscript` >= 0.2.441; the previous pin `ee1f084` (72 signatures)
+matching npm `lmscript` >= 0.2.442; the previous pin `ee1f084` (72 signatures)
 matched <= 0.2.440. Sync with
 `LMCODE_CPP=/path/to/lmcode-cpp LMCODE_CPP_REF=<commit> scripts/sync-sdk.sh`.

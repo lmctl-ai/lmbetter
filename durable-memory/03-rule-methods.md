@@ -3,7 +3,7 @@
 lmbetter exposes the tree-sitter CST to lmscript so analysis rules are
 user-redefinable scripts, not compiled per-rule classes (the SonarQube
 contrast is studied in docs/rule-snippets.md). Shipped in v0.2.0; needs
-`lmscript` >= 0.2.441 (first npm release containing the R47/R48 compiler
+`lmscript` >= 0.2.442 (first npm release containing the R47/R48 compiler
 feature — the exact number is a placeholder pending the staging publish, see
 the TODO in scripts/select-compiler.sh).
 
@@ -44,7 +44,7 @@ the TODO in scripts/select-compiler.sh).
 - **Compiler/SDK coupling**: the vendored lmcode-cpp pin (`sdk.lock`) must
   exactly match the implicit std set of the compiler in use, or test.sh's
   registry/compiler signature parity fails. Current pin `d70a12c` (181 std
-  signatures) matches npm `@lmctl-ai/lmctl` >= 0.2.441; the older `ee1f084`
+  signatures) matches npm `@lmctl-ai/lmctl` >= 0.2.442; the older `ee1f084`
   (72 signatures) matched <= 0.2.440.
 - **Compiler version numbering**: the lmctl-mono build reports its own version
   (e.g. 0.2.38) unrelated to npm release numbering; the numeric floor in
@@ -56,7 +56,7 @@ the TODO in scripts/select-compiler.sh).
 ## Verification
 
 ```sh
-./test.sh   # needs lmscript >= 0.2.441 on PATH; released 0.2.420 fails at
+./test.sh   # needs lmscript >= 0.2.442 on PATH; released 0.2.420 fails at
             # check 8: schema error "unknown top-level key interfaces"
 lmscript examples/cst-rules.lms build/cst-rules.dslb
 build/lmbetter --dsl build/cst-rules.dslb

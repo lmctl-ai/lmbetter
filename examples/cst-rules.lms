@@ -1,7 +1,7 @@
 # Chapter: Rules - CST rules as annotated lmcode functions
 # Shows: @NODE-KIND annotations, fn ... implements Rule, Tree.root, Node.kind/text/start_row/start_col/child_count/child
 # Run: lmscript examples/cst-rules.lms      (then: lmbetter --dsl build/cst-rules.dslb)
-# Needs: lmscript >= 0.2.441 (R47/R48 rule methods); nothing else (offline).
+# Needs: lmscript >= 0.2.442 (R47/R48 rule methods); nothing else (offline).
 # exit: 0
 # expect:
 #|finding: password key "password" at row 4 col 4

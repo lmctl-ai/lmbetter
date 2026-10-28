@@ -78,13 +78,13 @@ only, bounds-checked). The schema also declares the SAM interface
 annotation and an `implements Rule` clause (checked at compile time), so
 analysis rules are user-redefinable scripts over the CST — see
 `examples/cst-rules.lms` and `durable-memory/03-rule-methods.md`. Rule methods
-require `lmscript` >= 0.2.441. See `examples/` for runnable scripts.
+require `lmscript` >= 0.2.442. See `examples/` for runnable scripts.
 
 ## Repository layout
 
 - `cpp/` — the CLI host: DSL VM integration plus the tree-sitter wrapper
 - `docs/` — design documents (e.g. `rule-snippets.md`: analysis rules as lmscript snippets)
-- `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.441 supplies the built-in standard library implicitly)
+- `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.442 supplies the built-in standard library implicitly)
 - `examples/` — lmscript examples
 - `scripts/` — vendoring (tree-sitter sources pinned in `deps.lock`, `lmcode-cpp` SDK pinned in `sdk.lock`) and compiler selection
 - `third_party/` — downloaded upstream sources (git-ignored, pinned by `deps.lock`)
