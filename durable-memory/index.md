@@ -13,3 +13,5 @@ Repository: https://github.com/lmctl-ai/lmbetter.
 | [03-rule-methods.md](03-rule-methods.md) | Rule methods: @annotation + implements Rule, Node navigation, limitations |
 | [04-dispatcher.md](04-dispatcher.md) | lint rule packs, the kind-indexed walk dispatcher, v6 entry-point trajectory |
 | [05-rule-tiers.md](05-rule-tiers.md) | Three-tier rule strategy, shipped packs, dropped candidates, tier-2 plan |
+| [06-realworld-validation.md](06-realworld-validation.md) | c-tier1 validated against real-world C codebases (sds, kilo, cJSON) |
+| [07-robustness.md](07-robustness.md) | Bounded queries/regexes, input hardening, finding output escaping |

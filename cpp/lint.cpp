@@ -1,5 +1,7 @@
 // Rule-pack loading and the lint dispatcher; see lint.hpp for the contract.
 #include "lint.hpp"
+#include "bounded_regex.hpp"
+#include "input.hpp"
 #include "dslvm.hpp"
 #include "stdlib/json.hpp"
 
@@ -47,7 +49,11 @@ std::string expand_message(const std::string &message, const std::string &text) 
 
 void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding> &findings) {
   const std::string text = node_text(node);
-  if (!rule.text_matches.empty() && !regex_search_bounded(text, rule.text_regex)) return;
+  try {
+    if (!rule.text_matches.empty() && !regex_search_bounded(text, rule.text_regex)) return;
+  } catch (const RegexLimit &e) {
+    throw QueryError("rule " + rule.id + ": " + e.what());
+  }
   findings.push_back({node_start_row(node), node_start_col(node),
                       node_end_row(node), node_end_col(node),
                       rule.id, rule.severity, expand_message(rule.message, text)});
@@ -56,11 +62,7 @@ void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding>
 } // namespace
 
 std::vector<LintRule> load_rule_pack(const std::string &path) {
-  std::ifstream in(path, std::ios::binary);
-  if (!in) throw dslvm::Error("cannot read " + path);
-  std::ostringstream data;
-  data << in.rdbuf();
-  const std::string text = data.str();
+  const std::string text = read_input_file(path);
 
   JsonNode root;
   try {
@@ -139,7 +141,9 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
         fail("'text_matches' must be a regex string");
       rule.text_matches = tm->text;
       try {
-        rule.text_regex = std::regex(rule.text_matches); // ECMAScript
+        rule.text_regex = bounded_regex(rule.text_matches); // ECMAScript
+      } catch (const std::length_error &e) {
+        fail(e.what());
       } catch (const std::regex_error &e) {
         fail("bad text_matches regex '" + rule.text_matches + "'");
       }

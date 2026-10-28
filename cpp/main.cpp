@@ -3,6 +3,7 @@
 // subcommand (JSON grammar).
 #include "host.hpp"
 #include "lint.hpp"
+#include "input.hpp"
 #include "dslvm.hpp"
 #include "stdlib/string.hpp"
 #include "stdlib/collections.hpp"
@@ -95,22 +96,29 @@ lmbetter::NodeList *nodelist_of(void *p, const char *who) {
 }
 
 std::string read_file(const std::string &path) {
-  // An ifstream opens a directory fine on POSIX and then reads nothing, which
-  // would parse as an empty document; refuse it explicitly.
-  std::error_code ec;
-  if (std::filesystem::is_directory(path, ec)) throw dslvm::Error("cannot read " + path + ": is a directory");
-  std::ifstream in(path, std::ios::binary);
-  if (!in) throw dslvm::Error("cannot read " + path);
-  std::ostringstream data;
-  data << in.rdbuf();
-  if (in.bad()) throw dslvm::Error("cannot read " + path);
-  return data.str();
+  return lmbetter::read_input_file(path);
 }
 
 // JSON string escaping for ts.report_json output.
 std::string json_escape(const std::string &s) {
   std::string out;
-  for (unsigned char c : s) {
+  for (size_t i = 0; i < s.size(); ++i) {
+    const unsigned char c = static_cast<unsigned char>(s[i]);
+    if (c >= 0x80) {
+      size_t length = c >= 0xc2 && c <= 0xdf ? 2 :
+                      c >= 0xe0 && c <= 0xef ? 3 :
+                      c >= 0xf0 && c <= 0xf4 ? 4 : 0;
+      bool valid = length && length <= s.size() - i;
+      for (size_t j = 1; valid && j < length; ++j) {
+        const unsigned char next = static_cast<unsigned char>(s[i + j]);
+        valid = next >= 0x80 && next <= 0xbf;
+        if (j == 1 && ((c == 0xe0 && next < 0xa0) || (c == 0xed && next >= 0xa0) ||
+                       (c == 0xf0 && next < 0x90) || (c == 0xf4 && next >= 0x90))) valid = false;
+      }
+      if (valid) { out.append(s, i, length); i += length - 1; }
+      else out += "\\ufffd"; // malformed source bytes must not corrupt JSON output
+      continue;
+    }
     switch (c) {
     case '"': out += "\\\""; break;
     case '\\': out += "\\\\"; break;
@@ -446,8 +454,8 @@ int main(int argc, char **argv) {
         fs::path failed_at = root;
         for (; !ec && it != end; failed_at = it->path(), it.increment(ec)) {
           const fs::path &p = it->path();
-          std::error_code file_ec;
-          if (!it->is_regular_file(file_ec)) continue;
+          // Hidden check FIRST: directories must be pruned (never descended
+          // into) before the regular-file filter would skip them.
           // Hidden means a dot-component BELOW the argument root: a project
           // living under ~/.local or passed as ./.proj is still lintable.
           bool hidden = false;
@@ -455,7 +463,9 @@ int main(int argc, char **argv) {
             const std::string name = part.string();
             if (name != "." && name != ".." && name.rfind(".", 0) == 0) hidden = true; // C++17: no starts_with
           }
-          if (hidden) continue;
+          if (hidden) { it.disable_recursion_pending(); continue; } // prune hidden dirs
+          std::error_code file_ec;
+          if (!it->is_regular_file(file_ec)) continue;
           const std::string ext = p.extension().string();
           if (ext == ".c" || ext == ".h" || ext == ".json" || ext == ".py" ||
               ext == ".sh" || ext == ".bash") found.push_back(canonical(p.string()));

@@ -1,6 +1,7 @@
 // lmbetter wrapper over tree-sitter. The only translation unit that includes
 // tree-sitter headers; see host.hpp for the interface contract.
 #include "host.hpp"
+#include "bounded_regex.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -272,7 +273,7 @@ bool regex_search_bounded(const std::string &text, const std::regex &re) {
     }
     return false;
   }
-  return std::regex_search(text, re);
+  return bounded_regex_search(text, re); // work-budgeted; may throw RegexLimit
 }
 
 namespace {
@@ -357,7 +358,8 @@ std::vector<std::vector<Predicate>> compile_predicates(const TSQuery *query) {
         p.match_all = op == "match?" || op == "not-match?";
         p.capture = args[0]->value_id;
         const std::string source = string_value(query, args[1]->value_id);
-        try { p.re = std::regex(source); }
+        try { p.re = bounded_regex(source); }
+        catch (const std::length_error &e) { fail(e.what()); }
         catch (const std::regex_error &) { fail("has an invalid regex '" + source + "'"); }
       } else if (op == "any-of?" || op == "not-any-of?") {
         if (args.size() < 2) fail("takes a capture and at least one literal");
@@ -436,6 +438,27 @@ bool satisfies(const Predicate &p, const TSQueryMatch &match, const Tree *owner)
 } // namespace
 
 NodeList node_query(const Node &root_node, const std::string &pattern, Grammar grammar) {
+  // tree-sitter's query compiler recurses on nested patterns. Bound nesting
+  // before calling it, ignoring delimiters inside strings and comments.
+  size_t depth = 0;
+  bool quoted = false, escaped = false, comment = false;
+  for (size_t i = 0; i < pattern.size(); ++i) {
+    const char c = pattern[i];
+    if (comment) { if (c == '\n') comment = false; continue; }
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (c == '\\') escaped = true;
+      else if (c == '"') quoted = false;
+      continue;
+    }
+    if (c == ';') { comment = true; continue; }
+    if (c == '"') { quoted = true; continue; }
+    if (c == '(' || c == '[') {
+      if (++depth > 256)
+        throw QueryError("query error at byte offset " + std::to_string(i) +
+                         ": nesting limit exceeded (256)");
+    } else if ((c == ')' || c == ']') && depth) --depth;
+  }
   uint32_t error_offset = 0;
   TSQueryError error_type = TSQueryErrorNone;
   RaiiQuery query{ts_query_new(language_of(grammar), pattern.data(),
@@ -450,8 +473,12 @@ NodeList node_query(const Node &root_node, const std::string &pattern, Grammar g
   TSQueryMatch match;
   while (ts_query_cursor_next_match(cursor.c, &match)) {
     bool ok = true;
-    for (const Predicate &p : predicates[match.pattern_index])
-      if (!satisfies(p, match, root_node.owner)) { ok = false; break; }
+    try {
+      for (const Predicate &p : predicates[match.pattern_index])
+        if (!satisfies(p, match, root_node.owner)) { ok = false; break; }
+    } catch (const RegexLimit &e) {
+      throw QueryError(e.what()); // plain "regex work limit exceeded (4096)"
+    }
     if (!ok) continue;
     for (uint16_t i = 0; i < match.capture_count; ++i)
       list.items.push_back(wrap_node(root_node.owner, match.captures[i].node));
