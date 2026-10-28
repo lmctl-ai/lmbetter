@@ -89,6 +89,9 @@ PYHOST
 diff -u <("$LMSCRIPT" --dsl-signatures schema/lmok.dsl.json --without-std) "$WORK/host-signatures.txt" || fail "host-only registry/compiler signatures differ"
 ok "typed registry signatures match compiler schema signatures (full and --without-std)"
 
+python3 tests/release-hygiene.py || fail "release input policy"
+ok "release input policy: tests/docs do not publish; binary inputs and tags do"
+
 # --- parse ---
 cat > "$WORK/sample.json" <<'EOF'
 {"tool": "lmok", "ok": true, "items": [1, null]}
@@ -880,4 +883,6 @@ ok "robustness: invalid UTF-8 replaced in JSON findings; valid UTF-8 preserved (
 
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-entries.py "$HOST" || fail "v6 entry dispatch controls"
 ok "v6 entries: kind dispatch, source order, anonymous nodes, per-file state and refusals"
+python3 tests/check-native-os.py "$HOST" --prove-controls || fail "native OS contracts"
+ok "native OS byte/path/linkage contracts and negative controls"
 echo "PASS: $pass checks"
