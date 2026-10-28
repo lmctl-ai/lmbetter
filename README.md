@@ -74,12 +74,12 @@ lmscript install github:lmctl-ai/lmbetter@latest
 ```
 
 This prints the resolved release tag, executable path, and SHA-256. It
-resolves v0.4.0 at the time of writing; releases contain Linux x64/ARM64,
+resolves v0.5.0 at the time of writing; releases contain Linux x64/ARM64,
 macOS x64/ARM64, and Windows x64 executables. It caches the host rather than
 adding a `lmbetter` command to your shell PATH. Add the directory printed in
 `path:` to PATH to run the CLI by name. The rolling `dist` branch also holds
 platform binaries; `@latest` resolves a GitHub release, not that branch.
-Use `@v0.4.0` when you need a fixed release instead of a moving `@latest`.
+Use `@v0.5.0` when you need a fixed release instead of a moving `@latest`.
 
 From the repository root (or an empty directory for this inline-data example):
 
