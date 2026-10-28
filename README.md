@@ -69,8 +69,14 @@ savedsl(p, "build/show.dslb");
 ```
 
 The DSL surface is deliberately small (v0.1.0): `ts.parse(text)` returns a
-`Tree` with `.sexp()`, `.has_error()`, and `.node_count()`. See `examples/`
-for runnable scripts.
+`Tree` with `.sexp()`, `.has_error()`, `.node_count()`, and `.root()`. The
+`root()` handle is a `Node` with `.kind()`, `.text()`, `.is_named()`,
+`.start_row()/.start_col()/.end_row()/.end_col()` (all **0-based**,
+tree-sitter convention), `.child_count()`, and `.child(i)` (named children
+only, bounds-checked). The schema also declares the SAM interface
+`Rule(n: Node) -> void` for the rule-methods POC (see
+`durable-memory/03-rule-methods-poc.md`). See `examples/` for runnable
+scripts.
 
 ## Repository layout
 

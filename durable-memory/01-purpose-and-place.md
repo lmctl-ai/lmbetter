@@ -14,11 +14,14 @@ contributes only `src/parser.c`. Upstream feature-test defines
 
 The DSL surface is deliberately minimal (v0.1.0): context `ts` (type `Ts`)
 with `ts.parse(text) -> Tree`; `Tree.sexp() -> string`, `Tree.has_error() ->
-bool`, `Tree.node_count() -> int` (total nodes including the root). No query
-API, no cursor API, no other grammars yet.
+bool`, `Tree.node_count() -> int` (total nodes including the root), plus —
+on this POC branch — `Tree.root() -> Node` and the `Node` navigation methods.
+No query API, no cursor API, no other grammars yet.
 
-The lmcode-cpp SDK is pinned to commit `ee1f084` (same as lmproxy), not HEAD:
-that commit's 72 standard signatures are exactly the set `lmscript >= 0.2.420`
-supplies implicitly, which keeps the registry/compiler signature parity checks
-in `test.sh` green. Sync with
-`LMCODE_CPP=/path/to/lmcode-cpp LMCODE_CPP_REF=ee1f084... scripts/sync-sdk.sh`.
+Main pins the lmcode-cpp SDK at commit `ee1f084` (same as lmproxy): that
+commit's 72 standard signatures are exactly the set the released
+`lmscript >= 0.2.420` supplies implicitly. THIS BRANCH pins `d70a12c` (181
+signatures) instead, to match the POC compiler's implicit std — see
+[03-rule-methods-poc.md](03-rule-methods-poc.md) for the branch-local deltas.
+Sync with
+`LMCODE_CPP=/path/to/lmcode-cpp LMCODE_CPP_REF=<commit> scripts/sync-sdk.sh`.

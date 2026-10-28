@@ -14,5 +14,6 @@ host CLI the same way lmscript resolves any other tool.
 - `parse-string.lms` — parse an inline JSON string, print the tree
 - `parse-file.lms` — read `examples/data/sample.json`, print tree stats
 - `detect-error.lms` — parse malformed JSON, flag the ERROR node
+- `poc/` — rule-methods POC scripts (need the POC compiler; see `poc/README.md`)
 
 `./test.sh` compiles and runs every example as part of the check suite.

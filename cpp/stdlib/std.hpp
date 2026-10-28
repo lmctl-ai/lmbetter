@@ -7,6 +7,9 @@
 #include "math.hpp"
 #include "collections.hpp"
 #include "file.hpp"
+#include "containers.hpp"
+#include "json.hpp"
+#include "encoding.hpp"
 #undef DSLVM_STD_BUILDING
 
 namespace dslvm {
@@ -29,9 +32,12 @@ inline Registry& register_std(Registry& registry) {
   candidate.std_runtime_ = std::make_shared<stdlib::StdRuntime>();
   const auto before = candidate.signatures();
   stdlib::register_string(candidate);
+  stdlib::register_encoding(candidate);
   stdlib::register_math(candidate);
   stdlib::register_collections(candidate, candidate.std_runtime_->collections);
   stdlib::register_file(candidate, candidate.std_runtime_->collections);
+  stdlib::register_containers(candidate, candidate.std_runtime_->collections);
+  stdlib::register_json(candidate, candidate.std_runtime_->collections);
   const auto after = candidate.signatures();
   std::set_difference(after.begin(), after.end(), before.begin(), before.end(), std::back_inserter(candidate.std_signatures_));
   candidate.std_initialized_ = true;
@@ -44,12 +50,17 @@ inline stdlib::Collections& Registry::std_collections() const {
   return std_runtime_->collections;
 }
 inline void Registry::set_std_output(std::ostream* sink) {
-  if (!function_by_signature("fn print(string) -> void")) throw Error("testing: print is not registered");
-  auto* output = sink ? sink : &std::cout;
-  functions_.at("fn print(string) -> void").entry.fn = [output](Args& args) {
-    output->write(args[0].s.data(), static_cast<std::streamsize>(args[0].s.size()));
-    output->put('\n'); return Value::none();
-  };
+  std_output_ = sink ? sink : &std::cout;
+  auto* output = std_output_;
+  for (const char* sig : {"fn print(string) -> void", "fn println(string) -> void"}) {
+    auto it = functions_.find(sig);
+    if (it != functions_.end()) {
+      it->second.entry.fn = [output](Args& args) {
+        output->write(args[0].s.data(), static_cast<std::streamsize>(args[0].s.size()));
+        output->put('\n'); return Value::none();
+      };
+    }
+  }
 }
 inline void Registry::begin_std_run() const {
   bool idle = false;

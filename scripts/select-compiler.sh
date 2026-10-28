@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-MIN_VERSION="0.2.420"
+# POC branch note: the lmcode rule-methods POC compiler (lmctl-mono-poc branch
+# poc/lmcode-rule-methods) reports "lmscript 0.2.38" — the monorepo's own
+# numbering, unrelated to the npm @lmctl-ai/lmctl release numbering. The
+# functional probe below (DSLB v5, schema-hash binding, implicit std) is the
+# real gate, so on this branch the numeric floor is lowered to admit it.
+MIN_VERSION="0.2.38"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/lmcode-compiler-XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 case "$(uname -s)" in

@@ -127,6 +127,7 @@ inline std::string hex(const std::string& bytes) {
 struct Value {
   enum Kind { VOID, INT, FLOAT, STR, BOOL, OBJ } kind = VOID;
   int64_t i = 0; double f = 0.0; std::string s; bool b = false; void* obj = nullptr; std::string type;  // type: schema type name of obj
+  std::string context_name;
   static Value none() { return Value(); }
   static Value integer(int64_t v) { Value x; x.kind = INT; x.i = v; return x; }
   static Value real(double v) { Value x; x.kind = FLOAT; x.f = v; return x; }
@@ -139,10 +140,34 @@ using Args = std::vector<Value>;
 using Function = std::function<Value(Args&)>;
 using Method = std::function<Value(void* self, Args&)>;
 
+struct CallSite {
+  std::string file;
+  int line = 0;
+  int column = 0;
+};
+
+struct PlanEntry {
+  int64_t seq = 0;
+  std::string kind = "host_effect";
+  std::string function;
+  Args arguments;
+  std::string arguments_json;
+  int line = 0;
+  int column = 0;
+  std::string file;
+  bool simulated = true;
+  std::string detail_json;
+  bool budget_exceeded = false;
+};
+
+struct VmConfig {
+  uint64_t step_budget = 0;  // 0 = unlimited; max mutating host-effect steps in dry mode
+};
+
 // ---- Host registry: the implementation of the schema, declared with the schema's types ----
 struct Signature { std::vector<std::string> params; std::string returns; };
-struct FunctionEntry { Signature sig; Function fn; };
-struct MethodEntry { Signature sig; Method fn; };
+struct FunctionEntry { Signature sig; Function fn; Function plan_fn; bool mutating = false; };
+struct MethodEntry { Signature sig; Method fn; Method plan_fn; bool mutating = false; };
 inline std::string signature_text(const Signature& s) { std::string out = "("; for (size_t i = 0; i < s.params.size(); ++i) out += (i ? ", " : "") + s.params[i]; return out + ") -> " + s.returns; }
 
 namespace stdlib { struct Collections; struct StdRuntime; }
@@ -158,6 +183,7 @@ class Registry {
   bool has_std() const { return std_initialized_; }
   stdlib::Collections& std_collections() const;
   void set_std_output(std::ostream* sink);
+  std::ostream& std_output() const { return *std_output_; }
   std::vector<std::string> std_signatures() const { return std_signatures_; }
   std::vector<std::string> host_signatures() const {
     auto all = signatures(); std::vector<std::string> out;
@@ -186,19 +212,54 @@ class Registry {
     Signature sig{std::move(params), std::move(returns)};
     for (const auto& f : functions_) if (f.second.name == name && f.second.entry.sig.params == sig.params) throw Error("LOAD_UNBOUND", "registry: function '" + name + signature_text(sig) + "' is registered twice");
     std::string key = "fn " + name + signature_text(sig);
-    functions_.emplace(std::move(key), NamedFunction{name, FunctionEntry{std::move(sig), std::move(fn)}});
+    functions_.emplace(std::move(key), NamedFunction{name, FunctionEntry{std::move(sig), std::move(fn), Function{}, false}});
+    return *this;
+  }
+  Registry& mutating_function(const std::string& name, std::vector<std::string> params, std::string returns, Function plan_fn, Function apply_fn) {
+    Signature sig{std::move(params), std::move(returns)};
+    for (const auto& f : functions_) if (f.second.name == name && f.second.entry.sig.params == sig.params) throw Error("LOAD_UNBOUND", "registry: function '" + name + signature_text(sig) + "' is registered twice");
+    std::string key = "fn " + name + signature_text(sig);
+    functions_.emplace(std::move(key), NamedFunction{name, FunctionEntry{std::move(sig), std::move(apply_fn), std::move(plan_fn), true}});
     return *this;
   }
   Registry& method(const std::string& type, const std::string& name, std::vector<std::string> params, std::string returns, Method fn) {
     Signature sig{std::move(params), std::move(returns)};
     for (const auto& m : methods_) if (m.second.type == type && m.second.name == name && m.second.entry.sig.params == sig.params) throw Error("LOAD_UNBOUND", "registry: method '" + type + "." + name + signature_text(sig) + "' is registered twice");
     std::string key = "method " + type + "." + name + signature_text(sig);
-    methods_.emplace(std::move(key), NamedMethod{type, name, MethodEntry{std::move(sig), std::move(fn)}});
+    methods_.emplace(std::move(key), NamedMethod{type, name, MethodEntry{std::move(sig), std::move(fn), Method{}, false}});
+    return *this;
+  }
+  Registry& mutating_method(const std::string& type, const std::string& name, std::vector<std::string> params, std::string returns, Method plan_fn, Method apply_fn) {
+    Signature sig{std::move(params), std::move(returns)};
+    for (const auto& m : methods_) if (m.second.type == type && m.second.name == name && m.second.entry.sig.params == sig.params) throw Error("LOAD_UNBOUND", "registry: method '" + type + "." + name + signature_text(sig) + "' is registered twice");
+    std::string key = "method " + type + "." + name + signature_text(sig);
+    methods_.emplace(std::move(key), NamedMethod{type, name, MethodEntry{std::move(sig), std::move(apply_fn), std::move(plan_fn), true}});
     return *this;
   }
   Registry& context(const std::string& name, const std::string& type) {
     if (!context_.emplace(name, type).second) throw Error("LOAD_UNBOUND", "registry: context '" + name + "' is declared twice");
     return *this;
+  }
+  std::string context_name_for_type(const std::string& type) const {
+    for (const auto& c : context_) if (c.second == type) return c.first;
+    return "";
+  }
+  void record_plan_detail(std::string detail_json, bool budget_exceeded = false) const {
+    has_pending_plan_detail_ = true;
+    pending_plan_detail_ = std::move(detail_json);
+    pending_budget_exceeded_ = budget_exceeded;
+  }
+  void clear_pending_plan_detail() const {
+    has_pending_plan_detail_ = false;
+    pending_plan_detail_.clear();
+    pending_budget_exceeded_ = false;
+  }
+  bool has_pending_plan_detail() const { return has_pending_plan_detail_; }
+  std::string take_pending_plan_detail(bool& budget_exceeded) const {
+    budget_exceeded = pending_budget_exceeded_;
+    has_pending_plan_detail_ = false;
+    pending_budget_exceeded_ = false;
+    return std::move(pending_plan_detail_);
   }
   // Canonical strings, sorted: exactly what `lmscript --dsl-signatures SCHEMA` prints for the schema this registry implements.
   std::vector<std::string> signatures() const {
@@ -229,6 +290,10 @@ class Registry {
   void begin_std_run() const;
   void end_std_run() const noexcept;
   bool std_initialized_ = false;
+  std::ostream* std_output_ = &std::cout;
+  mutable bool has_pending_plan_detail_ = false;
+  mutable std::string pending_plan_detail_;
+  mutable bool pending_budget_exceeded_ = false;
   std::vector<std::string> std_signatures_;
   std::shared_ptr<stdlib::StdRuntime> std_runtime_;
   std::map<std::string, NamedFunction> functions_;
@@ -240,6 +305,31 @@ inline std::string json_escape(const std::string& s) {
   std::string out = "\"";
   for (unsigned char c : s) { switch (c) { case '"': out += "\\\""; break; case '\\': out += "\\\\"; break; case '\n': out += "\\n"; break; case '\r': out += "\\r"; break; case '\t': out += "\\t"; break; default: if (c < 0x20) { char b[8]; std::snprintf(b, sizeof b, "\\u%04x", c); out += b; } else out += char(c); } }
   return out + "\"";
+}
+inline std::string value_to_json(const Value& v) {
+  switch (v.kind) {
+    case Value::VOID: return "null";
+    case Value::INT: return std::to_string(v.i);
+    case Value::FLOAT: {
+      if (!std::isfinite(v.f)) return "null";
+      char buf[64];
+      std::snprintf(buf, sizeof buf, "%.15g", v.f);
+      return buf;
+    }
+    case Value::STR: return json_escape(v.s);
+    case Value::BOOL: return v.b ? "true" : "false";
+    case Value::OBJ: return json_escape(v.type);
+  }
+  return "null";
+}
+inline std::string args_to_json(const Args& args) {
+  std::string out = "[";
+  for (size_t i = 0; i < args.size(); ++i) {
+    if (i) out.push_back(',');
+    out += value_to_json(args[i]);
+  }
+  out.push_back(']');
+  return out;
 }
 // ---- The standard result line: exactly one JSON line on stdout; the return value is the process exit code. ----
 // `result_json` must already be JSON text ("null", "42", json_escape(text), an object...).
@@ -258,8 +348,32 @@ class Context {
  public:
   void set(const std::string& name, void* object) { objects_[name] = object; }
   void* get(const std::string& name) const { auto it = objects_.find(name); return it == objects_.end() ? nullptr : it->second; }
+  void set_dry(bool dry) { dry_ = dry; }
+  bool dry() const { return dry_; }
+  void set_file(std::string file) { file_ = std::move(file); call_site_.file = file_; }
+  const std::string& file() const { return file_; }
+  void set_config(const VmConfig& cfg) { config_ = cfg; }
+  const VmConfig& config() const { return config_; }
+  void set_step_budget(uint64_t budget) { config_.step_budget = budget; }
+  uint64_t step_budget() const { return config_.step_budget; }
+  void set_dry_loop_limit(int64_t limit) { config_.step_budget = limit > 0 ? static_cast<uint64_t>(limit) : 0; }
+  int64_t dry_loop_limit() const { return static_cast<int64_t>(config_.step_budget); }
+  const std::vector<PlanEntry>& plan_entries() const { return plan_entries_; }
+  std::vector<PlanEntry>& plan_entries() { return plan_entries_; }
+  void clear_plan_entries() { plan_entries_.clear(); truncated_ = false; stop_reason_.clear(); }
+  bool truncated() const { return truncated_; }
+  const std::string& stop_reason() const { return stop_reason_; }
+  const CallSite& call_site() const { return call_site_; }
  private:
+  friend class Program;
   std::map<std::string, void*> objects_;
+  bool dry_ = false;
+  std::string file_;
+  VmConfig config_;
+  mutable std::vector<PlanEntry> plan_entries_;
+  mutable bool truncated_ = false;
+  mutable std::string stop_reason_;
+  mutable CallSite call_site_;
 };
 
 // ---- Bytecode ----
@@ -343,8 +457,11 @@ class Program {
     for (uint16_t i = 0; i < nimports; ++i) {
       const std::string& canonical = cidx(r.u32(), "import");
       Import imp;
-      if (canonical.compare(0, 3, "fn ") == 0) imp.fn = reg.function_by_signature(canonical);
-      else if (canonical.compare(0, 7, "method ") == 0) {
+      if (canonical.compare(0, 3, "fn ") == 0) {
+        imp.fn = reg.function_by_signature(canonical);
+        size_t par = canonical.find('(');
+        if (par != std::string::npos && par > 3) imp.name = canonical.substr(3, par - 3);
+      } else if (canonical.compare(0, 7, "method ") == 0) {
         imp.method = reg.method_by_signature(canonical);
         size_t dot = canonical.find('.'), par = canonical.find('(');
         if (dot != std::string::npos && par != std::string::npos && dot < par) { imp.type = canonical.substr(7, dot - 7); imp.name = canonical.substr(dot + 1, par - dot - 1); }
@@ -377,6 +494,7 @@ class Program {
 
   // Executes the chunk once. The host's objects come from ctx (declared names only).
   void run(const Context& ctx, const Registry& reg, RunStats* stats = nullptr) const {
+    if (ctx.dry() && ctx.truncated_) return;
     auto std_scope = (bound_registry_ ? *bound_registry_ : reg).std_run_scope();
     std::vector<Value> stack, locals(locals_.size());
     stack.reserve(max_stack_);
@@ -407,6 +525,38 @@ class Program {
       if (x <= -TWO63) return INT64_MIN;
       return static_cast<int64_t>(x);
     };
+    auto update_call_site = [&](size_t pc) {
+      const Line* ln = line_of(pc);
+      ctx.call_site_.file = ctx.file_;
+      ctx.call_site_.line = ln ? static_cast<int>(ln->line) : 0;
+      ctx.call_site_.column = ln ? static_cast<int>(ln->column) : 0;
+    };
+    auto record_plan_entry = [&](const std::string& fn_label, const Args& args, const Value& result) {
+      PlanEntry entry;
+      entry.seq = static_cast<int64_t>(ctx.plan_entries_.size() + 1);
+      entry.kind = "host_effect";
+      entry.function = fn_label;
+      entry.arguments = args;
+      entry.arguments_json = args_to_json(args);
+      entry.line = ctx.call_site_.line;
+      entry.column = ctx.call_site_.column;
+      entry.file = ctx.file_;
+      entry.simulated = true;
+      if (reg.has_pending_plan_detail()) {
+        entry.detail_json = reg.take_pending_plan_detail(entry.budget_exceeded);
+      } else if (result.kind == Value::OBJ) {
+        if (const auto* jm = reg.method_by_signature("method " + result.type + ".json() -> string")) {
+          Args empty;
+          Value jv = jm->fn(result.obj, empty);
+          if (jv.kind == Value::STR) entry.detail_json = std::move(jv.s);
+        }
+        if (entry.detail_json.find("\"budget_exceeded\":true") != std::string::npos ||
+            entry.detail_json.find("\"budget_exceeded\": true") != std::string::npos) {
+          entry.budget_exceeded = true;
+        }
+      }
+      ctx.plan_entries_.push_back(std::move(entry));
+    };
     while (true) {
       const size_t fault_pc = r.pos();
       try {
@@ -427,13 +577,29 @@ class Program {
           const std::string& name = context_[r.u16()];
           void* obj = ctx.get(name);
           if (!obj) throw Error("RUN_ERROR", "context variable '" + name + "' was not provided by the host for this run");
-          push(Value::object(*reg.context_type(name), obj)); break;
+          Value v = Value::object(*reg.context_type(name), obj);
+          v.context_name = name;
+          push(std::move(v)); break;
         }
         case CALL_FN: {
           const Import& imp = imports_[r.u16()]; uint8_t argc = r.u8();
           Args args(argc); for (int i = argc - 1; i >= 0; --i) args[i] = pop();
-          Value result = imp.fn->fn(args);
-          if (result.kind != Value::VOID) push(std::move(result));
+          update_call_site(fault_pc);
+          if (imp.fn->mutating && ctx.dry()) {
+            if (ctx.config_.step_budget > 0 && ctx.plan_entries_.size() >= ctx.config_.step_budget) {
+              ctx.truncated_ = true;
+              ctx.stop_reason_ = "dry loop limit";
+              return;
+            }
+            reg.clear_pending_plan_detail();
+            const Function& target_fn = imp.fn->plan_fn ? imp.fn->plan_fn : imp.fn->fn;
+            Value result = target_fn(args);
+            record_plan_entry(imp.name, args, result);
+            if (result.kind != Value::VOID) push(std::move(result));
+          } else {
+            Value result = imp.fn->fn(args);
+            if (result.kind != Value::VOID) push(std::move(result));
+          }
           break;
         }
         case CALL_METHOD: {
@@ -441,8 +607,23 @@ class Program {
           Args args(argc); for (int i = argc - 1; i >= 0; --i) args[i] = pop();
           Value self = pop();
           if (self.kind != Value::OBJ || self.type != imp.type) throw Error("RUN_ERROR", "method " + imp.type + "." + imp.name + " called on a " + (self.kind == Value::OBJ ? self.type : std::string(self.kind_name())));
-          Value result = imp.method->fn(self.obj, args);
-          if (result.kind != Value::VOID) push(std::move(result));
+          update_call_site(fault_pc);
+          if (imp.method->mutating && ctx.dry()) {
+            if (ctx.config_.step_budget > 0 && ctx.plan_entries_.size() >= ctx.config_.step_budget) {
+              ctx.truncated_ = true;
+              ctx.stop_reason_ = "dry loop limit";
+              return;
+            }
+            reg.clear_pending_plan_detail();
+            const Method& target_fn = imp.method->plan_fn ? imp.method->plan_fn : imp.method->fn;
+            Value result = target_fn(self.obj, args);
+            std::string receiver = !self.context_name.empty() ? self.context_name : reg.context_name_for_type(imp.type);
+            record_plan_entry((receiver.empty() ? imp.type : receiver) + "." + imp.name, args, result);
+            if (result.kind != Value::VOID) push(std::move(result));
+          } else {
+            Value result = imp.method->fn(self.obj, args);
+            if (result.kind != Value::VOID) push(std::move(result));
+          }
           break;
         }
         case EQ: case NE: {
@@ -488,6 +669,7 @@ class Program {
         case I2S: { Value a = pop(); if (a.kind != Value::INT) throw Error("RUN_ERROR", std::string("str(int) applied to ") + a.kind_name()); push(Value::string(std::to_string(a.i))); break; }
         case F2S: {  // %.15g: deterministic across hosts
           Value a = pop(); if (a.kind != Value::FLOAT) throw Error("RUN_ERROR", std::string("str(float) applied to ") + a.kind_name());
+          if (std::isnan(a.f)) { push(Value::string("nan")); break; } // NaN sign/payload are not portable text.
           char buf[64]; std::snprintf(buf, sizeof buf, "%.15g", a.f); push(Value::string(buf)); break;
         }
         case B2S: { Value a = pop(); if (a.kind != Value::BOOL) throw Error("RUN_ERROR", std::string("str(bool) applied to ") + a.kind_name()); push(Value::string(a.b ? "true" : "false")); break; }
