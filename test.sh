@@ -370,7 +370,7 @@ ok "lint-repo: lmscript drives lmbetter lint and counts findings"
 
 # --- rules/lmcode (lmcode-native tier-1 rules) ---
 mkdir -p build/rules-lmcode
-for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits c-nesting-depth json-nesting-depth c-scanf-width; do
+for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits c-nesting-depth json-nesting-depth c-scanf-width c-symbol-rules; do
   "$LMSCRIPT" "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f rule compile"
   "$HOST" --dsl "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
   while IFS= read -r line; do
@@ -385,7 +385,7 @@ for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits 
   grep -qxF '[]' <<<"$out" || fail "$f clean fixture findings: $out"
   grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
 done
-ok "rules/lmcode: seven rule files fire on violations fixtures, silent on clean"
+ok "rules/lmcode: eight rule files fire on violations fixtures, silent on clean"
 
 if [ "$UNAME_S" = "Darwin" ]; then
   BAD_LIBS="$(otool -L "$HOST" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/\|^/System/Library/' || true)"

@@ -124,12 +124,14 @@ Rules are classified by the information they need: tier 1 (CST shape + text)
 ships as packs in `rules/` — `c-tier1.json` (10 rules: unsafe calls, command
 exec, assignment-in-condition, K&R definitions, goto, FIXME/TODO, object-like
 macros, register, naming, commented-out code) and `json-tier1.json` (5 rules:
-credential keys, placeholders, nulls, key naming, numbers-as-strings) — plus
-lmcode-native rules in `rules/lmcode/` for tier-1 checks that need logic
-(function metrics, switch/if style, duplicate JSON keys, object size, nesting
-depth — the last via `Node.has_parent()`/`parent()`, tier-2 extension E2) —
-tier 2's remaining extensions (query predicates, symbol index, multi-file,
-incremental re-parse) are planned, tier 3 (real semantics) is deferred.
+credential keys, placeholders, nulls, key naming, numbers-as-strings, exact
+password key) — plus lmcode-native rules in `rules/lmcode/` for checks that
+need logic (function metrics, switch/if style, duplicate JSON keys, object
+size, nesting depth via `Node.has_parent()`/`parent()`, scanf width via
+query predicates, same-file symbol rules via set algebra). Tier-2 extensions
+E1 (query predicates) and E2 (parent) are landed; E3 re-scoped to
+performance/cross-file after the symbol rules proved scriptable; E4/E5 remain
+planned; tier 3 (real semantics) is deferred.
 The framework, inventory, and extension plan: `docs/rule-tiers.md`.
 
 ```sh

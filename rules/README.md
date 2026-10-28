@@ -17,7 +17,10 @@ Three delivery forms, by how much logic a rule needs:
   without default, LBC104 if without braces), `json-duplicate-keys.lms`
   (LBJ101), `json-size-limits.lms` (LBJ102), `c-nesting-depth.lms` (LBC105)
   and `json-nesting-depth.lms` (LBJ103) — the last two need `Node.parent()`
-  (tier-2 extension E2, landed in v0.3.2).
+  (tier-2 extension E2, landed in v0.3.2) — plus `c-scanf-width.lms` (LBC106,
+  needs E1 query predicates) and `c-symbol-rules.lms` (LBC107 unused static
+  function, LBC108 undefined call, LBC109 direct recursion — set algebra in
+  lmcode, no host index needed).
 
 - **Teaching examples** (`examples/*.lms`) — the same techniques in
   narrative order; read these first.

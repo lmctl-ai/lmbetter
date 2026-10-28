@@ -67,6 +67,9 @@ what information they need; the tier decides when (or whether) they ship.
 | LBJ103 | JSON value nested >6 levels deep | parent() chain walk (needs E2) |
 | LBC106 | `scanf`/`fscanf` without field width | query + `#match?` predicate selecting the callee (needs E1); width heuristic in lmcode |
 | LBJ104 | key literally `password` (exact, no `password_hint` false positive) | query + `#eq?` predicate (needs E1) |
+| LBC107 | static function never called | two queries + StrMap set difference in lmcode (no host index) |
+| LBC108 | call to undefined function (same-file) | call set minus (defined + script-side libc whitelist) |
+| LBC109 | direct recursion | per-definition subtree query for self-calls |
 
 (LBC001/LBC004 moved their callee regexes from pack `text_matches` into the
 query as `#match?` predicates — same behavior, sharper form.)
@@ -95,12 +98,21 @@ query as `#match?` predicates — same behavior, sharper form.)
   ("identifier X only inside function Y"), assignment-in-loop-body (not just
   conditions), commented-out-code refinement (comment inside a function body
   vs. file top level).
-- **E3: same-file symbol index.** Unlocks: unused function detection;
-  calls to undefined functions; direct recursion detection; duplicate
-  function definitions.
+- **E3: same-file symbol index — RE-SCOPED (v0.3.4) after reality check.**
+  The symbol-ish rules it was meant to unlock turned out to be expressible in
+  pure lmcode today: two queries + StrMap set algebra (see
+  `rules/lmcode/c-symbol-rules.lms`: LBC107 unused static function, LBC108
+  undefined call, LBC109 direct recursion). No host index was needed. E3
+  remains only as a PERFORMANCE optimization for very large files (the
+  script-side approach is O(defs × subtree) for recursion) and as an E4
+  adjunct. Genuinely still impossible script-side: cross-file references,
+  function-pointer/callback targets, typedef-aware name resolution (those are
+  E4/tier-3 territory). Conservative choices shipped: LBC107 flags STATIC
+  functions only (their calls must be same-file); LBC108 considers plain
+  identifier callees only and uses a script-owned libc whitelist.
 - **E4: multi-file / directory lint + include resolution.** Unlocks:
   project-wide pack runs (`lmbetter lint rules/ src/`); unused-include
-  hygiene; cross-file duplicate symbols.
+  hygiene; cross-file duplicate symbols; the cross-file half of symbol rules.
 - **E5: incremental re-parse.** Unlocks: watch/editor-mode lint (re-lint on
   save reusing unchanged subtrees); pre-commit speedup on large trees.
 

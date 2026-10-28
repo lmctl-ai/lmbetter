@@ -35,6 +35,20 @@ path (and the savedsl target) into a scratch copy and asserts zero findings.
 Nothing turned out non-tier-1 in this batch — all four rule families fit
 current lmcode.
 
+## E3 reality check: symbol rules need no host index (v0.3.4)
+
+Hypothesis confirmed: LBC107 (unused static function), LBC108 (undefined
+call, same-file), LBC109 (direct recursion) are all expressible in pure
+lmcode — `rules/lmcode/c-symbol-rules.lms` does it with two queries + StrMap
+set algebra (defined/called name sets) and a per-definition subtree query for
+recursion (`ts.query_c` accepts any Node as root). E3 re-scoped in
+docs/rule-tiers.md to performance/cross-file only. Honest edges: LBC107 flags
+static functions only (non-statics may be called cross-TU; function pointers
+and callbacks are invisible to identifier queries); LBC108 is same-file plus
+a script-owned libc whitelist string; LBC107/LBC108 are set-level, so they
+live in the chunk body, not Rule fns (the single-node SAM again — the v6
+design input list grows).
+
 ## E1 landed: query predicates (v0.3.3)
 
 `node_query` evaluates `#eq?`/`#not-eq?` (capture text vs literal/capture)
@@ -89,6 +103,7 @@ of the outer body), so no parent() fix was needed.
 ## Tier-2 extension plan
 
 LANDED: E1 query predicates (v0.3.3, above), E2 Node.parent() (v0.3.2).
-Remaining: E3 same-file symbol index; E4 multi-file/directory lint; E5
+Remaining: E3 same-file symbol index (performance/cross-file only — the
+symbol-ish rules turned out to be scriptable, see "E3 reality check" above); E4 multi-file/directory lint; E5
 incremental re-parse. Rules each unlocks: docs/rule-tiers.md. Tier 3 (types,
 CFG, dataflow, taint) stays deferred.

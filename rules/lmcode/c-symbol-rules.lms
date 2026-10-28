@@ -1,0 +1,90 @@
+# Chapter: Rules (lmcode) - same-file symbol rules via set algebra (tier-2 E3 reality check)
+# Shows: two queries + StrMap sets, per-definition subtree query (recursion), script-owned libc whitelist
+# Run: lmscript rules/lmcode/c-symbol-rules.lms   (then: lmbetter --dsl build/rules-lmcode/c-symbol-rules.dslb)
+# Needs: nothing (offline); reads tests/fixtures/c-symbol-violations.c
+# exit: 0
+# expect:
+#|[{"row":6,"col":0,"end_row":9,"end_col":1,"rule":"LBC109","severity":"major","message":"direct recursive call to 'recurse_me'"},{"row":2,"col":0,"end_row":4,"end_col":1,"rule":"LBC107","severity":"minor","message":"static function 'unused_helper' never called"},{"row":13,"col":2,"end_row":13,"end_col":14,"rule":"LBC108","severity":"minor","message":"call to undefined function 'missing_init' (same-file)"}]
+#|3 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# Symbol-ish rules WITHOUT a host symbol index: definitions and calls are two
+# queries, sets are StrMaps. Conservative by design: LBC107 only flags STATIC
+# functions (whose calls must be same-file — non-static ones may be called
+# from other translation units; function pointers/callbacks stay invisible).
+# LBC107/LBC108 are set-level, not per-node, so they live in the chunk body
+# rather than Rule fns (the Rule SAM is single-node).
+
+fn def_name(n: Node) -> string {
+  # function_definition -> function_declarator -> identifier
+  let name = "";
+  for (i in range(0, n.child_count())) {
+    let d = n.child(i);
+    if (d.kind() == "function_declarator") {
+      for (j in range(0, d.child_count())) {
+        if (d.child(j).kind() == "identifier") { name = d.child(j).text(); }
+      }
+    }
+  }
+  return name;
+}
+
+fn is_static_fn(n: Node) -> int {
+  let hit = 0;
+  for (i in range(0, n.child_count())) {
+    let c = n.child(i);
+    if (c.kind() == "storage_class_specifier" && c.text() == "static") { hit = 1; }
+  }
+  return hit;
+}
+
+@function_definition
+fn no_direct_recursion(n: Node) -> void implements Rule {
+  let name = def_name(n);
+  if (name != "") {
+    let found = 0;
+    for (c in ts.query_c(n, "(call_expression function: (identifier) @fn)")) {
+      if (found == 0 && c.text() == name) {
+        ts.report(n, "direct recursive call to '" + name + "'", "LBC109", "major");
+        found = 1;
+      }
+    }
+  }
+}
+
+let tree = ts.parse_c(file_read("tests/fixtures/c-symbol-violations.c"));
+let root = tree.root();
+
+let defs = ts.query_c(root, "(function_definition) @d");
+let calls = ts.query_c(root, "(call_expression function: (identifier) @fn)");
+
+let called = str_map();
+for (c in calls) { called.set(c.text(), "1"); }
+
+# LBC109 first (annotated rule over definitions).
+for (d in defs) { no_direct_recursion(d); }
+
+# Set algebra: defined names, then LBC107 (unused static) and LBC108
+# (undefined call). The libc whitelist is a script-side string — extending it
+# is user policy, not a host change.
+let defined = str_map();
+let libc = "|exit|fgets|free|malloc|printf|putchar|puts|snprintf|strcat|strcmp|strcpy|strlen|strncpy|";
+for (d in defs) {
+  let name = def_name(d);
+  defined.set(name, "1");
+  if (is_static_fn(d) == 1 && name != "main" && !called.has(name)) {
+    ts.report(d, "static function '" + name + "' never called", "LBC107", "minor");
+  }
+}
+for (c in calls) {
+  let name = c.text();
+  if (!defined.has(name) && !str_contains(libc, "|" + name + "|")) {
+    ts.report(c, "call to undefined function '" + name + "' (same-file)", "LBC108", "minor");
+  }
+}
+
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/rules-lmcode/c-symbol-rules.dslb");
