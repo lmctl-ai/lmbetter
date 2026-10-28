@@ -199,19 +199,21 @@ NodeList tree_nodes(const Tree &tree) {
   return list;
 }
 
-void walk_nodes(const Tree &tree, const std::function<void(const Node &)> &visit) {
+void walk_nodes(const Tree &tree, const std::function<void(const Node &, const std::vector<Node> &)> &visit) {
   struct Cursor {
     TSTreeCursor value;
     ~Cursor() { ts_tree_cursor_delete(&value); }
   } cursor{ts_tree_cursor_new(root(tree))};
+  std::vector<Node> ancestors; // root..parent of the current node, maintained by the cursor moves
   for (;;) {
     Node node;
     node.owner = &tree;
     new (node.bytes) TSNode(ts_tree_cursor_current_node(&cursor.value));
-    visit(node); // do not filter named nodes: @if denotes an anonymous token
-    if (ts_tree_cursor_goto_first_child(&cursor.value)) continue;
+    visit(node, ancestors); // do not filter named nodes: @if denotes an anonymous token
+    if (ts_tree_cursor_goto_first_child(&cursor.value)) { ancestors.push_back(node); continue; }
     while (!ts_tree_cursor_goto_next_sibling(&cursor.value)) {
       if (!ts_tree_cursor_goto_parent(&cursor.value)) return;
+      ancestors.pop_back();
     }
   }
 }
@@ -227,6 +229,8 @@ std::string node_text(const Node &node) {
 }
 
 bool node_is_named(const Node &node) { return ts_node_is_named(ts(node)); }
+bool node_is_missing(const Node &node) { return ts_node_is_missing(ts(node)); }
+const void *node_id(const Node &node) { return ts(node).id; }
 
 int64_t node_start_row(const Node &node) { return ts_node_start_point(ts(node)).row; }
 int64_t node_start_col(const Node &node) { return ts_node_start_point(ts(node)).column; }

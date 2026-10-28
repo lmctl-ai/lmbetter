@@ -213,6 +213,12 @@
             "returns": "bool"
           }
         ],
+        "is_missing": [
+          {
+            "params": [],
+            "returns": "bool"
+          }
+        ],
         "start_row": [
           {
             "params": [],

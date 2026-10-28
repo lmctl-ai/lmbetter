@@ -25,7 +25,7 @@ the TODO in scripts/select-compiler.sh).
   `function 'wrong_sig' does not implement interface Rule (Node) -> void; found (Node, int) -> void`).
 - Host-side CST navigation: `Tree.root() -> Node`; `Node.kind()`, `.text()`
   (source slice; the Tree keeps a source copy so slices stay valid),
-  `.is_named()`, `.start_row()/.start_col()/.end_row()/.end_col()` (0-based,
+  `.is_named()`, `.is_missing()`, `.start_row()/.start_col()/.end_row()/.end_col()` (0-based,
   tree-sitter convention), `.child_count()` / `.child(i)` (NAMED children
   only; `child` is bounds-checked in the registry and throws the usual
   "out of range" run-time error, exit 3). Host boxes TSNode values into arena

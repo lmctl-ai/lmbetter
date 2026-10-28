@@ -100,6 +100,18 @@ class EntryChecks(unittest.TestCase):
         r=self.run_host(binary)
         self.assertEqual(r.returncode,3,r.stdout+r.stderr)
         self.assertIn("duplicate entry name 'first'",json.loads(r.stdout)['message'])
+    def test_parent_chains_do_not_exhaust_node_handles(self):
+        # WP14 F4: a rule walking n.parent() for every array used to allocate depth^2 handles; depth 5000 hit the 1<<20 cap.
+        self.source.write_text('[' * 5000 + ']' * 5000)
+        binary = self.compile('@array fn depth(n: Node) -> void implements Rule { let d = 0; let c = n; while (c.has_parent()) { c = c.parent(); d = d + 1; } if (d == 4999) { ts.report(n, "deepest", "DEEP", "minor"); } }')
+        findings = self.arrays(self.run_host(binary))[0]
+        self.assertEqual([f['rule'] for f in findings], ['DEEP'])
+    def test_missing_nodes_are_detectable(self):
+        # WP14 F8: a MISSING placeholder dispatches as its expected kind with zero width; Node.is_missing tells it apart.
+        self.source.write_text('{"a": 1, "b": }')
+        binary = self.compile('@number fn num(n: Node) -> void implements Rule { ts.report(n, "missing=" + str(n.is_missing()), "NUM", "minor"); }')
+        findings = self.arrays(self.run_host(binary))[0]
+        self.assertEqual([f['message'] for f in findings], ['missing=false', 'missing=true'])
     def test_missing_input_and_bad_usage(self):
         binary=self.compile('@pair fn first(n: Node) -> void implements Rule {}')
         r=self.run_host(binary,self.work/'missing.json')

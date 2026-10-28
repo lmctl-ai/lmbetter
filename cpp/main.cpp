@@ -17,6 +17,7 @@
 #include <iostream>
 #include <memory>
 #include <map>
+#include <unordered_map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -56,6 +57,21 @@ struct Host {
   static constexpr size_t kNodeCap = size_t(1) << 20;
   std::vector<std::unique_ptr<lmok::Tree>> trees;
   std::deque<lmok::Node> nodes;
+  // One handle per distinct node per run (WP14 F4): a rule that climbs n.parent() for every node used to
+  // allocate depth^2 handles and hit kNodeCap on inputs nested a few thousand deep; keyed by tree-sitter's
+  // node identity, so repeated root()/child()/parent() answers reuse the same stable handle.
+  std::unordered_map<const void *, lmok::Node *> node_index;
+  // Parent of every node a rule can reach by climbing: filled from the walk's ancestor path when a node is
+  // dispatched (each ancestor once per file), so Node.parent()/has_parent() are O(1) map hits instead of
+  // tree-sitter's O(depth) ts_node_parent, which made nesting-depth rules cubic on deep inputs (WP14 F4).
+  std::unordered_map<const void *, lmok::Node> parent_of;
+  bool remember_parent(const lmok::Node &child, const lmok::Node &parent) {
+    return parent_of.emplace(lmok::node_id(child), parent).second;
+  }
+  const lmok::Node *cached_parent(const lmok::Node &node) const {
+    const auto it = parent_of.find(lmok::node_id(node));
+    return it == parent_of.end() ? nullptr : &it->second;
+  }
   std::vector<std::unique_ptr<lmok::NodeList>> node_lists;
   // Findings collected via ts.report; reset per --dsl file (see the run loop).
   std::vector<Finding> findings;
@@ -67,14 +83,19 @@ struct Host {
     return Value::object(type, arena.back().get());
   }
   Value hold_node(lmok::Node node) {
+    const auto known = node_index.find(lmok::node_id(node));
+    if (known != node_index.end()) return Value::object("Node", known->second);
     if (nodes.size() >= kNodeCap)
       throw dslvm::Error("Node object limit exceeded (" + std::to_string(kNodeCap) + ")");
     nodes.push_back(node);
+    node_index.emplace(lmok::node_id(nodes.back()), &nodes.back());
     return Value::object("Node", &nodes.back());
   }
   void reset() {
     trees.clear();
     nodes.clear();
+    node_index.clear();
+    parent_of.clear();
     node_lists.clear();
     findings.clear();
   }
@@ -280,6 +301,9 @@ void register_host(dslvm::Registry &reg, Host &host) {
   reg.method("Node", "is_named", {}, "bool", [](void *s, Args &) {
     return Value::boolean(lmok::node_is_named(*node_of(s, "is_named")));
   });
+  reg.method("Node", "is_missing", {}, "bool", [](void *s, Args &) {
+    return Value::boolean(lmok::node_is_missing(*node_of(s, "is_missing")));
+  });
   const auto node_point_method = [&reg](const char *name, auto impl) {
     reg.method("Node", name, {}, "int", [name, impl](void *s, Args &) {
       return Value::integer(impl(node_of(s, name)));
@@ -300,11 +324,13 @@ void register_host(dslvm::Registry &reg, Host &host) {
                          " out of range (named child count " + std::to_string(count) + ")");
     return host.hold_node(lmok::node_child(*n, args[0].i));
   });
-  reg.method("Node", "has_parent", {}, "bool", [](void *s, Args &) {
-    return Value::boolean(lmok::node_has_parent(*node_of(s, "has_parent")));
+  reg.method("Node", "has_parent", {}, "bool", [&host](void *s, Args &) {
+    const lmok::Node *n = node_of(s, "has_parent");
+    return Value::boolean(host.cached_parent(*n) != nullptr || lmok::node_has_parent(*n));
   });
   reg.method("Node", "parent", {}, "Node", [&host](void *s, Args &) {
     const lmok::Node *n = node_of(s, "parent");
+    if (const lmok::Node *cached = host.cached_parent(*n)) return host.hold_node(*cached);
     if (!lmok::node_has_parent(*n))
       throw dslvm::Error("Node.parent: root node has no parent");
     return host.hold_node(lmok::node_parent(*n));
@@ -572,9 +598,12 @@ static int run_cli(int argc, char **argv) {
       for (; argi < argc; ++argi) {
         host.reset(); // transient body/file objects and findings do not escape an input
         const lmok::Tree tree = lmok::parse(grammar, read_file(argv[argi]));
-        lmok::walk_nodes(tree, [&](const lmok::Node &node) {
+        lmok::walk_nodes(tree, [&](const lmok::Node &node, const std::vector<lmok::Node> &ancestors) {
           const auto found = by_kind.find(lmok::node_kind(node));
           if (found == by_kind.end()) return;
+          // Record the ancestor chain up to the first already-known link: every ancestor is stored once per file.
+          const lmok::Node *child = &node;
+          for (size_t k = ancestors.size(); k-- > 0; child = &ancestors[k]) if (!host.remember_parent(*child, ancestors[k])) break;
           const Value handle = host.hold_node(node); // per-file arena; Tree stays alive
           for (size_t entry : found->second) program.call(entry, context, reg, {handle});
         });

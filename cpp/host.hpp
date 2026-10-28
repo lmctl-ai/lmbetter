@@ -118,7 +118,9 @@ NodeList tree_nodes(const Tree &tree);
 
 // Single pre-order cursor walk including anonymous tokens. The callback may
 // inspect/query nodes; it must not edit the tree while its cursor is live.
-void walk_nodes(const Tree &tree, const std::function<void(const Node &)> &visit);
+// `ancestors` is the path root..parent of the visited node (empty for the root); a host that caches it makes
+// Node.parent() O(1) instead of tree-sitter's O(depth) ts_node_parent walk (WP14 F4).
+void walk_nodes(const Tree &tree, const std::function<void(const Node &, const std::vector<Node> &ancestors)> &visit);
 
 // Thrown by node_query for an invalid pattern: what() is
 // "query error at byte offset N: <syntax|node-type|field|capture|structure|language>".
@@ -163,6 +165,12 @@ std::string node_text(const Node &node);
 
 // True for named nodes (false for anonymous tokens like punctuation).
 bool node_is_named(const Node &node);
+// True for a zero-width MISSING placeholder tree-sitter inserted for error recovery; it carries the
+// expected kind (e.g. `number`) and empty text, so rules dispatched on that kind can skip it.
+bool node_is_missing(const Node &node);
+// Stable identity of the node within its tree (tree-sitter's subtree pointer): equal for every handle
+// of the same node, so a host can hand out one handle per node instead of one per call.
+const void *node_id(const Node &node);
 
 // Extent of the node. Rows and columns are 0-based (tree-sitter convention).
 int64_t node_start_row(const Node &node);

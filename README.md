@@ -274,7 +274,7 @@ savedsl(p, "build/show.dslb");
 
 The DSL surface is deliberately small: `ts.parse(text)` returns a `Tree` with
 `.sexp()`, `.has_error()`, `.node_count()`, and `.root()`. The `root()` handle
-is a `Node` with `.kind()`, `.text()`, `.is_named()`,
+is a `Node` with `.kind()`, `.text()`, `.is_named()`, `.is_missing()` (zero-width placeholder tree-sitter inserted for a missing token),
 `.start_row()/.start_col()/.end_row()/.end_col()` (all **0-based**,
 tree-sitter convention), `.child_count()`, and `.child(i)` (named children
 only, bounds-checked), plus upward navigation: `.has_parent()` (false at the
