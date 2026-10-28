@@ -36,7 +36,7 @@ what information they need; the tier decides when (or whether) they ship.
 | LBC009 | function name not snake_case | query function declarators + regex `[A-Z]` | — (convention rule) |
 | LBC010 | commented-out code | `on: comment` + heuristic regex `(=.*;)\|(;\s*$)` | cf. SonarQube S125 |
 
-### JSON (`rules/json-tier1.json`, 5 rules)
+### JSON (`rules/json-tier1.json`, 11 rules)
 
 | id | rule | mechanism |
 | --- | --- | --- |
@@ -45,6 +45,22 @@ what information they need; the tier decides when (or whether) they ship.
 | LBJ003 | null value present | `on: null` |
 | LBJ004 | key not snake_case | query pair key + regex `[A-Z]` |
 | LBJ005 | number encoded as string (`"port": "8080"`) | query pair value string + regex `^[0-9]+$` |
+| LBJ006 | sensitive keys (`aws_secret`, `aws_secret_access_key`, `private_key`, `api_key`) | pair key whole string + anchored regex |
+| LBJ007 | insecure `http://` URL values | pair/array string values + prefix regex |
+| LBJ008 | unpinned version strings (`*`, `latest`) | pair string values + exact regex |
+| LBJ009 | empty array/object placeholders | array/object query + whitespace-only contents regex |
+| LBJ010 | string source longer than 200 bytes (excluding quotes) | `on: string` + regex `^".{201,}"$` |
+| LBJ104 | exact `password` key | pair key query + `#eq?` predicate |
+
+These are opt-in configuration policies: empty containers and repeated values
+can be legitimate. LBJ008 treats any pair value equal to `*` or `latest` as a
+version placeholder; it does not infer a package schema. LBJ006 is case-sensitive
+and intentionally overlaps LBJ001 for `aws_secret`. LBJ007 checks pair values
+and direct array elements, not keys or URLs embedded within prose. LBJ009 accepts
+whitespace inside empty containers but does not match comment-only containers.
+LBJ010 is pack-expressible: regex counts source bytes, including escape spelling,
+not decoded Unicode characters. It matches whole strings (keys included), so
+escape-split `string_content` nodes do not hide long source strings.
 
 ### Further tier-1 candidates (not shipped, judged pack/script-able)
 
@@ -62,11 +78,11 @@ what information they need; the tier decides when (or whether) they ship.
 | LBC103 | switch without default | child-walk; default = `case_statement` text prefix |
 | LBC104 | if without braces | consequence child kind != `compound_statement` |
 | LBJ101 | duplicate keys in one object | `@object` + per-object StrMap over pair keys |
+| LBJ105 | repeated sibling string values | `@object` + per-object StrMap; source-text equality, excludes arrays/non-strings |
 | LBJ102 | object too large (>50 entries) | pair-child counting |
 | LBC105 | control structure nested >4 deep | parent() chain walk (needs E2) |
 | LBJ103 | JSON value nested >6 levels deep | parent() chain walk (needs E2) |
 | LBC106 | `scanf`/`fscanf` without field width | query + `#match?` predicate selecting the callee (needs E1); width heuristic in lmcode |
-| LBJ104 | key literally `password` (exact, no `password_hint` false positive) | query + `#eq?` predicate (needs E1) |
 | LBC107 | static function never called | two queries + StrMap set difference in lmcode (no host index) |
 | LBC108 | call to undefined function (same-file) | call set minus (defined + script-side libc whitelist) |
 | LBC109 | direct recursion | per-definition subtree query for self-calls |

@@ -129,11 +129,12 @@ small demos; the canonical rule library is `rules/` (see below).
 Rules are classified by the information they need: tier 1 (CST shape + text)
 ships as packs in `rules/` — `c-tier1.json` (10 rules: unsafe calls, command
 exec, assignment-in-condition, K&R definitions, goto, FIXME/TODO, object-like
-macros, register, naming, commented-out code) and `json-tier1.json` (5 rules:
+macros, register, naming, commented-out code) and `json-tier1.json` (11 rules:
 credential keys, placeholders, nulls, key naming, numbers-as-strings, exact
-password key) — plus lmcode-native rules in `rules/lmcode/` for checks that
-need logic (function metrics, switch/if style, duplicate JSON keys, object
-size, nesting depth via `Node.has_parent()`/`parent()`, scanf width via
+password key, sensitive credential keys, HTTP URLs, unpinned versions, empty
+containers, long strings) — plus lmcode-native rules in `rules/lmcode/` for
+checks that need logic (function metrics, switch/if style, duplicate JSON
+keys and sibling string values, object size, nesting depth via `Node.has_parent()`/`parent()`, scanf width via
 query predicates, same-file symbol rules via set algebra). Since v0.4.0,
 trees are incremental: `Tree.edit(start, old_end, new_end)` records a
 byte-offset edit, `ts.reparse`/`ts.reparse_c(old, new_text)` re-parse against
