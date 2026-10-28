@@ -38,7 +38,14 @@ public:
 };
 inline bool bounded_regex_search(const std::string &text, const std::regex &regex) {
   size_t remaining = 65536;
-  return std::regex_search(RegexIterator(text.begin(), remaining), RegexIterator(text.end(), remaining), regex);
+  try {
+    return std::regex_search(RegexIterator(text.begin(), remaining), RegexIterator(text.end(), remaining), regex);
+  } catch (const std::regex_error &) {
+    // libc++ has its own match-complexity limit that can fire before our
+    // budget and throws std::regex_error at SEARCH time (compile-time syntax
+    // errors are already handled at construction); normalize to our error.
+    throw RegexLimit();
+  }
 }
 inline std::regex bounded_regex(const std::string &pattern) {
   // Bound recursive compilation and counted-repeat expansion as well. The
