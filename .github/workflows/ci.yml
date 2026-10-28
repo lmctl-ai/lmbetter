@@ -55,6 +55,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.name }}
     env:
+      LMOK_TEST_PLATFORM: ${{ matrix.name }}
       ONLY_OK: ${{ github.event_name != 'workflow_dispatch' || inputs.only == 'all' || matrix.name == inputs.only }}
     defaults:
       run:
@@ -190,18 +191,30 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Decide whether binary inputs warrant a release
+        id: release_gate
+        run: python3 scripts/release-needed.py
+
+      - if: steps.release_gate.outputs.publish == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: lmok-*
           path: dist
           merge-multiple: true
 
       - name: Check five release assets and checksums
+        if: steps.release_gate.outputs.publish == 'true'
         run: |
           test "$(find dist -maxdepth 1 -type f -name 'lmok-*' | wc -l)" -eq 5
           (cd dist && sha256sum lmok-* > SHA256SUMS)
 
       - name: Publish release
+        if: steps.release_gate.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
