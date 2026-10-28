@@ -54,7 +54,7 @@ add its global executable directory to PATH too.
 Produces `build/lmok`: one statically linked executable (`ldd` reports
 "not a dynamic executable" on Linux; macOS links only system libraries).
 The test suite rebuilds the host, checks dependency pins, and runs examples
-and rule fixtures; on Linux this revision ends with `PASS: 77 checks`.
+and rule fixtures, including native OS byte/path/linkage checks on every matrix runner.
 
 ```sh
 lmscript examples/parse-string.lms
@@ -67,8 +67,12 @@ The first command saves bytecode; the second prints the JSON text, its tree,
 
 ## Published host and raw URLs
 
-Releases are automatic: every push to `main` builds and tests the five platform
-binaries (CI), and when all pass it publishes a GitHub Release (next patch after
+Every push to `main` builds and tests the five platform binaries. After they pass,
+CI compares committed HEAD with the latest `v*` tag and creates a release only if
+binary inputs changed: `cpp/`, `rules/`, `schema/`, `CMakeLists.txt`, `cmake/`,
+`deps.lock`, `sdk.lock`, embedded notices, or the build/stamp shell scripts.
+Tests/docs/CI-only changes since that tag log `SKIP release`; the rolling `dist`
+branch still updates. Eligible changes publish a GitHub Release (next patch after
 the latest `v*` tag, or the `VERSION` in `CMakeLists.txt` when that is higher;
 `lmok --version` in the release prints that tag) and updates the rolling `dist`
 branch. Pushing a `v*` tag by hand publishes that tag the same way.

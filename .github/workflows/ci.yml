@@ -17,7 +17,8 @@ on:
 # standard-library-only C++17 with _WIN32 paths, so the matrix covers Linux,
 # macOS, and Windows (MinGW). Every main push builds and tests the five
 # binaries; when ALL pass it (1) updates the rolling `dist` branch and
-# (2) cuts a GitHub Release automatically (version = scripts/next-version.sh:
+# (2) cuts a GitHub Release when binary inputs changed since the latest v* tag
+# (version = scripts/next-version.sh:
 # latest v* tag + 1 patch, or CMakeLists' VERSION when that is higher). The
 # version is stamped into the ephemeral workspace before the build so that
 # `lmok --version` equals the release tag (lmscript install ...@latest checks
@@ -97,7 +98,7 @@ jobs:
           command -v g++ >/dev/null 2>&1 || exit 1
           command -v ninja >/dev/null 2>&1 || exit 1
 
-      - name: lmscript compiler (npm @lmctl-ai/lmctl, DSL v5)
+      - name: lmscript compiler (npm @lmctl-ai/lmctl, DSL v6)
         if: env.ONLY_OK == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -180,7 +181,7 @@ jobs:
           fi
           git push --force-with-lease origin dist
 
-  # Push-and-publish, release flavor: after a green main push (or a manual v*
+  # Release only changed binary inputs after a green main push (or a manual v*
   # tag push) the same five tested binaries become a GitHub Release. On main
   # the tag is created by `gh release create --target $GITHUB_SHA`; tags made
   # with GITHUB_TOKEN do not start another workflow run.
