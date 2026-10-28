@@ -35,6 +35,21 @@ path (and the savedsl target) into a scratch copy and asserts zero findings.
 Nothing turned out non-tier-1 in this batch — all four rule families fit
 current lmcode.
 
+## E5 landed: incremental re-parse (v0.4.0)
+
+`Tree.edit(start, old_end, new_end)` (byte offsets only) RECORDS the edit —
+it is applied inside `ts.reparse`/`ts.reparse_c`, because ts_tree_edit needs
+row/col points and the new-end point exists only once the new text is known
+(start/old_end points compute from the old source, new_end from the new).
+One pending edit per reparse (a second edit() first is a run-time error, as
+are out-of-range offsets). The old tree stays alive after reparse —
+`ts.changed_ranges(old, new) -> string` (JSON `[[start,end],...]`) works
+anytime; cost is two trees in the arena, and the old tree's stored source is
+pre-edit so old-node text() past the edit point is stale (use the new tree
+for reads). Demo: `examples/incremental-reparse.lms` (edit → reparse →
+changed ranges [[55,65]] = the inserted statement's syntactic extent →
+re-lint finds the inserted `gets` call).
+
 ## E4 landed: directory lint + script-side cross-file (v0.3.5)
 
 `lmbetter lint` takes directories: `std::filesystem::recursive_directory_iterator`
@@ -118,8 +133,8 @@ of the outer body), so no parent() fix was needed.
 ## Tier-2 extension plan
 
 LANDED: E1 query predicates (v0.3.3), E2 Node.parent() (v0.3.2), E4
-multi-file/directory lint (v0.3.5, minus include resolution). Re-scoped: E3
-same-file symbol index (performance/cross-file only — the symbol-ish rules
-turned out to be scriptable, see "E3 reality check" above). Remaining: E5
-incremental re-parse. Rules each unlocks: docs/rule-tiers.md. Tier 3 (types,
-CFG, dataflow, taint) stays deferred.
+multi-file/directory lint (v0.3.5, minus include resolution), E5 incremental
+re-parse (v0.4.0). Re-scoped: E3 same-file symbol index (performance/
+cross-file only — the symbol-ish rules turned out to be scriptable, see "E3
+reality check" above). Tier 2 is COMPLETE. Tier 3 (types, CFG, dataflow,
+taint) stays deferred.

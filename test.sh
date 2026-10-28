@@ -361,7 +361,7 @@ ok "multiple bytecode files run sequentially"
 
 # --- examples compile and run ---
 mkdir -p build
-for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json lint-c rule-catalog suppress-findings sarif-report; do
+for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json lint-c rule-catalog suppress-findings sarif-report incremental-reparse; do
   "$LMSCRIPT" "examples/$f.lms" "build/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f example compile"
   "$HOST" --dsl "build/$f.dslb" >"$WORK/$f.out" || fail "$f example run"
   # every '# expect:' line must appear in the program output
@@ -417,6 +417,35 @@ for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits 
   grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
 done
 ok "rules/lmcode: nine rule files fire on violations fixtures, silent on clean"
+
+# --- incremental reparse contract (E5) ---
+cat > "$WORK/reparse-contract.lms" <<EOF2
+p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+let old = ts.parse("{}");
+old.edit(1, 1, 2);
+let new = ts.reparse(old, "{ }");
+println("ranges " + ts.changed_ranges(old, new));
+println("old root kind " + old.root().kind());
+end _dsl_
+savedsl(p, "$WORK/reparse-contract.dslb");
+EOF2
+"$LMSCRIPT" "$WORK/reparse-contract.lms" "$WORK/reparse-contract.dslb" >/dev/null || fail "reparse-contract compile"
+out="$("$HOST" --dsl "$WORK/reparse-contract.dslb")"
+grep -q '^ranges \[\[1,2\]\]$' <<<"$out" || fail "changed_ranges: $out"
+grep -q '^old root kind document$' <<<"$out" || fail "old tree alive after reparse: $out"
+ok "reparse: old tree stays alive (changed_ranges + root kind readable)"
+
+cat > "$WORK/bad-edit.lms" <<EOF2
+p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+let t = ts.parse("{}");
+t.edit(5, 1, 5);
+end _dsl_
+savedsl(p, "$WORK/bad-edit.dslb");
+EOF2
+"$LMSCRIPT" "$WORK/bad-edit.lms" "$WORK/bad-edit.dslb" >/dev/null || fail "bad-edit compile"
+set +e; out="$("$HOST" --dsl "$WORK/bad-edit.dslb" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'bad byte offsets'* ]] || fail "edit out of range (exit $code): $out"
+ok "Tree.edit: out-of-range offsets refused (exit 3)"
 
 if [ "$UNAME_S" = "Darwin" ]; then
   BAD_LIBS="$(otool -L "$HOST" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/\|^/System/Library/' || true)"

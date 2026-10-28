@@ -134,10 +134,15 @@ credential keys, placeholders, nulls, key naming, numbers-as-strings, exact
 password key) — plus lmcode-native rules in `rules/lmcode/` for checks that
 need logic (function metrics, switch/if style, duplicate JSON keys, object
 size, nesting depth via `Node.has_parent()`/`parent()`, scanf width via
-query predicates, same-file symbol rules via set algebra). Tier-2 extensions
-E1 (query predicates) and E2 (parent) are landed; E3 re-scoped to
-performance/cross-file after the symbol rules proved scriptable; E4/E5 remain
-planned; tier 3 (real semantics) is deferred.
+query predicates, same-file symbol rules via set algebra). Since v0.4.0,
+trees are incremental: `Tree.edit(start, old_end, new_end)` records a
+byte-offset edit, `ts.reparse`/`ts.reparse_c(old, new_text)` re-parse against
+the old tree (which stays alive), and `ts.changed_ranges(old, new)` returns
+the changed ranges as a JSON array string — the edit → reparse → re-lint loop
+is `examples/incremental-reparse.lms`. Tier-2 extensions E1 (query
+predicates) and E2 (parent) are landed; E3 re-scoped to
+performance/cross-file after the symbol rules proved scriptable; E4/E5 landed
+in v0.3.5/v0.4.0; tier 3 (real semantics) is deferred.
 The framework, inventory, and extension plan: `docs/rule-tiers.md`.
 
 ```sh

@@ -37,12 +37,21 @@ private:
   friend const void *tree_handle(const Tree &tree);
   friend std::string node_text(const Node &node);
   friend Tree parse(Grammar grammar, const std::string &text);
+  friend void tree_edit(Tree &tree, int64_t start_byte, int64_t old_end_byte, int64_t new_end_byte);
+  friend Tree reparse(Grammar grammar, Tree &old_tree, const std::string &new_text);
+  friend std::string changed_ranges_json(const Tree &old_tree, const Tree &new_tree);
   friend std::string tree_sexp(const Tree &tree);
   friend bool tree_has_error(const Tree &tree);
   friend int64_t tree_node_count(const Tree &tree);
   friend struct Node;
   void *tree_ = nullptr; // TSTree *
   std::string source_;
+  // Pending edit recorded by tree_edit (byte offsets only), applied at
+  // reparse time when the new text (and thus the new-end point) is known.
+  // Only ONE pending edit per reparse — a second edit() first is a contract
+  // violation reported by the DSL registry.
+  bool has_pending_edit_ = false;
+  int64_t edit_start_ = 0, edit_old_end_ = 0, edit_new_end_ = 0;
 };
 
 // Borrowed view of one CST node. The owning Tree must outlive the handle (it
@@ -56,6 +65,24 @@ struct Node {
 // Parse text with the given vendored grammar (Grammar::Json is the default
 // `parse` surface).
 Tree parse(Grammar grammar, const std::string &text);
+
+// Record an edit on the tree (byte offsets; insertion is old_end == start,
+// deletion is new_end == start). The edit is APPLIED at reparse time, when
+// the new text — and thus the new-end point — is known. One pending edit per
+// reparse.
+void tree_edit(Tree &tree, int64_t start_byte, int64_t old_end_byte, int64_t new_end_byte);
+
+// Re-parse new_text incrementally against old_tree (applying its pending
+// edit first). Returns a NEW tree. The old tree stays alive and valid for
+// changed_ranges_json; note its stored source is the PRE-edit text, so
+// node_text() on old-tree nodes past the edit point is stale — use the new
+// tree for reads. Keeping both alive costs two trees' memory (documented).
+Tree reparse(Grammar grammar, Tree &old_tree, const std::string &new_text);
+
+// The syntactically changed ranges between two trees as a compact JSON array
+// string `[[start_byte,end_byte],...]` (script can json_parse it). Ranges may
+// be slightly larger than the exact change (tree-sitter semantics).
+std::string changed_ranges_json(const Tree &old_tree, const Tree &new_tree);
 
 // The tree as a single-line s-expression, like `tree-sitter parse` prints it.
 std::string tree_sexp(const Tree &tree);

@@ -67,6 +67,33 @@
             ],
             "returns": "NodeList"
           }
+        ],
+        "reparse": [
+          {
+            "params": [
+              "Tree",
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
+        "reparse_c": [
+          {
+            "params": [
+              "Tree",
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
+        "changed_ranges": [
+          {
+            "params": [
+              "Tree",
+              "Tree"
+            ],
+            "returns": "string"
+          }
         ]
       }
     },
@@ -100,6 +127,16 @@
           {
             "params": [],
             "returns": "NodeList"
+          }
+        ],
+        "edit": [
+          {
+            "params": [
+              "int",
+              "int",
+              "int"
+            ],
+            "returns": "void"
           }
         ]
       }

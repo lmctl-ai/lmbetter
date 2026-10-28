@@ -121,8 +121,31 @@ query as `#match?` predicates — same behavior, sharper form.)
   in pure lmcode. Still out of scope: include-graph resolution and
   header/source pairing heuristics (fine-grained C project semantics stay
   tier 3).
-- **E5: incremental re-parse.** Unlocks: watch/editor-mode lint (re-lint on
-  save reusing unchanged subtrees); pre-commit speedup on large trees.
+- **E5: incremental re-parse — LANDED (v0.4.0).** `Tree.edit(start, old_end,
+  new_end)` records a byte-offset edit (applied at reparse time, when the new
+  text — and thus the new-end point — is known; one pending edit per reparse;
+  bad offsets are a located run-time error). `ts.reparse`/`ts.reparse_c(old,
+  new_text)` return the new tree; the old tree stays alive for
+  `ts.changed_ranges(old, new) -> string` (JSON array of [start,end] pairs).
+  `examples/incremental-reparse.lms` shows the edit → reparse → re-lint loop.
+
+## Tier-2 retrospective (all extensions landed or re-scoped, v0.4.0)
+
+- **E1 query predicates**: landed as specified (v0.3.3), unanchored `#match?`
+  matching upstream.
+- **E2 Node.parent()**: landed (v0.3.2); unlocked nesting-depth rules.
+- **E3 same-file symbol index**: dissolved — the symbol-ish rules proved to
+  be pure-lmcode set algebra (v0.3.4); a host index would be performance
+  only.
+- **E4 multi-file**: directory expansion landed host-side (v0.3.5); the
+  cross-file analysis half dissolved into script-side set unions; only
+  include-graph resolution stays out.
+- **E5 incremental re-parse**: landed (v0.4.0).
+
+Pattern worth noting: three of five extensions (E3, the analysis half of E4,
+and the rendering/policy halves throughout) dissolved into lmcode. The host
+grew only where tree-sitter semantics genuinely required it (predicates,
+parent navigation, edit/reparse).
 
 ## Tier 3 — deferred (real semantics)
 

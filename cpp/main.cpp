@@ -15,6 +15,7 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #ifdef _WIN32
@@ -163,6 +164,27 @@ void register_host(dslvm::Registry &reg, Host &host) {
   };
   query_method("query", lmbetter::Grammar::Json);
   query_method("query_c", lmbetter::Grammar::C);
+  const auto reparse_method = [&reg, &host](const char *name, lmbetter::Grammar grammar) {
+    reg.method("Ts", name, {"Tree", "string"}, "Tree", [&host, grammar](void *, Args &args) {
+      return host.hold(host.trees, "Tree",
+                       lmbetter::reparse(grammar, *tree_of(args[0].obj, "reparse"), args[1].s));
+    });
+  };
+  reparse_method("reparse", lmbetter::Grammar::Json);
+  reparse_method("reparse_c", lmbetter::Grammar::C);
+  reg.method("Ts", "changed_ranges", {"Tree", "Tree"}, "string", [](void *, Args &args) {
+    return Value::string(lmbetter::changed_ranges_json(*tree_of(args[0].obj, "changed_ranges"),
+                                                       *tree_of(args[1].obj, "changed_ranges")));
+  });
+
+  reg.method("Tree", "edit", {"int", "int", "int"}, "void", [](void *s, Args &args) {
+    try {
+      lmbetter::tree_edit(*tree_of(s, "edit"), args[0].i, args[1].i, args[2].i);
+    } catch (const std::out_of_range &error) {
+      throw dslvm::Error(error.what());
+    }
+    return Value::none();
+  });
 
   reg.method("Tree", "sexp", {}, "string", [](void *s, Args &) {
     return Value::string(lmbetter::tree_sexp(*tree_of(s, "sexp")));

@@ -58,6 +58,64 @@ Tree parse(Grammar grammar, const std::string &text) {
   return result;
 }
 
+static TSPoint point_for_byte(const std::string &source, uint32_t byte) {
+  TSPoint point = {0, 0};
+  const uint32_t limit = std::min<uint32_t>(byte, source.size());
+  for (uint32_t i = 0; i < limit; ++i) {
+    if (source[i] == '\n') { ++point.row; point.column = 0; }
+    else ++point.column;
+  }
+  return point;
+}
+
+void tree_edit(Tree &tree, int64_t start_byte, int64_t old_end_byte, int64_t new_end_byte) {
+  if (tree.has_pending_edit_)
+    throw std::out_of_range("Tree.edit: one pending edit per reparse");
+  const int64_t size = static_cast<int64_t>(tree.source_.size());
+  if (start_byte < 0 || old_end_byte < start_byte || old_end_byte > size || new_end_byte < start_byte)
+    throw std::out_of_range("Tree.edit: bad byte offsets (need 0 <= start <= old_end <= " +
+                            std::to_string(size) + " and new_end >= start)");
+  tree.has_pending_edit_ = true;
+  tree.edit_start_ = start_byte;
+  tree.edit_old_end_ = old_end_byte;
+  tree.edit_new_end_ = new_end_byte;
+}
+
+Tree reparse(Grammar grammar, Tree &old_tree, const std::string &new_text) {
+  if (old_tree.has_pending_edit_) {
+    TSInputEdit edit;
+    edit.start_byte = static_cast<uint32_t>(old_tree.edit_start_);
+    edit.old_end_byte = static_cast<uint32_t>(old_tree.edit_old_end_);
+    edit.new_end_byte = static_cast<uint32_t>(old_tree.edit_new_end_);
+    edit.start_point = point_for_byte(old_tree.source_, edit.start_byte);
+    edit.old_end_point = point_for_byte(old_tree.source_, edit.old_end_byte);
+    edit.new_end_point = point_for_byte(new_text, edit.new_end_byte);
+    ts_tree_edit(static_cast<TSTree *>(old_tree.tree_), &edit);
+    old_tree.has_pending_edit_ = false;
+  }
+  TSParser *parser = ts_parser_new();
+  ts_parser_set_language(parser, language_of(grammar));
+  Tree result;
+  result.tree_ = ts_parser_parse_string(parser, static_cast<TSTree *>(old_tree.tree_),
+                                        new_text.data(), static_cast<uint32_t>(new_text.size()));
+  result.source_ = new_text;
+  ts_parser_delete(parser);
+  return result;
+}
+
+std::string changed_ranges_json(const Tree &old_tree, const Tree &new_tree) {
+  uint32_t count = 0;
+  TSRange *ranges = ts_tree_get_changed_ranges(
+      static_cast<const TSTree *>(old_tree.tree_), static_cast<const TSTree *>(new_tree.tree_), &count);
+  std::string out = "[";
+  for (uint32_t i = 0; i < count; ++i) {
+    if (i) out += ",";
+    out += "[" + std::to_string(ranges[i].start_byte) + "," + std::to_string(ranges[i].end_byte) + "]";
+  }
+  std::free(ranges);
+  return out + "]";
+}
+
 static TSNode root(const Tree &tree) {
   return ts_tree_root_node(static_cast<TSTree *>(const_cast<void *>(tree_handle(tree))));
 }

@@ -1,0 +1,44 @@
+# Chapter: Incremental - edit, reparse, re-lint (tier-2 E5)
+# Shows: Tree.edit, ts.reparse_c, ts.changed_ranges, re-linting the NEW tree
+# Run: lmscript examples/incremental-reparse.lms      (then: lmbetter --dsl build/incremental-reparse.dslb)
+# Needs: nothing (offline); the C source is embedded below.
+# exit: 0
+# expect:
+#|before: 0 findings
+#|changed: [[55,65]]
+#|after: 1 findings
+#|[{"row":4,"col":2,"end_row":4,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"}]
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# The unsafe-calls rule from the tier-1 library (LBC001), predicate form.
+@call_expression
+fn no_unsafe_fn(n: Node) -> void implements Rule {
+  ts.report(n, "unsafe call '" + n.text() + "'", "LBC001", "critical");
+}
+
+let src = "#include <stdio.h>\n\nint main(void) {\n  char buf[16];\n  return 0;\n}\n";
+let tree = ts.parse_c(src);
+let pattern = "((call_expression function: (identifier) @fn) (#match? @fn \"^(gets|strcpy|sprintf|strcat)$\"))";
+
+# 1. lint the original tree: no findings.
+for (f in ts.query_c(tree.root(), pattern)) { no_unsafe_fn(f); }
+let before = ts.report_count();
+println("before: " + str(before) + " findings");
+
+# 2. splice "  gets(buf);\n" in before "  return 0;", edit, reparse.
+let pos = str_find(src, "  return 0;");
+let ins = "  gets(buf);\n";
+let edited = str_substr(src, 0, pos) + ins + str_substr(src, pos, str_len(src));
+tree.edit(pos, pos, pos + str_len(ins));
+let tree2 = ts.reparse_c(tree, edited);
+
+# 3. changed ranges between old (kept alive) and new tree.
+println("changed: " + ts.changed_ranges(tree, tree2));
+
+# 4. re-lint the NEW tree: the inserted call is found.
+for (f in ts.query_c(tree2.root(), pattern)) { no_unsafe_fn(f); }
+println("after: " + str(ts.report_count() - before) + " findings");
+println(ts.report_json());
+
+end _lmcode_
+savedsl(p, "build/incremental-reparse.dslb");
