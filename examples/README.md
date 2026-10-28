@@ -35,6 +35,10 @@ host CLI the same way lmscript resolves any other tool.
 - `suppress-findings.lms` — `// nosonar`-style suppression as pure lmcode
   policy: rules report everything; a chunk-level post-filter drops findings
   on rows whose comment contains "nosonar" (StrMap + `json_parse`/`to_json`)
+- `sarif-report.lms` — analyzer interop: emit a minimal valid SARIF 2.1.0
+  document to `build/sarif-results.sarif` via string building; severity→level
+  mapping, the 0-based→1-based region conversion, and the driver rule catalog
+  (derived from the findings) are all script-side
 
 `cst-rules.lms` shows manual `Node.child(i)` navigation (fixed-depth nested
 loops, because lmcode has no recursion); `lint-json.lms` shows the `NodeList`

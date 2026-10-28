@@ -98,6 +98,20 @@ the TODO in scripts/select-compiler.sh).
   captures), and a `Rule`-conforming signature `(Node) -> void` cannot take
   the map as a parameter. The post-filter shape is the faithful lmcode
   expression of the same design.
+- **SARIF 2.1.0 interop is script-side too** (v0.2.7, no host change):
+  `examples/sarif-report.lms` turns the findings sink into a minimal valid
+  SARIF document (`build/sarif-results.sarif`, validated structurally in
+  test.sh) — the format GitHub code scanning and VS Code consume. All policy
+  lives in lmcode: the severity→level mapping (critical→error, minor→note),
+  the 0-based→1-based region conversion (SARIF startLine/startColumn are
+  1-based; its endColumn is 1-based EXCLUSIVE, matching our 0-based exclusive
+  end_col after a uniform +1), the artifact uri label, and the
+  `tool.driver.rules` catalog — which is derived from the findings
+  themselves (distinct ruleId, first-seen order) rather than duplicated,
+  because lmcode fns cannot read chunk-level constants (R35). Std has no
+  JSON *builder* (only `json_parse`/`Json.to_json`), so emission is string
+  concatenation with a two-line `jesc` helper; a std `json_build` (or
+  StrMap/StrList `to_json`) would shrink this further.
 - **Compiler/SDK coupling**: the vendored lmcode-cpp pin (`sdk.lock`) must
   exactly match the implicit std set of the compiler in use, or test.sh's
   registry/compiler signature parity fails. Current pin `d70a12c` (181 std

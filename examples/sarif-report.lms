@@ -1,0 +1,88 @@
+# Chapter: Interop - emit SARIF 2.1.0 for the lint-c rules
+# Shows: SARIF emission via string building, severity->level mapping in script, 0-based -> 1-based conversion, file_write
+# Run: lmscript examples/sarif-report.lms      (then: lmbetter --dsl build/sarif-results.dslb)
+# Needs: nothing (offline); the C source is embedded below. Writes build/sarif-results.sarif.
+# exit: 0
+# expect:
+#|sarif: 4 results written to build/sarif-results.sarif
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# Minimal JSON string escaping (messages here need only quote/backslash).
+fn jesc(s: string) -> string {
+  return str_replace(str_replace(s, "\\", "\\\\"), "\"", "\\\"");
+}
+
+# The two lint-c rules, unchanged. Rule ids/severities live in the rule
+# bodies; the SARIF driver rule catalog below is DERIVED from the findings
+# (distinct ruleId, in first-seen order), so there is no second list to
+# drift. (lmcode fns cannot read chunk-level constants — R35, no captures —
+# so descriptions are attached once, at chunk level.)
+
+@call_expression
+fn no_unsafe_fn(n: Node) -> void implements Rule {
+  let name = n.text();
+  if (name == "gets" || name == "strcpy" || name == "sprintf") {
+    ts.report(n, "unsafe call '" + name + "'", "LBC001", "critical");
+  }
+}
+
+@comment
+fn no_fixme(n: Node) -> void implements Rule {
+  if (str_contains(n.text(), "FIXME")) {
+    ts.report(n, "unresolved FIXME comment", "LBC002", "minor");
+  }
+}
+
+let tree = ts.parse_c("#include <stdio.h>\n#include <string.h>\n\nvoid login(char *input) {\n  char buf[16];\n  gets(input);          /* never use */\n  strcpy(buf, input);   // FIXME: replace with strncpy\n  sprintf(buf, \"%s\", input);\n  printf(\"%s\", buf);\n}\n");
+
+for (f in ts.query_c(tree.root(), "(call_expression function: (identifier) @fn)")) {
+  no_unsafe_fn(f);
+}
+for (c in ts.query_c(tree.root(), "(comment) @c")) {
+  no_fixme(c);
+}
+
+# SARIF results: severity -> level mapping and the 0-based -> 1-based
+# row/column conversion are script-owned policy (SARIF startLine/startColumn
+# are 1-based; endColumn is 1-based exclusive, matching our 0-based
+# exclusive end_col after +1). uri is the script-chosen label for the
+# embedded fixture.
+let results = "";
+let rules_json = "";
+let seen = str_map();
+let nrules = 0;
+let i = 0;
+for (f in json_parse(ts.report_json())) {
+  let sev = f.get("severity").as_string();
+  let level = "warning";
+  if (sev == "critical") { level = "error"; }
+  if (sev == "minor") { level = "note"; }
+  if (i > 0) { results = results + ","; }
+  results = results + "{\"ruleId\":\"" + jesc(f.get("rule").as_string()) + "\",\"level\":\"" + level + "\""
+    + ",\"message\":{\"text\":\"" + jesc(f.get("message").as_string()) + "\"}"
+    + ",\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/sample.c\"}"
+    + ",\"region\":{\"startLine\":" + str(f.get("row").as_int() + 1)
+    + ",\"startColumn\":" + str(f.get("col").as_int() + 1)
+    + ",\"endLine\":" + str(f.get("end_row").as_int() + 1)
+    + ",\"endColumn\":" + str(f.get("end_col").as_int() + 1) + "}}}]}";
+  i = i + 1;
+  let id = f.get("rule").as_string();
+  if (!seen.has(id)) {
+    seen.set(id, "1");
+    let desc = "rule " + id;
+    if (id == "LBC001") { desc = "unsafe C library call"; }
+    if (id == "LBC002") { desc = "unresolved FIXME comment"; }
+    if (nrules > 0) { rules_json = rules_json + ","; }
+    rules_json = rules_json + "{\"id\":\"" + jesc(id) + "\",\"shortDescription\":{\"text\":\"" + jesc(desc) + "\"}}";
+    nrules = nrules + 1;
+  }
+}
+
+let sarif = "{\"version\":\"2.1.0\",\"$schema\":\"https://json.schemastore.org/sarif-2.1.0.json\""
+  + ",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"lmbetter\",\"version\":\"0.2.7\",\"rules\":[" + rules_json + "]}}"
+  + ",\"results\":[" + results + "]}]}";
+file_write("build/sarif-results.sarif", sarif);
+println("sarif: " + str(ts.report_count()) + " results written to build/sarif-results.sarif");
+
+end _lmcode_
+savedsl(p, "build/sarif-report.dslb");

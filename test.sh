@@ -212,7 +212,7 @@ ok "multiple bytecode files run sequentially"
 
 # --- examples compile and run ---
 mkdir -p build
-for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json lint-c rule-catalog suppress-findings; do
+for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json lint-c rule-catalog suppress-findings sarif-report; do
   "$LMSCRIPT" "examples/$f.lms" "build/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f example compile"
   "$HOST" --dsl "build/$f.dslb" >"$WORK/$f.out" || fail "$f example run"
   # every '# expect:' line must appear in the program output
@@ -221,6 +221,25 @@ for f in parse-string parse-file detect-error cst-rules lint-json report-json qu
   done < <(grep '^#|' "examples/$f.lms")
 done
 ok "examples compile and their expected output matches"
+
+# --- SARIF artifact (written by examples/sarif-report.lms above) ---
+python3 - <<'PY'
+import json
+doc = json.load(open("build/sarif-results.sarif"))
+assert doc["version"] == "2.1.0", doc["version"]
+run = doc["runs"][0]
+assert run["tool"]["driver"]["name"] == "lmbetter"
+assert [r["id"] for r in run["tool"]["driver"]["rules"]] == ["LBC001", "LBC002"]
+results = run["results"]
+assert len(results) == 4, len(results)
+region = results[0]["locations"][0]["physicalLocation"]["region"]
+# first finding is the gets() call at 0-based row 5 col 2 -> 1-based 6:3
+assert (region["startLine"], region["startColumn"]) == (6, 3), region
+assert results[0]["level"] == "error" and results[-1]["level"] == "note"
+assert results[-1]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "src/sample.c"
+print("SARIF 2.1.0: 4 results, regions and levels correct")
+PY
+ok "SARIF artifact is valid JSON with the expected structure"
 
 if [ "$UNAME_S" = "Darwin" ]; then
   BAD_LIBS="$(otool -L "$HOST" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/\|^/System/Library/' || true)"
