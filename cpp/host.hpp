@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace lmbetter {
 
@@ -60,6 +61,15 @@ int64_t tree_node_count(const Tree &tree);
 
 // Root node of the tree.
 Node node_root(const Tree &tree);
+
+// Flat pre-order list of a tree's NAMED nodes, root first. Built fresh on
+// every Tree.nodes() call: O(tree) time and memory, fine at this scale.
+struct NodeList {
+  std::vector<Node> items;
+};
+
+// Pre-order traversal of the named nodes of tree (root first).
+NodeList tree_nodes(const Tree &tree);
 
 // Node kind (ts_node_type), e.g. "document", "object", "pair", "string".
 std::string node_kind(const Node &node);

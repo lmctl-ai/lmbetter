@@ -39,6 +39,12 @@
             "params": [],
             "returns": "Node"
           }
+        ],
+        "nodes": [
+          {
+            "params": [],
+            "returns": "NodeList"
+          }
         ]
       }
     },
@@ -93,6 +99,24 @@
           }
         ],
         "child": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "Node"
+          }
+        ]
+      }
+    },
+    "NodeList": {
+      "methods": {
+        "len": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "at": [
           {
             "params": [
               "int"

@@ -1,0 +1,87 @@
+# Chapter: Rules - lint a JSON document with the NodeList idiom
+# Shows: Tree.nodes + foreach, @NODE-KIND annotations, fn ... implements Rule, int predicate helpers
+# Run: lmscript examples/lint-json.lms      (then: lmbetter --dsl build/lint-json.dslb)
+# Needs: nothing (offline); the JSON fixture is embedded below.
+# exit: 0
+# expect:
+#|finding: magic port 1337 at row 2 cols 10-14
+#|finding: password key "password" at row 5 col 4
+#|finding: placeholder string "TODO" at row 7 col 12
+#|3 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# Predicates are the single source of truth (1 = hit). Rules print; the
+# walker sums the same predicates for the summary count. (lmcode inlines
+# functions and forbids caller-local captures, so a void rule cannot update
+# a chunk-level counter itself.)
+
+fn is_password_key(n: Node) -> int {
+  let hit = 0;
+  if (n.kind() == "pair" && str_contains(n.child(0).text(), "password")) { hit = 1; }
+  return hit;
+}
+
+fn is_placeholder(n: Node) -> int {
+  let hit = 0;
+  if (n.kind() == "string" && n.child_count() > 0) {
+    let content = n.child(0).text();
+    if (content == "TODO" || content == "CHANGEME") { hit = 1; }
+  }
+  return hit;
+}
+
+fn is_magic_port(n: Node) -> int {
+  let hit = 0;
+  if (n.kind() == "number" && n.text() == "1337") { hit = 1; }
+  return hit;
+}
+
+# One rule = one annotated top-level fn implementing the schema's SAM
+# interface Rule (params: n: Node, returns: void). The annotation names the
+# tree-sitter CST node kind the rule subscribes to; it is compile-time
+# metadata only, so each rule still re-checks n.kind() via its predicate.
+
+@PAIR
+fn no_password_key(n: Node) -> void implements Rule {
+  if (is_password_key(n) == 1) {
+    println("finding: password key " + n.child(0).text()
+            + " at row " + str(n.start_row()) + " col " + str(n.start_col()));
+  }
+}
+
+@STRING
+fn no_placeholder(n: Node) -> void implements Rule {
+  if (is_placeholder(n) == 1) {
+    println("finding: placeholder string " + n.text()
+            + " at row " + str(n.start_row()) + " col " + str(n.start_col()));
+  }
+}
+
+@NUMBER
+fn no_magic_port(n: Node) -> void implements Rule {
+  if (is_magic_port(n) == 1) {
+    println("finding: magic port " + n.text()
+            + " at row " + str(n.start_row())
+            + " cols " + str(n.start_col()) + "-" + str(n.end_col()));
+  }
+}
+
+fn apply_rules(n: Node) -> int {
+  no_password_key(n);
+  no_placeholder(n);
+  no_magic_port(n);
+  return is_password_key(n) + is_placeholder(n) + is_magic_port(n);
+}
+
+let tree = ts.parse("{\n  \"service\": \"demo\",\n  \"port\": 1337,\n  \"auth\": {\n    \"user\": \"root\",\n    \"password\": \"hunter2\"\n  },\n  \"status\": \"TODO\"\n}");
+
+# Tree.nodes() is the flat pre-order list of named nodes (root first), so one
+# foreach runs every rule over the whole tree — no manual fixed-depth walk.
+let found = 0;
+for (n in tree.nodes()) {
+  found = found + apply_rules(n);
+}
+println(str(found) + " findings");
+
+end _lmcode_
+savedsl(p, "build/lint-json.dslb");

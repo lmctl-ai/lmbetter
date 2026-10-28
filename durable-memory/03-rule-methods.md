@@ -38,9 +38,14 @@ the TODO in scripts/select-compiler.sh).
   nodes). The stated future direction is a DSLB v6 rule entry table
   (annotation + interface per rule; the host walks once and dispatches by
   node kind).
-- **No recursion in lmcode**: the example walks the CST with fixed-depth
-  nested loops. A generic deep walk needs a DSL object-list as an explicit
-  node stack, or the host-side dispatch above.
+- **No recursion in lmcode**: `examples/cst-rules.lms` walks the CST with
+  fixed-depth nested loops. LANDED in v0.2.1: `Tree.nodes() -> NodeList`
+  (flat pre-order list of NAMED nodes, root first; `len()` + bounds-checked
+  `at(i)`, which is exactly the shape R36 foreach needs) replaces the manual
+  walk for whole-tree scans — see `examples/lint-json.lms`. It is flattened
+  into the host arena on every call (O(tree) time and memory per call; fine
+  at this scale, cache it in a local if looping). Remaining reason for the v6
+  entry table is dispatch cost/ergonomics, not reach.
 - **Compiler/SDK coupling**: the vendored lmcode-cpp pin (`sdk.lock`) must
   exactly match the implicit std set of the compiler in use, or test.sh's
   registry/compiler signature parity fails. Current pin `d70a12c` (181 std

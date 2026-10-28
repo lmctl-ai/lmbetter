@@ -28,6 +28,7 @@ using dslvm::Value;
 struct Host {
   std::vector<std::unique_ptr<lmbetter::Tree>> trees;
   std::vector<std::unique_ptr<lmbetter::Node>> nodes;
+  std::vector<std::unique_ptr<lmbetter::NodeList>> node_lists;
   template <class T>
   Value hold(std::vector<std::unique_ptr<T>> &arena, const char *type, T value) {
     if (arena.size() >= 65536)
@@ -49,6 +50,12 @@ lmbetter::Node *node_of(void *p, const char *who) {
   auto *n = self<lmbetter::Node>(p);
   if (!n) throw dslvm::Error(std::string(who) + ": stale Node handle");
   return n;
+}
+
+lmbetter::NodeList *nodelist_of(void *p, const char *who) {
+  auto *l = self<lmbetter::NodeList>(p);
+  if (!l) throw dslvm::Error(std::string(who) + ": stale NodeList handle");
+  return l;
 }
 
 std::string read_file(const std::string &path) {
@@ -87,6 +94,9 @@ void register_host(dslvm::Registry &reg, Host &host) {
   reg.method("Tree", "root", {}, "Node", [&host](void *s, Args &) {
     return host.hold(host.nodes, "Node", lmbetter::node_root(*tree_of(s, "root")));
   });
+  reg.method("Tree", "nodes", {}, "NodeList", [&host](void *s, Args &) {
+    return host.hold(host.node_lists, "NodeList", lmbetter::tree_nodes(*tree_of(s, "nodes")));
+  });
 
   const auto node_string_method = [&reg](const char *name, auto impl) {
     reg.method("Node", name, {}, "string", [name, impl](void *s, Args &) {
@@ -117,6 +127,18 @@ void register_host(dslvm::Registry &reg, Host &host) {
       throw dslvm::Error("Node.child index " + std::to_string(args[0].i) +
                          " out of range (named child count " + std::to_string(count) + ")");
     return host.hold(host.nodes, "Node", lmbetter::node_child(*n, args[0].i));
+  });
+
+  reg.method("NodeList", "len", {}, "int", [](void *s, Args &) {
+    return Value::integer(static_cast<int64_t>(nodelist_of(s, "len")->items.size()));
+  });
+  reg.method("NodeList", "at", {"int"}, "Node", [&host](void *s, Args &args) {
+    const lmbetter::NodeList *l = nodelist_of(s, "at");
+    const int64_t count = static_cast<int64_t>(l->items.size());
+    if (args[0].i < 0 || args[0].i >= count)
+      throw dslvm::Error("NodeList.at index " + std::to_string(args[0].i) +
+                         " out of range (length " + std::to_string(count) + ")");
+    return host.hold(host.nodes, "Node", l->items[static_cast<size_t>(args[0].i)]);
   });
 }
 

@@ -78,7 +78,11 @@ only, bounds-checked). The schema also declares the SAM interface
 annotation and an `implements Rule` clause (checked at compile time), so
 analysis rules are user-redefinable scripts over the CST — see
 `examples/cst-rules.lms` and `durable-memory/03-rule-methods.md`. Rule methods
-require `lmscript` >= 0.2.442. See `examples/` for runnable scripts.
+require `lmscript` >= 0.2.442. Since v0.2.1, `Tree.nodes()` returns a
+`NodeList` (flat pre-order list of named nodes, root first; `.len()` and
+bounds-checked `.at(i)`), so `for (n in tree.nodes())` runs a whole-tree scan
+in one foreach — see `examples/lint-json.lms`. See `examples/` for runnable
+scripts.
 
 ## Repository layout
 

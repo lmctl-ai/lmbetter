@@ -72,6 +72,24 @@ Node node_root(const Tree &tree) {
   return node;
 }
 
+NodeList tree_nodes(const Tree &tree) {
+  NodeList list;
+  std::vector<TSNode> stack;
+  stack.push_back(root(tree));
+  while (!stack.empty()) {
+    const TSNode current = stack.back();
+    stack.pop_back();
+    Node node;
+    node.owner = &tree;
+    new (node.bytes) TSNode(current);
+    list.items.push_back(node);
+    const uint32_t count = ts_node_named_child_count(current);
+    for (uint32_t i = count; i > 0; --i)
+      stack.push_back(ts_node_named_child(current, i - 1));
+  }
+  return list;
+}
+
 std::string node_kind(const Node &node) { return ts_node_type(ts(node)); }
 
 std::string node_text(const Node &node) {
