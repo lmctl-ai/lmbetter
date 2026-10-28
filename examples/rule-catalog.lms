@@ -1,7 +1,8 @@
 # Chapter: Rules - a rule catalog with severities and a quality gate
 # Shows: ts.report rule/severity metadata, json_parse over ts.report_json, script-side gating
-# Run: lmscript examples/rule-catalog.lms      (then: lmbetter --dsl build/rule-catalog.dslb)
-# Needs: nothing (offline); the C source is embedded below.
+# Run: lmscript examples/rule-catalog.lms      (then: build/lmbetter --dsl build/rule-catalog.dslb)
+# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Data: the C source is embedded below.
 # exit: 0
 # expect:
 #|[{"row":5,"col":2,"end_row":5,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"},{"row":6,"col":2,"end_row":6,"end_col":8,"rule":"LBC001","severity":"critical","message":"unsafe call 'strcpy'"},{"row":7,"col":2,"end_row":7,"end_col":9,"rule":"LBC001","severity":"critical","message":"unsafe call 'sprintf'"},{"row":6,"col":24,"end_row":6,"end_col":54,"rule":"LBC002","severity":"minor","message":"unresolved FIXME comment"}]

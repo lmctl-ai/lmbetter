@@ -1,7 +1,8 @@
 # Chapter: Rules - lint a JSON document with the NodeList idiom
 # Shows: Tree.nodes + foreach, @NODE-KIND annotations, fn ... implements Rule, int predicate helpers
-# Run: lmscript examples/lint-json.lms      (then: lmbetter --dsl build/lint-json.dslb)
-# Needs: nothing (offline); the JSON fixture is embedded below.
+# Run: lmscript examples/lint-json.lms      (then: build/lmbetter --dsl build/lint-json.dslb)
+# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Data: the JSON fixture is embedded below.
 # exit: 0
 # expect:
 #|finding: magic port 1337 at row 2 cols 10-14

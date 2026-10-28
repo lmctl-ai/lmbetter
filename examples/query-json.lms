@@ -1,7 +1,8 @@
 # Chapter: Rules - select nodes with a tree-sitter query
 # Shows: ts.query, S-expression patterns with @captures, Tree.root, ts.report_json/report_count
-# Run: lmscript examples/query-json.lms      (then: lmbetter --dsl build/query-json.dslb)
-# Needs: nothing (offline); the JSON fixture is embedded below.
+# Run: lmscript examples/query-json.lms      (then: build/lmbetter --dsl build/query-json.dslb)
+# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Data: the JSON fixture is embedded below.
 # exit: 0
 # expect:
 #|[{"row":5,"col":5,"end_row":5,"end_col":13,"message":"password key password"}]

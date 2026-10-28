@@ -1,18 +1,47 @@
 # Examples
 
-Runnable lmscript programs, one per scenario. Each compiles to bytecode and
-runs against the `lmbetter` host:
+Run from the repository root after the [build and setup](../README.md#build-and-run).
+Use `lmscript` >= 0.2.442 with the matching host on PATH:
 
 ```sh
-lmscript examples/parse-string.lms build/parse-string.dslb
-lmbetter --dsl build/parse-string.dslb
+export PATH="$PWD/build:$PATH"
+mkdir -p build
+lmscript examples/parse-string.lms
+build/lmbetter --dsl build/parse-string.dslb
 ```
 
-The `install="github:lmctl-ai/lmbetter@latest"` line in each script pins the
-host CLI the same way lmscript resolves any other tool.
+The outer script's `savedsl` call chooses the output filename. A second
+positional argument to `lmscript` is a script argument, not an output-path
+option. Compilation is normally silent. Execution prints the JSON text,
+its tree, `has_error -> false`, `nodes -> 34`, and the host success record
+`{"ok": true, "result": null}`. Each script's `# expect:` / `#|` comments
+list its expected program output; `--dsl` adds the success record.
+
+The `install="github:lmctl-ai/lmbetter@latest"` declaration can resolve a
+published host when one is not on PATH. It follows the latest release,
+not a fixed version pin. Compilation is offline once the local host and
+compiler are available. Raw URL invocation and its working-directory
+requirements are covered in the [README](../README.md#published-host-and-raw-urls).
+
+Run all 13 examples (12 bytecode demos and one outer-script CLI demo):
+
+```sh
+for source in examples/*.lms; do
+  lmscript "$source" || exit 1
+  case "$source" in
+    examples/lint-repo.lms) ;; # runs subprocesses directly; no saved bytecode
+    *) build/lmbetter --dsl "build/$(basename "$source" .lms).dslb" || exit 1 ;;
+  esac
+done
+```
+
+`lint-repo.lms` prints `repo lint: c-security 1 findings, json-config 2 findings`.
+`sarif-report.lms` also writes `build/sarif-results.sarif` (four results).
+Findings and the catalog demo's `gate=FAIL` are demonstration output, not a
+nonzero process exit status.
 
 - `parse-string.lms` — parse an inline JSON string, print the tree
-- `parse-file.lms` — read `examples/data/sample.json`, print tree stats
+- `parse-file.lms` — read [examples/data/sample.json](../examples/data/sample.json), print tree stats
 - `detect-error.lms` — parse malformed JSON, flag the ERROR node
 - `cst-rules.lms` — two `@`-annotated rules `implements Rule` over the JSON CST
   (`Tree.root()` + `Node` navigation with manual fixed-depth loops)
@@ -50,7 +79,7 @@ host CLI the same way lmscript resolves any other tool.
   unsafe-call query + `on: comment`/`on: goto_statement` kind rules;
   `json-config.json`: JSON password-key/placeholder rules as data). The
   canonical, larger library lives in the repo-root `rules/` (tier-1 packs,
-  see `docs/rule-tiers.md`); `examples/rules/` stays small on purpose.
+  see [rule tiers](../docs/rule-tiers.md)); `examples/rules/` stays small on purpose.
 
 `cst-rules.lms` shows manual `Node.child(i)` navigation (fixed-depth nested
 loops, because lmcode has no recursion); `lint-json.lms` shows the `NodeList`
