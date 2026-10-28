@@ -12,3 +12,4 @@ Repository: https://github.com/lmctl-ai/lmbetter.
 | [02-build-run-test.md](02-build-run-test.md) | Build, run, and test commands; adding examples and functions |
 | [03-rule-methods.md](03-rule-methods.md) | Rule methods: @annotation + implements Rule, Node navigation, limitations |
 | [04-dispatcher.md](04-dispatcher.md) | lint rule packs, the kind-indexed walk dispatcher, v6 entry-point trajectory |
+| [05-rule-tiers.md](05-rule-tiers.md) | Three-tier rule strategy, shipped packs, dropped candidates, tier-2 plan |

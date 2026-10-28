@@ -1,0 +1,10 @@
+{
+  "ServiceName": "demo",
+  "db": {
+    "password": "hunter2"
+  },
+  "api_secret": "x",
+  "status": "TODO",
+  "retry": null,
+  "port": "8080"
+}

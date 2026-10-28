@@ -115,7 +115,22 @@ structured access to parsed trees.
   `ts.report_json` (row, col, end_row, end_col, rule, severity, message),
   then `N findings in <file>`.
 
-Packs live in `examples/rules/` (`c-security.json`, `json-config.json`).
+Packs live in `examples/rules/` (`c-security.json`, `json-config.json`) as
+small demos; the canonical rule library is `rules/` (see below).
+
+## Rule tiers
+
+Rules are classified by the information they need: tier 1 (CST shape + text)
+ships as packs in `rules/` — `c-tier1.json` (10 rules: unsafe calls, command
+exec, assignment-in-condition, K&R definitions, goto, FIXME/TODO, object-like
+macros, register, naming, commented-out code) and `json-tier1.json` (5 rules:
+credential keys, placeholders, nulls, key naming, numbers-as-strings) —
+tier 2 waits on named host extensions, tier 3 (real semantics) is deferred.
+The framework, inventory, and extension plan: `docs/rule-tiers.md`.
+
+```sh
+lmbetter lint rules/c-tier1.json myfile.c
+```
 
 ## Scripting
 
@@ -172,7 +187,9 @@ runnable scripts.
 - `cpp/` — the CLI host: DSL VM integration plus the tree-sitter wrapper
 - `docs/` — design documents (e.g. `rule-snippets.md`: analysis rules as lmscript snippets)
 - `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.442 supplies the built-in standard library implicitly)
-- `examples/` — lmscript examples
+- `examples/` — lmscript examples (plus `examples/rules/` demo packs)
+- `rules/` — the canonical tier-1 rule packs (see `docs/rule-tiers.md`)
+- `tests/fixtures/` — lint fixtures (violations fire every rule; clean guards false positives)
 - `scripts/` — vendoring (tree-sitter sources pinned in `deps.lock`, `lmcode-cpp` SDK pinned in `sdk.lock`) and compiler selection
 - `third_party/` — downloaded upstream sources (git-ignored, pinned by `deps.lock`)
 

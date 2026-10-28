@@ -1,0 +1,6 @@
+{
+  "service_name": "demo",
+  "port": 8080,
+  "enabled": true,
+  "tags": ["alpha", "beta"]
+}

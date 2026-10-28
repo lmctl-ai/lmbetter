@@ -1,0 +1,39 @@
+{
+  "lang": "json",
+  "rules": [
+    {
+      "id": "LBJ001",
+      "query": "(pair key: (string (string_content) @key))",
+      "text_matches": "password|secret",
+      "message": "credential key \"{text}\"",
+      "severity": "critical"
+    },
+    {
+      "id": "LBJ002",
+      "query": "(string (string_content) @value)",
+      "text_matches": "^(TODO|FIXME|CHANGEME|XXX)$",
+      "message": "placeholder string {text}",
+      "severity": "minor"
+    },
+    {
+      "id": "LBJ003",
+      "on": "null",
+      "message": "null value present",
+      "severity": "minor"
+    },
+    {
+      "id": "LBJ004",
+      "query": "(pair key: (string (string_content) @key))",
+      "text_matches": "[A-Z]",
+      "message": "key not snake_case: {text}",
+      "severity": "minor"
+    },
+    {
+      "id": "LBJ005",
+      "query": "(pair value: (string (string_content) @value))",
+      "text_matches": "^[0-9]+$",
+      "message": "number encoded as string: {text}",
+      "severity": "minor"
+    }
+  ]
+}

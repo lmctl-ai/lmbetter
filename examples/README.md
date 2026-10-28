@@ -42,9 +42,11 @@ host CLI the same way lmscript resolves any other tool.
 - `lint-repo.lms` — outer-lmscript composition: drives the `lmbetter lint`
   CLI dispatcher as a subprocess via `dsl_cli` + `system`, asserts exit
   codes, counts findings in stdout
-- `rules/` — rule packs for the `lint` subcommand (`c-security.json`:
+- `rules/` — demo rule packs for the `lint` subcommand (`c-security.json`:
   unsafe-call query + `on: comment`/`on: goto_statement` kind rules;
-  `json-config.json`: JSON password-key/placeholder rules as data)
+  `json-config.json`: JSON password-key/placeholder rules as data). The
+  canonical, larger library lives in the repo-root `rules/` (tier-1 packs,
+  see `docs/rule-tiers.md`); `examples/rules/` stays small on purpose.
 
 `cst-rules.lms` shows manual `Node.child(i)` navigation (fixed-depth nested
 loops, because lmcode has no recursion); `lint-json.lms` shows the `NodeList`

@@ -181,6 +181,44 @@ set +e; out="$("$HOST" lint examples/rules/c-security.json "$WORK/no-such.c" 2>&
 [ "$code" = 3 ] && [[ "$out" == *'cannot read'* ]] || fail "lint missing file (exit $code): $out"
 ok "lint: unreadable file aborts fast (exit 3)"
 
+# --- tier-1 rule packs (canonical library in rules/) ---
+"$HOST" lint rules/c-tier1.json tests/fixtures/c-tier1-violations.c >"$WORK/c-tier1.out" || fail "lint c-tier1 violations run"
+cat >"$WORK/c-tier1.expected" <<'EXPECTED_C'
+{"row":3,"col":0,"end_row":4,"end_col":0,"rule":"LBC007","severity":"minor","message":"object-like macro (prefer const or enum)"}
+{"row":5,"col":4,"end_row":5,"end_col":11,"rule":"LBC009","severity":"minor","message":"function name not snake_case: BadName"}
+{"row":6,"col":2,"end_row":6,"end_col":10,"rule":"LBC008","severity":"minor","message":"register storage class"}
+{"row":8,"col":2,"end_row":8,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"}
+{"row":9,"col":2,"end_row":9,"end_col":8,"rule":"LBC001","severity":"critical","message":"unsafe call 'strcat'"}
+{"row":10,"col":2,"end_row":10,"end_col":8,"rule":"LBC004","severity":"critical","message":"command exec call 'system'"}
+{"row":11,"col":2,"end_row":11,"end_col":7,"rule":"LBC004","severity":"critical","message":"command exec call 'popen'"}
+{"row":12,"col":6,"end_row":12,"end_col":11,"rule":"LBC005","severity":"major","message":"assignment in condition (meant ==?)"}
+{"row":13,"col":9,"end_row":13,"end_col":14,"rule":"LBC005","severity":"major","message":"assignment in condition (meant ==?)"}
+{"row":14,"col":2,"end_row":14,"end_col":12,"rule":"LBC003","severity":"minor","message":"goto used"}
+{"row":15,"col":2,"end_row":15,"end_col":19,"rule":"LBC010","severity":"minor","message":"commented-out code"}
+{"row":16,"col":2,"end_row":16,"end_col":29,"rule":"LBC002","severity":"minor","message":"unresolved FIXME/TODO comment"}
+{"row":20,"col":0,"end_row":22,"end_col":13,"rule":"LBC006","severity":"major","message":"K&R function definition (use ANSI prototypes)"}
+13 findings in tests/fixtures/c-tier1-violations.c
+EXPECTED_C
+cmp "$WORK/c-tier1.expected" "$WORK/c-tier1.out" || { diff "$WORK/c-tier1.expected" "$WORK/c-tier1.out" >&2; fail "c-tier1 violations output"; }
+out="$("$HOST" lint rules/c-tier1.json tests/fixtures/c-tier1-clean.c)"
+[ "$out" = "0 findings in tests/fixtures/c-tier1-clean.c" ] || fail "c-tier1 clean: $out"
+ok "lint: c-tier1 pack, all 10 rules fire on violations, clean fixture silent"
+
+"$HOST" lint rules/json-tier1.json tests/fixtures/json-tier1-violations.json >"$WORK/json-tier1.out" || fail "lint json-tier1 violations run"
+cat >"$WORK/json-tier1.expected" <<'EXPECTED_J'
+{"row":1,"col":3,"end_row":1,"end_col":14,"rule":"LBJ004","severity":"minor","message":"key not snake_case: ServiceName"}
+{"row":3,"col":5,"end_row":3,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"password\""}
+{"row":5,"col":3,"end_row":5,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"api_secret\""}
+{"row":6,"col":13,"end_row":6,"end_col":17,"rule":"LBJ002","severity":"minor","message":"placeholder string TODO"}
+{"row":7,"col":11,"end_row":7,"end_col":15,"rule":"LBJ003","severity":"minor","message":"null value present"}
+{"row":8,"col":11,"end_row":8,"end_col":15,"rule":"LBJ005","severity":"minor","message":"number encoded as string: 8080"}
+6 findings in tests/fixtures/json-tier1-violations.json
+EXPECTED_J
+cmp "$WORK/json-tier1.expected" "$WORK/json-tier1.out" || { diff "$WORK/json-tier1.expected" "$WORK/json-tier1.out" >&2; fail "json-tier1 violations output"; }
+out="$("$HOST" lint rules/json-tier1.json tests/fixtures/json-tier1-clean.json)"
+[ "$out" = "0 findings in tests/fixtures/json-tier1-clean.json" ] || fail "json-tier1 clean: $out"
+ok "lint: json-tier1 pack, all 5 rules fire on violations, clean fixture silent"
+
 # --- DSL bytecode ---
 cat > "$WORK/smoke.lms" <<EOF
 p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";

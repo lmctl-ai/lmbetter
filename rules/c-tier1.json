@@ -1,0 +1,77 @@
+{
+  "lang": "c",
+  "rules": [
+    {
+      "id": "LBC001",
+      "query": "(call_expression function: (identifier) @fn)",
+      "text_matches": "^(gets|strcpy|sprintf|strcat)$",
+      "message": "unsafe call '{text}'",
+      "severity": "critical"
+    },
+    {
+      "id": "LBC002",
+      "on": "comment",
+      "text_matches": "FIXME|TODO",
+      "message": "unresolved FIXME/TODO comment",
+      "severity": "minor"
+    },
+    {
+      "id": "LBC003",
+      "on": "goto_statement",
+      "message": "goto used",
+      "severity": "minor"
+    },
+    {
+      "id": "LBC004",
+      "query": "(call_expression function: (identifier) @fn)",
+      "text_matches": "^(system|popen|execl|execlp|execvp)$",
+      "message": "command exec call '{text}'",
+      "severity": "critical"
+    },
+    {
+      "id": "LBC005",
+      "query": "(if_statement condition: (parenthesized_expression (assignment_expression) @a))\n(while_statement condition: (parenthesized_expression (assignment_expression) @a))",
+      "message": "assignment in condition (meant ==?)",
+      "severity": "major"
+    },
+    {
+      "id": "LBC006",
+      "query": "((function_definition (declaration)) @kr)",
+      "message": "K&R function definition (use ANSI prototypes)",
+      "severity": "major"
+    },
+    {
+      "id": "LBC007",
+      "query": "(function_definition !type) @f",
+      "message": "function definition without return type (implicit int)",
+      "severity": "major"
+    },
+    {
+      "id": "LBC007",
+      "on": "preproc_def",
+      "message": "object-like macro (prefer const or enum)",
+      "severity": "minor"
+    },
+    {
+      "id": "LBC008",
+      "on": "storage_class_specifier",
+      "text_matches": "^register$",
+      "message": "register storage class",
+      "severity": "minor"
+    },
+    {
+      "id": "LBC009",
+      "query": "(function_declarator declarator: (identifier) @name)",
+      "text_matches": "[A-Z]",
+      "message": "function name not snake_case: {text}",
+      "severity": "minor"
+    },
+    {
+      "id": "LBC010",
+      "on": "comment",
+      "text_matches": "(=.*;)|(;[ \\t]*$)",
+      "message": "commented-out code",
+      "severity": "minor"
+    }
+  ]
+}
