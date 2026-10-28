@@ -38,8 +38,8 @@ lmbetter --version
 lmbetter --notices
 lmbetter --dsl-schema [--json]
 lmbetter --dsl-signatures
-lmbetter parse FILE           # '-' reads stdin
-lmbetter query PATTERN FILE   # '-' reads stdin
+lmbetter parse [--lang json|c] FILE          # '-' reads stdin
+lmbetter query [--lang json|c] PATTERN FILE  # '-' reads stdin
 lmbetter --dsl FILE [FILE ...]
 ```
 
@@ -48,9 +48,10 @@ lmbetter --dsl FILE [FILE ...]
 regions appear as `(ERROR ...)` nodes — and still exits 0; tree-sitter always
 produces a tree. `query` runs a tree-sitter S-expression pattern over the
 document and prints one line per captured node, `kind
-start_row:start_col-end_row:end_col` (0-based). Exit codes: 0 ok, 2 usage
-error, 3 input/DSL error (an invalid query pattern names its byte offset and
-reason), 4 stdout failure.
+start_row:start_col-end_row:end_col` (0-based). Both default to the JSON
+grammar; `--lang c` switches to C (an unknown language exits 2 with the
+known-languages list). Exit codes: 0 ok, 2 usage error, 3 input/DSL error (an
+invalid query pattern names its byte offset and reason), 4 stdout failure.
 
 ```
 $ echo '{"a": [1, null]}' | lmbetter parse -
@@ -101,8 +102,11 @@ captured node as a `NodeList` (match/byte order; duplicates kept; a pattern
 with zero captures yields an empty list; an invalid pattern is a runtime
 error naming the byte offset and reason). Query predicates (`#eq?` and
 friends) are NOT evaluated — do text checks in lmcode, which is the
-user-redefinable part anyway; see `examples/query-json.lms`. See `examples/`
-for runnable scripts.
+user-redefinable part anyway; see `examples/query-json.lms`. Since v0.2.4, a
+second grammar is vendored: tree-sitter-c (pinned in `deps.lock`) with
+`ts.parse_c(text)` / `ts.query_c(root, pattern)` mirroring the JSON pair — see
+`examples/lint-c.lms` for real security rules over C. See `examples/` for
+runnable scripts.
 
 ## Repository layout
 

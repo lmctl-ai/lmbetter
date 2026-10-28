@@ -12,6 +12,14 @@
             "returns": "Tree"
           }
         ],
+        "parse_c": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
         "report": [
           {
             "params": [
@@ -34,6 +42,15 @@
           }
         ],
         "query": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "NodeList"
+          }
+        ],
+        "query_c": [
           {
             "params": [
               "Node",

@@ -51,6 +51,15 @@ the TODO in scripts/select-compiler.sh).
   user-redefinable part anyway. Query NodeLists share the arena and the
   65536-object cap with Tree.nodes() lists and Node handles, and their nodes
   borrow the owning Tree (arena lifetime).
+- **Beyond JSON** (LANDED in v0.2.4): tree-sitter-c (master commit `b780e47`,
+  no external scanner — parser.c only, ABI 15) is vendored and compiled like
+  the JSON grammar. The DSL surface is explicit per grammar on purpose:
+  `ts.parse_c(text)` / `ts.query_c(root, pattern)` next to the JSON pair, and
+  `--lang json|c` on the CLI (`json` default; unknown lang exits 2 with the
+  known-languages list). `examples/lint-c.lms` runs real security rules
+  (unsafe `gets`/`strcpy`/`sprintf` calls, FIXME comments) over C. Adding a
+  THIRD grammar should generalize this to a language parameter instead of
+  another parse_x/query_x pair.
 - **Void rules can't count** (R35 forbids caller-local captures, and
   `implements Rule` fixes the signature to `(Node) -> void`), so
   `examples/lint-json.lms` needs int predicate helpers evaluated twice.

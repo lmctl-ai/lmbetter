@@ -15,10 +15,15 @@ namespace lmbetter {
 
 struct Node;
 
-// Owning handle for one parsed tree (the JSON grammar) plus a copy of its
-// source text (kept alive so Node text() stays valid). Never throws: the
-// tree-sitter parser always produces a tree, even for malformed input; use
-// tree_has_error to detect error nodes.
+// The vendored grammars. The DSL surface is explicit per grammar
+// (ts.parse / ts.parse_c, ts.query / ts.query_c); a third grammar should
+// trigger generalizing this to a language parameter.
+enum class Grammar { Json, C };
+
+// Owning handle for one parsed tree plus a copy of its source text (kept
+// alive so Node text() stays valid). Never throws: the tree-sitter parser
+// always produces a tree, even for malformed input; use tree_has_error to
+// detect error nodes.
 class Tree {
 public:
   Tree() = default;
@@ -31,7 +36,7 @@ public:
 private:
   friend const void *tree_handle(const Tree &tree);
   friend std::string node_text(const Node &node);
-  friend Tree parse_json(const std::string &text);
+  friend Tree parse(Grammar grammar, const std::string &text);
   friend std::string tree_sexp(const Tree &tree);
   friend bool tree_has_error(const Tree &tree);
   friend int64_t tree_node_count(const Tree &tree);
@@ -48,8 +53,9 @@ struct Node {
   alignas(void *) unsigned char bytes[32];
 };
 
-// Parse text as JSON with the vendored tree-sitter-json grammar.
-Tree parse_json(const std::string &text);
+// Parse text with the given vendored grammar (Grammar::Json is the default
+// `parse` surface).
+Tree parse(Grammar grammar, const std::string &text);
 
 // The tree as a single-line s-expression, like `tree-sitter parse` prints it.
 std::string tree_sexp(const Tree &tree);
@@ -84,7 +90,7 @@ struct QueryError : std::runtime_error {
 // pattern order within a match). Duplicate nodes across captures/matches are
 // kept. A pattern with zero captures yields an empty list. Query predicates
 // (#eq? and friends) are NOT evaluated — do text checks in lmcode.
-NodeList node_query(const Node &root, const std::string &pattern);
+NodeList node_query(const Node &root, const std::string &pattern, Grammar grammar);
 
 // Node kind (ts_node_type), e.g. "document", "object", "pair", "string".
 std::string node_kind(const Node &node);

@@ -8,8 +8,17 @@
 #include <tree_sitter/api.h>
 
 extern "C" const TSLanguage *tree_sitter_json(void);
+extern "C" const TSLanguage *tree_sitter_c(void);
 
 namespace lmbetter {
+
+static const TSLanguage *language_of(Grammar grammar) {
+  switch (grammar) {
+  case Grammar::Json: return tree_sitter_json();
+  case Grammar::C: return tree_sitter_c();
+  }
+  return tree_sitter_json();
+}
 
 static_assert(sizeof(TSNode) <= sizeof(Node::bytes) && alignof(TSNode) <= alignof(void *),
               "Node::bytes must hold a TSNode");
@@ -37,9 +46,9 @@ Tree &Tree::operator=(Tree &&other) noexcept {
   return *this;
 }
 
-Tree parse_json(const std::string &text) {
+Tree parse(Grammar grammar, const std::string &text) {
   TSParser *parser = ts_parser_new();
-  ts_parser_set_language(parser, tree_sitter_json());
+  ts_parser_set_language(parser, language_of(grammar));
   Tree result;
   result.tree_ = ts_parser_parse_string(parser, nullptr, text.data(),
                                         static_cast<uint32_t>(text.size()));
@@ -130,10 +139,10 @@ static const char *query_error_word(TSQueryError error) {
   }
 }
 
-NodeList node_query(const Node &root_node, const std::string &pattern) {
+NodeList node_query(const Node &root_node, const std::string &pattern, Grammar grammar) {
   uint32_t error_offset = 0;
   TSQueryError error_type = TSQueryErrorNone;
-  TSQuery *query = ts_query_new(tree_sitter_json(), pattern.data(),
+  TSQuery *query = ts_query_new(language_of(grammar), pattern.data(),
                                 static_cast<uint32_t>(pattern.size()),
                                 &error_offset, &error_type);
   if (!query)

@@ -2,22 +2,29 @@
 
 lmbetter repackages tree-sitter as one statically linked, scriptable CLI: the
 upstream C library (v0.27.1, pinned in `deps.lock`) plus the tree-sitter-json
-grammar (commit `254c42a`, same lock) behind a `parse FILE` subcommand and an
-lmscript DSL host. Sibling of lmproxy (Squid) and lmcurl (curl); same house
-conventions: vendored sources in git-ignored `third_party/`, per-file SDK
-hashes in `sdk.lock`, schema embedded by `cmake/embed_schema.cmake`.
+(commit `254c42a`) and tree-sitter-c (commit `b780e47`, master) grammars (same
+lock) behind `parse`/`query` subcommands and an lmscript DSL host. Sibling of
+lmproxy (Squid) and lmcurl (curl); same house conventions: vendored sources
+in git-ignored `third_party/`, per-file SDK hashes in `sdk.lock`, schema
+embedded by `cmake/embed_schema.cmake`.
 
 The tree-sitter core is compiled through its amalgamation `lib/src/lib.c`
-alone (never together with the individual `lib/src/*.c` files); the grammar
-contributes only `src/parser.c`. Upstream feature-test defines
-`-D_POSIX_C_SOURCE=200112L -D_DEFAULT_SOURCE` apply target-wide.
+alone (never together with the individual `lib/src/*.c` files); each grammar
+contributes only `src/parser.c` (neither pinned grammar has an external
+scanner). Upstream feature-test defines `-D_POSIX_C_SOURCE=200112L
+-D_DEFAULT_SOURCE` apply target-wide.
 
 The DSL surface is deliberately minimal: context `ts` (type `Ts`)
 with `ts.parse(text) -> Tree`; `Tree.sexp() -> string`, `Tree.has_error() ->
 bool`, `Tree.node_count() -> int` (total nodes including the root), plus —
 since v0.2.0 — `Tree.root() -> Node`, the `Node` navigation methods and the
-`Rule` SAM interface (see [03-rule-methods.md](03-rule-methods.md)).
-No query API, no cursor API, no other grammars yet.
+`Rule` SAM interface (see [03-rule-methods.md](03-rule-methods.md)); since
+v0.2.1 `Tree.nodes() -> NodeList`; since v0.2.2 the `ts.report*` findings
+sink; since v0.2.3 `ts.query(root, pattern) -> NodeList` (S-expression
+selectors); since v0.2.4 the C grammar via `ts.parse_c` / `ts.query_c` and
+`--lang json|c` on the CLI. The per-grammar surface is explicit on purpose:
+adding a THIRD grammar should trigger generalizing to a language parameter
+instead of another parse_x/query_x pair. No cursor API yet.
 
 The lmcode-cpp SDK pin (`sdk.lock`) must match the implicit std set of the
 compiler in use. Since v0.2.0 the pin is `d70a12c` (181 standard signatures),

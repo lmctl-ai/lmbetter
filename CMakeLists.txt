@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(lmbetter VERSION 0.2.3 LANGUAGES C CXX)
+project(lmbetter VERSION 0.2.4 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,17 +12,20 @@ option(LMBETTER_FULL_STATIC "Link the complete executable statically" ON)
 set(LMBETTER_HOST_SCHEMA "${CMAKE_CURRENT_SOURCE_DIR}/schema/lmbetter.host.json")
 
 # ---- vendored tree-sitter ---------------------------------------------------
-# third_party/tree-sitter and third_party/tree-sitter-json are git-ignored and
-# synced by scripts/sync-deps.sh, pinned by deps.lock. The C library is
-# compiled through its amalgamation lib/src/lib.c alone (which #includes the
-# individual translation units); the JSON grammar contributes src/parser.c
-# only (no external scanner).
+# third_party/tree-sitter, third_party/tree-sitter-json and
+# third_party/tree-sitter-c are git-ignored and synced by
+# scripts/sync-deps.sh, pinned by deps.lock. The C library is compiled through
+# its amalgamation lib/src/lib.c alone (which #includes the individual
+# translation units); each grammar contributes src/parser.c only (neither has
+# an external scanner at the pinned commits).
 set(TS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter")
 set(TSJSON_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-json")
+set(TSC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-c")
 
 set(TS_SOURCES
   "${TS_ROOT}/lib/src/lib.c"
   "${TSJSON_ROOT}/src/parser.c"
+  "${TSC_ROOT}/src/parser.c"
 )
 
 # ---- embedded DSL schema and notices ---------------------------------------

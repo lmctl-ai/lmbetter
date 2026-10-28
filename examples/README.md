@@ -25,6 +25,9 @@ host CLI the same way lmscript resolves any other tool.
 - `query-json.lms` — selector-based rules: `ts.query(root, pattern)` picks
   candidate nodes with a tree-sitter S-expression pattern (`@key` captures),
   the rule text-checks in lmcode and reports
+- `lint-c.lms` — the same over real C code (tree-sitter-c grammar):
+  `ts.parse_c` + `ts.query_c`, flagging `gets`/`strcpy`/`sprintf` calls and
+  FIXME comments
 
 `cst-rules.lms` shows manual `Node.child(i)` navigation (fixed-depth nested
 loops, because lmcode has no recursion); `lint-json.lms` shows the `NodeList`

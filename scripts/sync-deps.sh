@@ -30,7 +30,8 @@ get() { sed -n "s/^$1\.$2=//p" "$LOCK"; }
 if [[ "${1:-}" == "--verify" ]]; then
   for spec in \
     'tree_sitter tree-sitter-0.27.1.tar.gz tree-sitter' \
-    'tree_sitter_json tree-sitter-json-254c42a.tar.gz tree-sitter-json'; do
+    'tree_sitter_json tree-sitter-json-254c42a.tar.gz tree-sitter-json' \
+    'tree_sitter_c tree-sitter-c-b780e47.tar.gz tree-sitter-c'; do
     read -r name archive dir <<<"$spec"
     [[ -f "$DEST/$dir/.lmbetter-archive-sha256" ]] || { echo "$name missing; run scripts/sync-deps.sh" >&2; exit 1; }
     [[ -f "$DEST/.$archive" && "$(sha256 "$DEST/.$archive")" == "$(get "$name" sha256)" ]] || { echo "$name cached archive differs from deps.lock" >&2; exit 1; }
@@ -41,4 +42,5 @@ if [[ "${1:-}" == "--verify" ]]; then
 fi
 fetch_one tree_sitter "$(get tree_sitter url)" "$(get tree_sitter sha256)" tree-sitter-0.27.1.tar.gz tree-sitter
 fetch_one tree_sitter_json "$(get tree_sitter_json url)" "$(get tree_sitter_json sha256)" tree-sitter-json-254c42a.tar.gz tree-sitter-json
+fetch_one tree_sitter_c "$(get tree_sitter_c url)" "$(get tree_sitter_c sha256)" tree-sitter-c-b780e47.tar.gz tree-sitter-c
 echo "synced pinned lmbetter dependencies"

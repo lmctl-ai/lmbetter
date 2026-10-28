@@ -108,7 +108,10 @@ void register_host(dslvm::Registry &reg, Host &host) {
   // The "ts" context object (type Ts) is the parse entry point: the DSL
   // compiler resolves ts.parse(...) as a method call on the context object.
   reg.method("Ts", "parse", {"string"}, "Tree", [&host](void *, Args &args) {
-    return host.hold(host.trees, "Tree", lmbetter::parse_json(args[0].s));
+    return host.hold(host.trees, "Tree", lmbetter::parse(lmbetter::Grammar::Json, args[0].s));
+  });
+  reg.method("Ts", "parse_c", {"string"}, "Tree", [&host](void *, Args &args) {
+    return host.hold(host.trees, "Tree", lmbetter::parse(lmbetter::Grammar::C, args[0].s));
   });
   // The findings sink: rules are void fns, so they report into the host and
   // the chunk body reads the collection back (count / JSON array string).
@@ -137,14 +140,18 @@ void register_host(dslvm::Registry &reg, Host &host) {
     out << "]";
     return Value::string(out.str());
   });
-  reg.method("Ts", "query", {"Node", "string"}, "NodeList", [&host](void *, Args &args) {
-    try {
-      return host.hold(host.node_lists, "NodeList",
-                       lmbetter::node_query(*node_of(args[0].obj, "query"), args[1].s));
-    } catch (const lmbetter::QueryError &error) {
-      throw dslvm::Error(error.what());
-    }
-  });
+  const auto query_method = [&reg, &host](const char *name, lmbetter::Grammar grammar) {
+    reg.method("Ts", name, {"Node", "string"}, "NodeList", [&host, grammar](void *, Args &args) {
+      try {
+        return host.hold(host.node_lists, "NodeList",
+                         lmbetter::node_query(*node_of(args[0].obj, "query"), args[1].s, grammar));
+      } catch (const lmbetter::QueryError &error) {
+        throw dslvm::Error(error.what());
+      }
+    });
+  };
+  query_method("query", lmbetter::Grammar::Json);
+  query_method("query_c", lmbetter::Grammar::C);
 
   reg.method("Tree", "sexp", {}, "string", [](void *s, Args &) {
     return Value::string(lmbetter::tree_sexp(*tree_of(s, "sexp")));
@@ -221,8 +228,8 @@ int main(int argc, char **argv) {
   register_host(reg, host);
   const std::string usage =
       "usage: lmbetter --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
-      "       lmbetter parse FILE\n"
-      "       lmbetter query PATTERN FILE\n"
+      "       lmbetter parse [--lang json|c] FILE\n"
+      "       lmbetter query [--lang json|c] PATTERN FILE\n"
       "       lmbetter --dsl FILE [FILE ...]\n";
   if (argc == 2 && std::string(argv[1]) == "--version") {
     std::cout << "lmbetter " LMBETTER_VERSION "\n";
@@ -250,9 +257,28 @@ int main(int argc, char **argv) {
     for (const auto &signature : reg.signatures()) std::cout << signature << "\n";
     return 0;
   }
-  if (argc == 3 && std::string(argv[1]) == "parse") {
+  if (argc >= 2 && (std::string(argv[1]) == "parse" || std::string(argv[1]) == "query")) {
+    const bool is_query = std::string(argv[1]) == "query";
+    lmbetter::Grammar grammar = lmbetter::Grammar::Json;
+    int argi = 2;
+    if (argi + 1 < argc && std::string(argv[argi]) == "--lang") {
+      const std::string lang = argv[argi + 1];
+      if (lang == "json") grammar = lmbetter::Grammar::Json;
+      else if (lang == "c") grammar = lmbetter::Grammar::C;
+      else {
+        std::cerr << "unknown language '" << lang << "' (known: json, c)\n" << usage;
+        return 2;
+      }
+      argi += 2;
+    }
+    const char *pattern = nullptr;
+    if (is_query) {
+      if (argi >= argc) { std::cerr << usage; return 2; }
+      pattern = argv[argi++];
+    }
+    if (argi != argc - 1) { std::cerr << usage; return 2; }
     std::string raw;
-    const std::string path = argv[2];
+    const std::string path = argv[argi];
     if (path == "-") {
       std::ostringstream data;
       data << std::cin.rdbuf();
@@ -261,25 +287,14 @@ int main(int argc, char **argv) {
       try { raw = read_file(path); }
       catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
     }
-    const lmbetter::Tree tree = lmbetter::parse_json(raw);
-    std::cout << lmbetter::tree_sexp(tree) << "\n";
-    return std::cout ? 0 : 4;
-  }
-  if (argc == 4 && std::string(argv[1]) == "query") {
-    std::string raw;
-    const std::string path = argv[3];
-    if (path == "-") {
-      std::ostringstream data;
-      data << std::cin.rdbuf();
-      raw = data.str();
-    } else {
-      try { raw = read_file(path); }
-      catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
+    const lmbetter::Tree tree = lmbetter::parse(grammar, raw);
+    if (!is_query) {
+      std::cout << lmbetter::tree_sexp(tree) << "\n";
+      return std::cout ? 0 : 4;
     }
-    const lmbetter::Tree tree = lmbetter::parse_json(raw);
     lmbetter::NodeList captures;
     try {
-      captures = lmbetter::node_query(lmbetter::node_root(tree), argv[2]);
+      captures = lmbetter::node_query(lmbetter::node_root(tree), pattern, grammar);
     } catch (const lmbetter::QueryError &e) {
       std::cerr << e.what() << "\n";
       return 3;

@@ -23,6 +23,18 @@ The JSON grammar compiled into the executable (`third_party/tree-sitter-json`).
 - Full license text: the upstream `LICENSE` file, vendored at
   `third_party/tree-sitter-json/LICENSE` after running `scripts/sync-deps.sh`
 
+## tree-sitter-c
+
+The C grammar compiled into the executable (`third_party/tree-sitter-c`).
+
+- Upstream: https://github.com/tree-sitter/tree-sitter-c
+- Revision: b780e47fc780ddc8da13afa35a3f4ed5c157823d (master), pinned in
+  `deps.lock`
+- License: **MIT License**
+- Copyright (c) 2014 Max Brunsfeld and contributors
+- Full license text: the upstream `LICENSE` file, vendored at
+  `third_party/tree-sitter-c/LICENSE` after running `scripts/sync-deps.sh`
+
 ## lmcode-cpp SDK
 
 `cpp/dslvm.hpp`, the `cpp/stdlib/*.hpp` headers, and

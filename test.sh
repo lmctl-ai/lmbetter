@@ -25,7 +25,7 @@ LMSCRIPT="$(scripts/select-compiler.sh)"
 scripts/sync-sdk.sh --verify >/dev/null || fail "SDK header pin mismatch"
 ok "SDK headers match sdk.lock"
 scripts/sync-deps.sh --verify >/dev/null || fail "deps pin mismatch"
-ok "third_party/ tree-sitter and tree-sitter-json match deps.lock"
+ok "third_party/ tree-sitter, tree-sitter-json and tree-sitter-c match deps.lock"
 
 cmake -S . -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release >"$WORK/cmake.log" 2>&1 ||
   { tail -30 "$WORK/cmake.log" >&2; fail "cmake configure ($BUILD_DIR)"; }
@@ -128,6 +128,23 @@ set +e; "$HOST" query '(x)' >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 2 ] || fail "query without a file argument exits 2 (got $code)"
 ok "query without a file argument refused (exit 2)"
 
+# --- --lang c ---
+out="$("$HOST" parse --lang c examples/data/sample.c)"
+echo "$out" | grep -qF '(translation_unit (preproc_include path: (system_lib_string)) (function_definition type: (primitive_type)' \
+  || fail "parse --lang c sexp head: $out"
+echo "$out" | grep -qF '(call_expression function: (identifier) arguments: (argument_list (identifier)))' \
+  || fail "parse --lang c gets() call: $out"
+ok "parse --lang c: translation_unit with preproc_include and calls"
+
+out="$("$HOST" query --lang c '(call_expression function: (identifier) @fn)' examples/data/sample.c)"
+[ "$out" = 'identifier 4:2-4:6
+identifier 5:2-5:8' ] || fail "query --lang c captures: $out"
+ok "query --lang c: called-function identifiers (gets, printf)"
+
+set +e; out="$("$HOST" parse --lang rust examples/data/sample.c 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust' (known: json, c)"* ]] || fail "unknown --lang (exit $code): $out"
+ok "unknown --lang refused with the known-languages list (exit 2)"
+
 # --- DSL bytecode ---
 cat > "$WORK/smoke.lms" <<EOF
 p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
@@ -195,7 +212,7 @@ ok "multiple bytecode files run sequentially"
 
 # --- examples compile and run ---
 mkdir -p build
-for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json; do
+for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json lint-c; do
   "$LMSCRIPT" "examples/$f.lms" "build/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f example compile"
   "$HOST" --dsl "build/$f.dslb" >"$WORK/$f.out" || fail "$f example run"
   # every '# expect:' line must appear in the program output
