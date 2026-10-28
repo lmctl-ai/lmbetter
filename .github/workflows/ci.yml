@@ -3,6 +3,7 @@ name: ci
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       only:
@@ -14,9 +15,9 @@ on:
 
 # tree-sitter upstream is portable C and the vendored lmcode-cpp SDK is
 # standard-library-only C++17 with _WIN32 paths, so the matrix covers Linux,
-# macOS, and Windows (MinGW). Binaries are published as workflow artifacts
-# (one per OS/arch); there is deliberately no release job — releases are cut
-# by hand when wanted.
+# macOS, and Windows (MinGW). Every main push updates the rolling `dist`
+# branch; pushing a v* tag additionally cuts a GitHub Release with the same
+# five tested binaries.
 permissions:
   contents: read
 
@@ -152,3 +153,34 @@ jobs:
             git commit -m "dist: lmbetter binaries from ${GITHUB_SHA}"
           fi
           git push --force-with-lease origin dist
+
+  # Tag a commit v* and the same five tested binaries become a GitHub Release.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: lmbetter-*
+          path: dist
+          merge-multiple: true
+
+      - name: Check five release assets and checksums
+        run: |
+          test "$(find dist -maxdepth 1 -type f -name 'lmbetter-*' | wc -l)" -eq 5
+          (cd dist && sha256sum lmbetter-* > SHA256SUMS)
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already published; preserving its verified assets and checksums."
+          else
+            gh release create "$GITHUB_REF_NAME" dist/lmbetter-* dist/SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
+              --notes "Five tested platform binaries (Linux x64/arm64, macOS arm64/x64, Windows x64) plus SHA256SUMS. Rolling latest-main builds live on the dist branch."
+          fi
