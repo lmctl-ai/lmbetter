@@ -28,6 +28,9 @@ using dslvm::Value;
 struct Finding {
   int64_t row, col, end_row, end_col; // 0-based, tree-sitter convention
   std::string message;
+  // Optional rule metadata (4-arg ts.report overload). Free-form strings —
+  // severity policy belongs to the script, the host validates nothing.
+  std::string rule, severity;
 };
 
 struct Host {
@@ -115,14 +118,18 @@ void register_host(dslvm::Registry &reg, Host &host) {
   });
   // The findings sink: rules are void fns, so they report into the host and
   // the chunk body reads the collection back (count / JSON array string).
-  reg.method("Ts", "report", {"Node", "string"}, "void", [&host](void *, Args &args) {
+  const auto report_impl = [&host](void *, Args &args) {
     if (host.findings.size() >= 65536)
       throw dslvm::Error("report limit exceeded (65536)");
     const lmbetter::Node *n = node_of(args[0].obj, "report");
-    host.findings.push_back({lmbetter::node_start_row(*n), lmbetter::node_start_col(*n),
-                             lmbetter::node_end_row(*n), lmbetter::node_end_col(*n), args[1].s});
+    Finding f{lmbetter::node_start_row(*n), lmbetter::node_start_col(*n),
+              lmbetter::node_end_row(*n), lmbetter::node_end_col(*n), args[1].s, "", ""};
+    if (args.size() == 4) { f.rule = args[2].s; f.severity = args[3].s; }
+    host.findings.push_back(std::move(f));
     return Value::none();
-  });
+  };
+  reg.method("Ts", "report", {"Node", "string"}, "void", report_impl);
+  reg.method("Ts", "report", {"Node", "string", "string", "string"}, "void", report_impl);
   reg.method("Ts", "report_count", {}, "int", [&host](void *, Args &) {
     return Value::integer(static_cast<int64_t>(host.findings.size()));
   });
@@ -134,8 +141,10 @@ void register_host(dslvm::Registry &reg, Host &host) {
       if (!first) out << ",";
       first = false;
       out << "{\"row\":" << f.row << ",\"col\":" << f.col
-          << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col
-          << ",\"message\":\"" << json_escape(f.message) << "\"}";
+          << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col;
+      if (!f.rule.empty()) out << ",\"rule\":\"" << json_escape(f.rule) << "\"";
+      if (!f.severity.empty()) out << ",\"severity\":\"" << json_escape(f.severity) << "\"";
+      out << ",\"message\":\"" << json_escape(f.message) << "\"}";
     }
     out << "]";
     return Value::string(out.str());

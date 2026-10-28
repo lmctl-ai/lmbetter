@@ -68,7 +68,14 @@ the TODO in scripts/select-compiler.sh).
   Host arena, reset before each program run like the SDK's per-run collection
   reset; capped at 65536 findings). Rules are now just annotated void fns
   calling `ts.report`; rendering stays script-side. See
-  `examples/report-json.lms`.
+  `examples/report-json.lms`. EXTENDED in v0.2.5: a 4-arg overload
+  `ts.report(n, message, rule, severity)` attaches SonarQube-style metadata;
+  both strings are free-form (no host-side severity enum — policy belongs to
+  the script) and `report_json()` emits `rule`/`severity` only when present
+  (key order row, col, end_row, end_col, rule, severity, message), so 2-arg
+  output bytes are unchanged. `examples/rule-catalog.lms` shows the user-side
+  half: `json_parse(ts.report_json())`, per-severity counts, and a quality
+  gate (`critical > 0` → FAIL) as a plain script-side `if`.
 - **No recursion in lmcode**: `examples/cst-rules.lms` walks the CST with
   fixed-depth nested loops. LANDED in v0.2.1: `Tree.nodes() -> NodeList`
   (flat pre-order list of NAMED nodes, root first; `len()` + bounds-checked

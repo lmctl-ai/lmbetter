@@ -1,30 +1,33 @@
 # Chapter: Rules - lint C code for unsafe calls and FIXMEs
-# Shows: ts.parse_c/query_c (C grammar), @call_expression/@comment rules, ts.report_json/report_count
+# Shows: ts.parse_c/query_c (C grammar), @call_expression/@comment rules, ts.report with rule key + severity
 # Run: lmscript examples/lint-c.lms      (then: lmbetter --dsl build/lint-c.dslb)
 # Needs: nothing (offline); the C source is embedded below.
 # exit: 0
 # expect:
-#|[{"row":5,"col":2,"end_row":5,"end_col":6,"message":"unsafe call 'gets'"},{"row":6,"col":2,"end_row":6,"end_col":8,"message":"unsafe call 'strcpy'"},{"row":7,"col":2,"end_row":7,"end_col":9,"message":"unsafe call 'sprintf'"},{"row":6,"col":24,"end_row":6,"end_col":54,"message":"unresolved FIXME comment"}]
+#|[{"row":5,"col":2,"end_row":5,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"},{"row":6,"col":2,"end_row":6,"end_col":8,"rule":"LBC001","severity":"critical","message":"unsafe call 'strcpy'"},{"row":7,"col":2,"end_row":7,"end_col":9,"rule":"LBC001","severity":"critical","message":"unsafe call 'sprintf'"},{"row":6,"col":24,"end_row":6,"end_col":54,"rule":"LBC002","severity":"minor","message":"unresolved FIXME comment"}]
 #|4 findings
 p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
 
-# SonarQube-style security rules over real C: the query selects candidates by
-# structure, the rule body does the text check and reports. Annotations are
-# compile-time metadata (the CST node kind each rule subscribes to).
+# SonarQube-style security rules over real C, with analyzer-style metadata:
+# every finding carries a rule key and a severity (free-form strings — policy
+# belongs to the script; the host validates nothing). The query selects
+# candidates by structure, the rule body does the text check and reports.
+# Annotations are compile-time metadata (the CST node kind each rule
+# subscribes to).
 
 @call_expression
 fn no_unsafe_fn(n: Node) -> void implements Rule {
   # n is the called function's identifier node.
   let name = n.text();
   if (name == "gets" || name == "strcpy" || name == "sprintf") {
-    ts.report(n, "unsafe call '" + name + "'");
+    ts.report(n, "unsafe call '" + name + "'", "LBC001", "critical");
   }
 }
 
 @comment
 fn no_fixme(n: Node) -> void implements Rule {
   if (str_contains(n.text(), "FIXME")) {
-    ts.report(n, "unresolved FIXME comment");
+    ts.report(n, "unresolved FIXME comment", "LBC002", "minor");
   }
 }
 

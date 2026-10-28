@@ -96,7 +96,12 @@ per-run findings sink: `ts.report(node, message)` appends a finding
 {row, col, end_row, end_col, message} (0-based positions, capped at 65536 per
 run), read back with `ts.report_count()` and `ts.report_json()` (a JSON array
 string with stable key order) — the script decides the rendering, see
-`examples/report-json.lms`. Since v0.2.3, `ts.query(root, pattern)` runs a
+`examples/report-json.lms`. Since v0.2.5, `ts.report(node, message, rule,
+severity)` also attaches rule metadata: `rule`/`severity` are free-form
+strings (policy belongs to the script; the host validates nothing), emitted
+by `report_json()` only when present (key order row, col, end_row, end_col,
+rule, severity, message) — see `examples/rule-catalog.lms` for per-severity
+summaries and a quality gate computed in lmcode. Since v0.2.3, `ts.query(root, pattern)` runs a
 tree-sitter S-expression query over the subtree at `root` and returns every
 captured node as a `NodeList` (match/byte order; duplicates kept; a pattern
 with zero captures yields an empty list; an invalid pattern is a runtime

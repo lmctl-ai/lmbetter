@@ -27,6 +27,15 @@
               "string"
             ],
             "returns": "void"
+          },
+          {
+            "params": [
+              "Node",
+              "string",
+              "string",
+              "string"
+            ],
+            "returns": "void"
           }
         ],
         "report_count": [

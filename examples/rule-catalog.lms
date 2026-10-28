@@ -1,0 +1,55 @@
+# Chapter: Rules - a rule catalog with severities and a quality gate
+# Shows: ts.report rule/severity metadata, json_parse over ts.report_json, script-side gating
+# Run: lmscript examples/rule-catalog.lms      (then: lmbetter --dsl build/rule-catalog.dslb)
+# Needs: nothing (offline); the C source is embedded below.
+# exit: 0
+# expect:
+#|[{"row":5,"col":2,"end_row":5,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'"},{"row":6,"col":2,"end_row":6,"end_col":8,"rule":"LBC001","severity":"critical","message":"unsafe call 'strcpy'"},{"row":7,"col":2,"end_row":7,"end_col":9,"rule":"LBC001","severity":"critical","message":"unsafe call 'sprintf'"},{"row":6,"col":24,"end_row":6,"end_col":54,"rule":"LBC002","severity":"minor","message":"unresolved FIXME comment"}]
+#|catalog: critical=3 minor=1 gate=FAIL
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# The same two rules as lint-c.lms. Findings carry rule key + severity, but
+# the POLICY (what severities exist, what fails the gate) is entirely
+# script-side: the host stores free-form strings and validates nothing.
+
+@call_expression
+fn no_unsafe_fn(n: Node) -> void implements Rule {
+  let name = n.text();
+  if (name == "gets" || name == "strcpy" || name == "sprintf") {
+    ts.report(n, "unsafe call '" + name + "'", "LBC001", "critical");
+  }
+}
+
+@comment
+fn no_fixme(n: Node) -> void implements Rule {
+  if (str_contains(n.text(), "FIXME")) {
+    ts.report(n, "unresolved FIXME comment", "LBC002", "minor");
+  }
+}
+
+let tree = ts.parse_c("#include <stdio.h>\n#include <string.h>\n\nvoid login(char *input) {\n  char buf[16];\n  gets(input);          /* never use */\n  strcpy(buf, input);   // FIXME: replace with strncpy\n  sprintf(buf, \"%s\", input);\n  printf(\"%s\", buf);\n}\n");
+
+for (f in ts.query_c(tree.root(), "(call_expression function: (identifier) @fn)")) {
+  no_unsafe_fn(f);
+}
+for (c in ts.query_c(tree.root(), "(comment) @c")) {
+  no_fixme(c);
+}
+
+println(ts.report_json());
+
+# Summarize by severity: parse the findings back with the std json functions
+# and count in lmcode. The quality gate is a plain script-side if.
+let findings = json_parse(ts.report_json());
+let critical = 0;
+let minor = 0;
+for (f in findings) {
+  if (f.get("severity").as_string() == "critical") { critical = critical + 1; }
+  if (f.get("severity").as_string() == "minor") { minor = minor + 1; }
+}
+let gate = "PASS";
+if (critical > 0) { gate = "FAIL"; }
+println("catalog: critical=" + str(critical) + " minor=" + str(minor) + " gate=" + gate);
+
+end _lmcode_
+savedsl(p, "build/rule-catalog.dslb");
