@@ -3,6 +3,8 @@
 #include "host.hpp"
 
 #include <algorithm>
+#include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <new>
 #include <regex>
@@ -28,7 +30,6 @@ static const TSLanguage *language_of(Grammar grammar) {
 static_assert(sizeof(TSNode) <= sizeof(Node::bytes) && alignof(TSNode) <= alignof(void *),
               "Node::bytes must hold a TSNode");
 
-static TSNode &ts(Node &node) { return *reinterpret_cast<TSNode *>(node.bytes); }
 static const TSNode &ts(const Node &node) { return *reinterpret_cast<const TSNode *>(node.bytes); }
 
 const void *tree_handle(const Tree &tree) { return tree.tree_; }
@@ -37,8 +38,12 @@ Tree::~Tree() {
   if (tree_) ts_tree_delete(static_cast<TSTree *>(tree_));
 }
 
-Tree::Tree(Tree &&other) noexcept : tree_(other.tree_), source_(std::move(other.source_)) {
+Tree::Tree(Tree &&other) noexcept
+    : tree_(other.tree_), source_(std::move(other.source_)),
+      has_pending_edit_(other.has_pending_edit_), edit_start_(other.edit_start_),
+      edit_old_end_(other.edit_old_end_), edit_new_end_(other.edit_new_end_) {
   other.tree_ = nullptr;
+  other.has_pending_edit_ = false;
 }
 
 Tree &Tree::operator=(Tree &&other) noexcept {
@@ -46,12 +51,24 @@ Tree &Tree::operator=(Tree &&other) noexcept {
     if (tree_) ts_tree_delete(static_cast<TSTree *>(tree_));
     tree_ = other.tree_;
     source_ = std::move(other.source_);
+    has_pending_edit_ = other.has_pending_edit_;
+    edit_start_ = other.edit_start_;
+    edit_old_end_ = other.edit_old_end_;
+    edit_new_end_ = other.edit_new_end_;
     other.tree_ = nullptr;
+    other.has_pending_edit_ = false;
   }
   return *this;
 }
 
+static void check_text_size(const char *who, const std::string &text) {
+  if (text.size() > static_cast<size_t>(UINT32_MAX))
+    throw std::length_error(std::string(who) + ": input is " + std::to_string(text.size()) +
+                            " bytes; tree-sitter addresses at most 4294967295");
+}
+
 Tree parse(Grammar grammar, const std::string &text) {
+  check_text_size("parse", text);
   TSParser *parser = ts_parser_new();
   ts_parser_set_language(parser, language_of(grammar));
   Tree result;
@@ -86,6 +103,25 @@ void tree_edit(Tree &tree, int64_t start_byte, int64_t old_end_byte, int64_t new
 }
 
 Tree reparse(Grammar grammar, Tree &old_tree, const std::string &new_text) {
+  check_text_size("reparse", new_text);
+  if (!old_tree.has_pending_edit_) {
+    // Without an edit tree-sitter reuses every old subtree and hands back the
+    // old structure whatever the new text says. Identical text is the only
+    // honest no-edit reparse.
+    if (new_text != old_tree.source_)
+      throw std::out_of_range("Tree.reparse: no pending edit for changed text (call Tree.edit first)");
+  } else {
+    const int64_t expected = static_cast<int64_t>(old_tree.source_.size()) -
+                             (old_tree.edit_old_end_ - old_tree.edit_start_) +
+                             (old_tree.edit_new_end_ - old_tree.edit_start_);
+    if (static_cast<int64_t>(new_text.size()) != expected)
+      throw std::out_of_range("Tree.reparse: new text is " + std::to_string(new_text.size()) +
+                              " bytes but the pending edit implies " + std::to_string(expected) +
+                              " (old " + std::to_string(old_tree.source_.size()) + " - (" +
+                              std::to_string(old_tree.edit_old_end_) + " - " + std::to_string(old_tree.edit_start_) +
+                              ") + (" + std::to_string(old_tree.edit_new_end_) + " - " +
+                              std::to_string(old_tree.edit_start_) + "))");
+  }
   if (old_tree.has_pending_edit_) {
     TSInputEdit edit;
     edit.start_byte = static_cast<uint32_t>(old_tree.edit_start_);
@@ -214,24 +250,144 @@ static const char *query_error_word(TSQueryError error) {
 }
 
 // ---- query predicates (E1) -------------------------------------------------
-// Evaluated per match, following the upstream tree-sitter semantics (see
-// lib/binding_rust/lib.rs satisfies_text_predicates): #eq?/#not-eq? compare
-// capture node TEXT (source slice) against a literal or another capture;
-// #match?/#not-match? apply an UNANCHORED ECMAScript regex to the text
-// (upstream uses regex::is_match; authors anchor with ^...$ themselves).
-// With quantified captures the predicate must hold for ALL nodes under the
-// capture (upstream's match_all behavior for the non-any variants). Unknown
-// operators (#set!, #is?, #any-of?, ...) are directives/unsupported
-// predicates and are IGNORED, like the tree-sitter CLI.
-static Node wrap_node(const Tree *owner, TSNode raw) {
+// Compiled once per node_query call (one entry per pattern), evaluated per
+// match following upstream tree-sitter (lib/binding_rust/lib.rs,
+// satisfies_text_predicates, and lib/binding_web/src/query.ts for the
+// every/some reading of plain vs any-* forms): eq/match/any-of text
+// predicates, capture-vs-capture eq (every/some node of the first capture
+// equal to some node of the second), regex UNANCHORED (regex::is_match). Property predicates (#is?/#is-not?) and
+// directives (#set!, any `!`) are accepted and ignored; malformed known
+// predicates and unknown `?` predicates are refused (upstream refuses the
+// former at query compile time; for the latter upstream merely stores them,
+// but a silently ignored predicate here would over-match).
+bool regex_search_bounded(const std::string &text, const std::regex &re) {
+  if (text.size() > kRegexTextCap) {
+    static bool warned = false;
+    if (!warned) {
+      warned = true;
+      std::fprintf(stderr,
+                   "lmbetter: regex not applied to a %zu-byte node text (limit %zu bytes: "
+                   "std::regex recursion overflows the stack on long text); treated as no match\n",
+                   text.size(), kRegexTextCap);
+    }
+    return false;
+  }
+  return std::regex_search(text, re);
+}
+
+namespace {
+
+struct RaiiQuery {
+  TSQuery *q;
+  ~RaiiQuery() { if (q) ts_query_delete(q); }
+};
+struct RaiiCursor {
+  TSQueryCursor *c;
+  ~RaiiCursor() { if (c) ts_query_cursor_delete(c); }
+};
+
+struct Predicate {
+  enum Kind { Eq, Match, AnyOf } kind = Eq;
+  bool positive = true;
+  bool match_all = true;
+  uint32_t capture = 0;          // first argument (always a capture)
+  bool other_is_capture = false; // Eq: second argument kind
+  uint32_t other_capture = 0;
+  std::string operand;           // Eq literal
+  std::vector<std::string> options; // AnyOf literals
+  std::regex re;                 // Match
+};
+
+std::string string_value(const TSQuery *query, uint32_t id) {
+  uint32_t len = 0;
+  const char *p = ts_query_string_value_for_id(query, id, &len);
+  return std::string(p, len);
+}
+
+std::string capture_name(const TSQuery *query, uint32_t id) {
+  uint32_t len = 0;
+  const char *p = ts_query_capture_name_for_id(query, id, &len);
+  return std::string(p, len);
+}
+
+std::vector<std::vector<Predicate>> compile_predicates(const TSQuery *query) {
+  const uint32_t patterns = ts_query_pattern_count(query);
+  std::vector<std::vector<Predicate>> out(patterns);
+  for (uint32_t pattern = 0; pattern < patterns; ++pattern) {
+    uint32_t step_count = 0;
+    const TSQueryPredicateStep *steps = ts_query_predicates_for_pattern(query, pattern, &step_count);
+    uint32_t i = 0;
+    while (i < step_count) {
+      // Each predicate is: String(operator) args... Done. The C API carries
+      // no operator field; the first string step is the operator name.
+      if (steps[i].type != TSQueryPredicateStepTypeString) {
+        while (i < step_count && steps[i].type != TSQueryPredicateStepTypeDone) ++i;
+        ++i;
+        continue;
+      }
+      const std::string op = string_value(query, steps[i].value_id);
+      ++i;
+      std::vector<const TSQueryPredicateStep *> args;
+      while (i < step_count && steps[i].type != TSQueryPredicateStepTypeDone) args.push_back(&steps[i++]);
+      ++i; // past Done
+      const auto fail = [&](const std::string &what) {
+        throw QueryError("query predicate error in pattern " + std::to_string(pattern) + ": #" + op + " " + what);
+      };
+      const auto is_capture = [](const TSQueryPredicateStep *s) { return s->type == TSQueryPredicateStepTypeCapture; };
+      if (op.empty()) fail("has no operator name");
+      if (op.back() == '!') continue; // directive (#set! ...): accepted, ignored
+      if (op == "is?" || op == "is-not?") continue; // property predicates: not evaluated here (nor by the tree-sitter CLI)
+      Predicate p;
+      if (op == "eq?" || op == "not-eq?" || op == "any-eq?" || op == "any-not-eq?") {
+        if (args.size() != 2) fail("takes 2 arguments, got " + std::to_string(args.size()));
+        if (!is_capture(args[0])) fail("first argument must be a capture, got literal \"" + string_value(query, args[0]->value_id) + "\"");
+        p.kind = Predicate::Eq;
+        p.positive = op == "eq?" || op == "any-eq?";
+        p.match_all = op == "eq?" || op == "not-eq?";
+        p.capture = args[0]->value_id;
+        p.other_is_capture = is_capture(args[1]);
+        if (p.other_is_capture) p.other_capture = args[1]->value_id;
+        else p.operand = string_value(query, args[1]->value_id);
+      } else if (op == "match?" || op == "not-match?" || op == "any-match?" || op == "any-not-match?") {
+        if (args.size() != 2) fail("takes 2 arguments, got " + std::to_string(args.size()));
+        if (!is_capture(args[0])) fail("first argument must be a capture, got literal \"" + string_value(query, args[0]->value_id) + "\"");
+        if (is_capture(args[1])) fail("second argument must be a regex literal, got capture @" + capture_name(query, args[1]->value_id));
+        p.kind = Predicate::Match;
+        p.positive = op == "match?" || op == "any-match?";
+        p.match_all = op == "match?" || op == "not-match?";
+        p.capture = args[0]->value_id;
+        const std::string source = string_value(query, args[1]->value_id);
+        try { p.re = std::regex(source); }
+        catch (const std::regex_error &) { fail("has an invalid regex '" + source + "'"); }
+      } else if (op == "any-of?" || op == "not-any-of?") {
+        if (args.size() < 2) fail("takes a capture and at least one literal");
+        if (!is_capture(args[0])) fail("first argument must be a capture, got literal \"" + string_value(query, args[0]->value_id) + "\"");
+        p.kind = Predicate::AnyOf;
+        p.positive = op == "any-of?";
+        p.capture = args[0]->value_id;
+        for (size_t a = 1; a < args.size(); ++a) {
+          if (is_capture(args[a])) fail("arguments must be literals, got capture @" + capture_name(query, args[a]->value_id));
+          p.options.push_back(string_value(query, args[a]->value_id));
+        }
+      } else if (op.back() == '?') {
+        fail("is not a supported predicate (known: eq?, not-eq?, any-eq?, any-not-eq?, match?, not-match?, any-match?, any-not-match?, any-of?, not-any-of?, is?, is-not?)");
+      } else {
+        continue; // neither predicate nor directive syntax: nothing to evaluate
+      }
+      out[pattern].push_back(std::move(p));
+    }
+  }
+  return out;
+}
+
+Node wrap_node(const Tree *owner, TSNode raw) {
   Node node;
   node.owner = owner;
   new (node.bytes) TSNode(raw);
   return node;
 }
 
-static std::vector<std::string> capture_texts(const TSQueryMatch &match, uint32_t capture_index,
-                                              const Tree *owner) {
+std::vector<std::string> capture_texts(const TSQueryMatch &match, uint32_t capture_index, const Tree *owner) {
   std::vector<std::string> texts;
   for (uint16_t c = 0; c < match.capture_count; ++c)
     if (match.captures[c].index == capture_index)
@@ -239,85 +395,67 @@ static std::vector<std::string> capture_texts(const TSQueryMatch &match, uint32_
   return texts;
 }
 
-static bool predicates_ok(const TSQuery *query, const TSQueryMatch &match, const Tree *owner) {
-  uint32_t step_count = 0;
-  const TSQueryPredicateStep *steps =
-      ts_query_predicates_for_pattern(query, match.pattern_index, &step_count);
-  if (!steps) return true;
-  uint32_t i = 0;
-  while (i < step_count) {
-    if (steps[i].type != TSQueryPredicateStepTypeString) { // malformed; skip to Done
-      while (i < step_count && steps[i].type != TSQueryPredicateStepTypeDone) ++i;
-      ++i;
-      continue;
+bool satisfies(const Predicate &p, const TSQueryMatch &match, const Tree *owner) {
+  // every/some semantics of upstream's web binding (lib/binding_web/src/
+  // query.ts): the plain forms hold for EVERY node of the capture, the any-*
+  // forms for SOME node. (The Rust binding's loop ends in a bare `true`, so
+  // its any-* forms pass vacuously when no node satisfies; the web binding
+  // and the documented meaning do not, and neither do we.)
+  const std::vector<std::string> texts = capture_texts(match, p.capture, owner);
+  const auto every_or_some = [&](const auto &test) {
+    if (p.match_all) {
+      for (const auto &t : texts) if (!test(t)) return false;
+      return true;
     }
-    uint32_t len = 0;
-    const char *op = ts_query_string_value_for_id(query, steps[i].value_id, &len);
-    const std::string opname(op, len);
-    ++i;
-    std::vector<std::pair<bool, uint32_t>> args; // (is_capture, value_id)
-    while (i < step_count && steps[i].type != TSQueryPredicateStepTypeDone) {
-      args.push_back({steps[i].type == TSQueryPredicateStepTypeCapture, steps[i].value_id});
-      ++i;
+    for (const auto &t : texts) if (test(t)) return true;
+    return false;
+  };
+  switch (p.kind) {
+  case Predicate::Eq:
+    if (p.other_is_capture) {
+      const std::vector<std::string> others = capture_texts(match, p.other_capture, owner);
+      return every_or_some([&](const std::string &t) {
+        for (const auto &o : others) if ((t == o) == p.positive) return true;
+        return false;
+      });
     }
-    ++i; // past Done
-    if (opname != "eq?" && opname != "not-eq?" && opname != "match?" && opname != "not-match?")
-      continue; // unknown predicate/directive: ignore
-    if (args.size() != 2 || !args[0].first) continue; // malformed: ignore
-    const std::vector<std::string> texts = capture_texts(match, args[0].second, owner);
-    const bool positive = opname == "eq?" || opname == "match?";
-    bool all_ok = true;
-    if (args[1].first) { // capture-vs-capture (eq? family)
-      const std::vector<std::string> other = capture_texts(match, args[1].second, owner);
-      for (const auto &t : texts)
-        for (const auto &o : other)
-          if ((t == o) != positive) { all_ok = false; break; }
-    } else {
-      uint32_t slen = 0;
-      const char *sv = ts_query_string_value_for_id(query, args[1].second, &slen);
-      const std::string operand(sv, slen);
-      if (opname == "match?" || opname == "not-match?") {
-        std::regex re;
-        try { re = std::regex(operand); }
-        catch (const std::regex_error &) {
-          throw QueryError("invalid #match? regex '" + operand + "'");
-        }
-        for (const auto &t : texts)
-          if (static_cast<bool>(std::regex_search(t, re)) != positive) { all_ok = false; break; }
-      } else {
-        for (const auto &t : texts)
-          if ((t == operand) != positive) { all_ok = false; break; }
-      }
+    return every_or_some([&](const std::string &t) { return (t == p.operand) == p.positive; });
+  case Predicate::Match:
+    if (texts.empty()) return !p.positive;
+    return every_or_some([&](const std::string &t) { return regex_search_bounded(t, p.re) == p.positive; });
+  case Predicate::AnyOf:
+    for (const auto &t : texts) {
+      const bool hit = std::find(p.options.begin(), p.options.end(), t) != p.options.end();
+      if (hit != p.positive) return false;
     }
-    if (!all_ok) return false;
+    return true;
   }
   return true;
 }
 
+} // namespace
+
 NodeList node_query(const Node &root_node, const std::string &pattern, Grammar grammar) {
   uint32_t error_offset = 0;
   TSQueryError error_type = TSQueryErrorNone;
-  TSQuery *query = ts_query_new(language_of(grammar), pattern.data(),
-                                static_cast<uint32_t>(pattern.size()),
-                                &error_offset, &error_type);
-  if (!query)
+  RaiiQuery query{ts_query_new(language_of(grammar), pattern.data(),
+                               static_cast<uint32_t>(pattern.size()), &error_offset, &error_type)};
+  if (!query.q)
     throw QueryError("query error at byte offset " + std::to_string(error_offset) +
                      ": " + query_error_word(error_type));
-  TSQueryCursor *cursor = ts_query_cursor_new();
-  ts_query_cursor_exec(cursor, query, ts(root_node));
+  const std::vector<std::vector<Predicate>> predicates = compile_predicates(query.q);
+  RaiiCursor cursor{ts_query_cursor_new()};
+  ts_query_cursor_exec(cursor.c, query.q, ts(root_node));
   NodeList list;
   TSQueryMatch match;
-  while (ts_query_cursor_next_match(cursor, &match)) {
-    if (!predicates_ok(query, match, root_node.owner)) continue;
-    for (uint16_t i = 0; i < match.capture_count; ++i) {
-      Node node;
-      node.owner = root_node.owner;
-      new (node.bytes) TSNode(match.captures[i].node);
-      list.items.push_back(node);
-    }
+  while (ts_query_cursor_next_match(cursor.c, &match)) {
+    bool ok = true;
+    for (const Predicate &p : predicates[match.pattern_index])
+      if (!satisfies(p, match, root_node.owner)) { ok = false; break; }
+    if (!ok) continue;
+    for (uint16_t i = 0; i < match.capture_count; ++i)
+      list.items.push_back(wrap_node(root_node.owner, match.captures[i].node));
   }
-  ts_query_cursor_delete(cursor);
-  ts_query_delete(query);
   return list;
 }
 

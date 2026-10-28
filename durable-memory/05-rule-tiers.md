@@ -44,7 +44,12 @@ it is applied inside `ts.reparse`/`ts.reparse_c`, because ts_tree_edit needs
 row/col points and the new-end point exists only once the new text is known
 (start/old_end points compute from the old source, new_end from the new).
 One pending edit per reparse (a second edit() first is a run-time error, as
-are out-of-range offsets). The old tree stays alive after reparse —
+are out-of-range offsets). Reparse checks the contract: with no pending edit
+the new text must equal the old source byte-for-byte (otherwise tree-sitter
+reuses every old subtree and silently returns the OLD tree — observed:
+`reparse(parse("{}"), "[1, 2, 3]")` gave `(document (object))`), and with
+an edit the new length must equal `old - (old_end - start) + (new_end -
+start)`; both violations are exit-3 errors. The old tree stays alive after reparse —
 `ts.changed_ranges(old, new) -> string` (JSON `[[start,end],...]`) works
 anytime; cost is two trees in the arena, and the old tree's stored source is
 pre-edit so old-node text() past the edit point is stale (use the new tree
@@ -141,8 +146,16 @@ convention lives in query AUTHORS writing `^...$`, not in the engine; the
 task brief assumed engine-side anchoring, the upstream evidence
 (docs examples + binding source) says otherwise, and compatibility with
 published queries wins. Unknown operators (`#set!`, `#is?`, `any-of?`,
-`any-*`) are ignored like the tree-sitter CLI (over-matching risk for
-`any-*` noted as follow-up). C-API quirk: predicate steps carry no operator
+`any-*`) were initially ignored (over-matching risk for `any-*` noted as
+follow-up); the v0.4.0 review fixed that: `#any-eq?`/`#any-not-eq?`/
+`#any-match?`/`#any-not-match?`/`#any-of?`/`#not-any-of?` are evaluated
+(any-* = at least one node, plain = every node — the semantics of upstream's
+web binding `every`/`some`; the Rust binding's loop has a trailing `true`
+that lets any-* pass vacuously, which we do NOT copy), `#is?`/`#is-not?` and
+`!` directives are accepted and ignored, and malformed or unknown `?`
+predicates are refused with exit 3 (an ignored predicate over-matches
+silently). Regex text is bounded at 16 KiB (see 04-dispatcher.md). C-API
+quirk: predicate steps carry no operator
 field — the operator name is the first String step of each predicate.
 Caveat: the `Rule` SAM is single-node, so multi-capture rules (LBC106's
 fn+fmt pairing) cannot `implements Rule` — a v6 entry-table design note.

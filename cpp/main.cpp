@@ -10,6 +10,7 @@
 #include "notices_embedded.hpp"
 
 #include <cstdio>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -36,19 +37,40 @@ struct Finding {
   std::string rule, severity;
 };
 
+// Every arena is append-only for one program run and cleared by reset()
+// before the next --dsl file (like the SDK's per-run reset of standard
+// collection handles), so handles never dangle and the caps are per run, not
+// per process. Trees and NodeLists are few (65536); Node handles are many
+// (one per root()/child()/parent() call; NodeList.at() hands out pointers
+// into the list itself and allocates nothing), and a Node is ~40 bytes, so
+// their cap is 1<<20 (~40 MB worst case) in a deque (stable addresses, no
+// per-node heap allocation).
 struct Host {
+  static constexpr size_t kHandleCap = 65536;
+  static constexpr size_t kNodeCap = size_t(1) << 20;
   std::vector<std::unique_ptr<lmbetter::Tree>> trees;
-  std::vector<std::unique_ptr<lmbetter::Node>> nodes;
+  std::deque<lmbetter::Node> nodes;
   std::vector<std::unique_ptr<lmbetter::NodeList>> node_lists;
-  // Findings collected via ts.report; reset per --dsl file (see the run loop),
-  // matching the SDK's per-run reset of standard collection handles.
+  // Findings collected via ts.report; reset per --dsl file (see the run loop).
   std::vector<Finding> findings;
   template <class T>
   Value hold(std::vector<std::unique_ptr<T>> &arena, const char *type, T value) {
-    if (arena.size() >= 65536)
-      throw dslvm::Error(std::string(type) + " object limit exceeded (65536)");
+    if (arena.size() >= kHandleCap)
+      throw dslvm::Error(std::string(type) + " object limit exceeded (" + std::to_string(kHandleCap) + ")");
     arena.push_back(std::make_unique<T>(std::move(value)));
     return Value::object(type, arena.back().get());
+  }
+  Value hold_node(lmbetter::Node node) {
+    if (nodes.size() >= kNodeCap)
+      throw dslvm::Error("Node object limit exceeded (" + std::to_string(kNodeCap) + ")");
+    nodes.push_back(node);
+    return Value::object("Node", &nodes.back());
+  }
+  void reset() {
+    trees.clear();
+    nodes.clear();
+    node_lists.clear();
+    findings.clear();
   }
 };
 
@@ -73,6 +95,10 @@ lmbetter::NodeList *nodelist_of(void *p, const char *who) {
 }
 
 std::string read_file(const std::string &path) {
+  // An ifstream opens a directory fine on POSIX and then reads nothing, which
+  // would parse as an empty document; refuse it explicitly.
+  std::error_code ec;
+  if (std::filesystem::is_directory(path, ec)) throw dslvm::Error("cannot read " + path + ": is a directory");
   std::ifstream in(path, std::ios::binary);
   if (!in) throw dslvm::Error("cannot read " + path);
   std::ostringstream data;
@@ -113,18 +139,19 @@ void register_host(dslvm::Registry &reg, Host &host) {
 
   // The "ts" context object (type Ts) is the parse entry point: the DSL
   // compiler resolves ts.parse(...) as a method call on the context object.
-  reg.method("Ts", "parse", {"string"}, "Tree", [&host](void *, Args &args) {
-    return host.hold(host.trees, "Tree", lmbetter::parse(lmbetter::Grammar::Json, args[0].s));
-  });
-  reg.method("Ts", "parse_c", {"string"}, "Tree", [&host](void *, Args &args) {
-    return host.hold(host.trees, "Tree", lmbetter::parse(lmbetter::Grammar::C, args[0].s));
-  });
-  reg.method("Ts", "parse_python", {"string"}, "Tree", [&host](void *, Args &args) {
-    return host.hold(host.trees, "Tree", lmbetter::parse(lmbetter::Grammar::Python, args[0].s));
-  });
-  reg.method("Ts", "parse_bash", {"string"}, "Tree", [&host](void *, Args &args) {
-    return host.hold(host.trees, "Tree", lmbetter::parse(lmbetter::Grammar::Bash, args[0].s));
-  });
+  const auto parse_method = [&reg, &host](const char *name, lmbetter::Grammar grammar) {
+    reg.method("Ts", name, {"string"}, "Tree", [&host, grammar](void *, Args &args) {
+      try {
+        return host.hold(host.trees, "Tree", lmbetter::parse(grammar, args[0].s));
+      } catch (const std::length_error &error) {
+        throw dslvm::Error(error.what());
+      }
+    });
+  };
+  parse_method("parse", lmbetter::Grammar::Json);
+  parse_method("parse_c", lmbetter::Grammar::C);
+  parse_method("parse_python", lmbetter::Grammar::Python);
+  parse_method("parse_bash", lmbetter::Grammar::Bash);
   // The findings sink: rules are void fns, so they report into the host and
   // the chunk body reads the collection back (count / JSON array string).
   const auto report_impl = [&host](void *, Args &args) {
@@ -174,8 +201,14 @@ void register_host(dslvm::Registry &reg, Host &host) {
   query_method("query_bash", lmbetter::Grammar::Bash);
   const auto reparse_method = [&reg, &host](const char *name, lmbetter::Grammar grammar) {
     reg.method("Ts", name, {"Tree", "string"}, "Tree", [&host, grammar](void *, Args &args) {
-      return host.hold(host.trees, "Tree",
-                       lmbetter::reparse(grammar, *tree_of(args[0].obj, "reparse"), args[1].s));
+      try {
+        return host.hold(host.trees, "Tree",
+                         lmbetter::reparse(grammar, *tree_of(args[0].obj, "reparse"), args[1].s));
+      } catch (const std::out_of_range &error) {
+        throw dslvm::Error(error.what());
+      } catch (const std::length_error &error) {
+        throw dslvm::Error(error.what());
+      }
     });
   };
   reparse_method("reparse", lmbetter::Grammar::Json);
@@ -206,7 +239,7 @@ void register_host(dslvm::Registry &reg, Host &host) {
     return Value::integer(lmbetter::tree_node_count(*tree_of(s, "node_count")));
   });
   reg.method("Tree", "root", {}, "Node", [&host](void *s, Args &) {
-    return host.hold(host.nodes, "Node", lmbetter::node_root(*tree_of(s, "root")));
+    return host.hold_node(lmbetter::node_root(*tree_of(s, "root")));
   });
   reg.method("Tree", "nodes", {}, "NodeList", [&host](void *s, Args &) {
     return host.hold(host.node_lists, "NodeList", lmbetter::tree_nodes(*tree_of(s, "nodes")));
@@ -240,7 +273,7 @@ void register_host(dslvm::Registry &reg, Host &host) {
     if (args[0].i < 0 || args[0].i >= count)
       throw dslvm::Error("Node.child index " + std::to_string(args[0].i) +
                          " out of range (named child count " + std::to_string(count) + ")");
-    return host.hold(host.nodes, "Node", lmbetter::node_child(*n, args[0].i));
+    return host.hold_node(lmbetter::node_child(*n, args[0].i));
   });
   reg.method("Node", "has_parent", {}, "bool", [](void *s, Args &) {
     return Value::boolean(lmbetter::node_has_parent(*node_of(s, "has_parent")));
@@ -249,19 +282,22 @@ void register_host(dslvm::Registry &reg, Host &host) {
     const lmbetter::Node *n = node_of(s, "parent");
     if (!lmbetter::node_has_parent(*n))
       throw dslvm::Error("Node.parent: root node has no parent");
-    return host.hold(host.nodes, "Node", lmbetter::node_parent(*n));
+    return host.hold_node(lmbetter::node_parent(*n));
   });
 
   reg.method("NodeList", "len", {}, "int", [](void *s, Args &) {
     return Value::integer(static_cast<int64_t>(nodelist_of(s, "len")->items.size()));
   });
-  reg.method("NodeList", "at", {"int"}, "Node", [&host](void *s, Args &args) {
-    const lmbetter::NodeList *l = nodelist_of(s, "at");
+  reg.method("NodeList", "at", {"int"}, "Node", [](void *s, Args &args) {
+    lmbetter::NodeList *l = nodelist_of(s, "at");
     const int64_t count = static_cast<int64_t>(l->items.size());
     if (args[0].i < 0 || args[0].i >= count)
       throw dslvm::Error("NodeList.at index " + std::to_string(args[0].i) +
                          " out of range (length " + std::to_string(count) + ")");
-    return host.hold(host.nodes, "Node", l->items[static_cast<size_t>(args[0].i)]);
+    // The list lives in the arena for the run and its vector is never
+    // resized, so a pointer into it is a stable Node handle: iterating a
+    // 200k-node tree allocates nothing (and no longer burns the Node cap).
+    return Value::object("Node", &l->items[static_cast<size_t>(args[0].i)]);
   });
 }
 
@@ -272,6 +308,7 @@ void print_schema_summary(const dslvm::Registry &reg) {
 
 int main(int argc, char **argv) {
 #ifdef _WIN32
+  _setmode(_fileno(stdin), _O_BINARY); // `parse -` must not CRLF-translate or stop at ^Z
   _setmode(_fileno(stdout), _O_BINARY);
   _setmode(_fileno(stderr), _O_BINARY);
 #endif
@@ -314,6 +351,10 @@ int main(int argc, char **argv) {
     const bool is_query = std::string(argv[1]) == "query";
     lmbetter::Grammar grammar = lmbetter::Grammar::Json;
     int argi = 2;
+    if (argi < argc && std::string(argv[argi]) == "--lang" && argi + 1 >= argc) {
+      std::cerr << "--lang needs a value (json|c)\n" << usage;
+      return 2;
+    }
     if (argi + 1 < argc && std::string(argv[argi]) == "--lang") {
       const std::string lang = argv[argi + 1];
       if (lang == "json") grammar = lmbetter::Grammar::Json;
@@ -342,7 +383,9 @@ int main(int argc, char **argv) {
       try { raw = read_file(path); }
       catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
     }
-    const lmbetter::Tree tree = lmbetter::parse(grammar, raw);
+    lmbetter::Tree tree;
+    try { tree = lmbetter::parse(grammar, raw); }
+    catch (const std::length_error &e) { std::cerr << e.what() << "\n"; return 3; }
     if (!is_query) {
       std::cout << lmbetter::tree_sexp(tree) << "\n";
       return std::cout ? 0 : 4;
@@ -392,15 +435,23 @@ int main(int argc, char **argv) {
     std::vector<Target> targets;
     for (int i = 3; i < argc; ++i) {
       std::error_code ec;
-      if (fs::is_directory(fs::path(argv[i]), ec)) {
+      const fs::path root(argv[i]);
+      if (fs::is_directory(root, ec)) {
         std::vector<std::string> found;
         const fs::recursive_directory_iterator end;
-        for (fs::recursive_directory_iterator it(fs::path(argv[i]), ec);
-             !ec && it != end; it.increment(ec)) {
+        // Iterator errors (an unreadable subdirectory, a vanished entry) must
+        // not end the walk silently with a partial file list: that is the
+        // same fail-fast contract as an unreadable file (exit 3).
+        fs::recursive_directory_iterator it(root, ec);
+        fs::path failed_at = root;
+        for (; !ec && it != end; failed_at = it->path(), it.increment(ec)) {
           const fs::path &p = it->path();
-          if (!it->is_regular_file(ec)) continue;
+          std::error_code file_ec;
+          if (!it->is_regular_file(file_ec)) continue;
+          // Hidden means a dot-component BELOW the argument root: a project
+          // living under ~/.local or passed as ./.proj is still lintable.
           bool hidden = false;
-          for (const auto &part : p) {
+          for (const auto &part : p.lexically_relative(root)) {
             const std::string name = part.string();
             if (name != "." && name != ".." && name.rfind(".", 0) == 0) hidden = true; // C++17: no starts_with
           }
@@ -408,6 +459,10 @@ int main(int argc, char **argv) {
           const std::string ext = p.extension().string();
           if (ext == ".c" || ext == ".h" || ext == ".json" || ext == ".py" ||
               ext == ".sh" || ext == ".bash") found.push_back(canonical(p.string()));
+        }
+        if (ec) {
+          std::cerr << "cannot read " << canonical(failed_at.string()) << ": " << ec.message() << "\n";
+          return 3;
         }
         if (found.empty()) {
           std::cerr << "no lintable files in " << canonical(argv[i]) << " (want .c/.h/.json/.py/.sh/.bash)\n";
@@ -440,6 +495,9 @@ int main(int argc, char **argv) {
       } catch (const lmbetter::QueryError &e) {
         std::cerr << e.what() << "\n";
         return 3;
+      } catch (const std::exception &e) { // oversized input, regex engine limits, allocation
+        std::cerr << "lint " << target.path << ": " << e.what() << "\n";
+        return 3;
       }
       for (const auto &f : findings)
         std::cout << "{\"row\":" << f.row << ",\"col\":" << f.col
@@ -471,11 +529,16 @@ int main(int argc, char **argv) {
       }
     }
     for (const auto &program : programs) {
-      host.findings.clear(); // findings are per-file state
+      host.reset(); // trees, nodes, lists and findings are per-file state (caps are per run)
       try {
         program.run(context, reg);
       } catch (const dslvm::Error &error) {
         return dslvm::report_error("run", error);
+      } catch (const std::exception &error) {
+        // Anything the host did not translate (regex engine limits,
+        // allocation failure) still ends with the standard result line
+        // instead of std::terminate.
+        return dslvm::report_error("run", dslvm::Error("RUN_HOST", error.what()));
       }
       dslvm::report_ok();
     }

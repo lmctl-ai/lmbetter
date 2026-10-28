@@ -7,6 +7,7 @@
 // values so no tree-sitter header leaks into this file.
 
 #include <cstdint>
+#include <regex>
 #include <string>
 #include <stdexcept>
 #include <vector>
@@ -64,7 +65,9 @@ struct Node {
 };
 
 // Parse text with the given vendored grammar (Grammar::Json is the default
-// `parse` surface).
+// `parse` surface). Throws std::length_error for text longer than
+// UINT32_MAX bytes (tree-sitter's own byte-offset limit) instead of silently
+// truncating.
 Tree parse(Grammar grammar, const std::string &text);
 
 // Record an edit on the tree (byte offsets; insertion is old_end == start,
@@ -78,6 +81,12 @@ void tree_edit(Tree &tree, int64_t start_byte, int64_t old_end_byte, int64_t new
 // changed_ranges_json; note its stored source is the PRE-edit text, so
 // node_text() on old-tree nodes past the edit point is stale — use the new
 // tree for reads. Keeping both alive costs two trees' memory (documented).
+// Contract checks (std::out_of_range): a pending edit is REQUIRED unless
+// new_text equals the old source byte-for-byte (tree-sitter would otherwise
+// reuse the whole old tree and silently return it for different text), and
+// the edit must be consistent with the new text:
+//   new_text.size() == old.size() - (old_end - start) + (new_end - start).
+// Throws std::length_error like parse() for oversized text.
 Tree reparse(Grammar grammar, Tree &old_tree, const std::string &new_text);
 
 // The syntactically changed ranges between two trees as a compact JSON array
@@ -117,10 +126,29 @@ struct QueryError : std::runtime_error {
 // the subtree at root, in cursor order (matches in byte order, captures in
 // pattern order within a match). Duplicate nodes across captures/matches are
 // kept. A pattern with zero captures yields an empty list. Query predicates
-// #eq?/#not-eq?/#match?/#not-match? are evaluated per match (capture text;
-// #match? is UNANCHORED, matching upstream tree-sitter — authors anchor with
-// ^...$); unknown predicates/directives (#set!, #is?, any-*, ...) are ignored.
+// are evaluated per match with upstream tree-sitter's text-predicate
+// semantics (lib/binding_rust satisfies_text_predicates): #eq?/#not-eq?/
+// #any-eq?/#any-not-eq? (capture text vs literal or another capture),
+// #match?/#not-match?/#any-match?/#any-not-match? (ECMAScript regex,
+// UNANCHORED like upstream — authors anchor with ^...$), and
+// #any-of?/#not-any-of?. The plain forms must hold for EVERY node of a
+// quantified capture, the any-* forms for SOME node (the web binding's
+// every/some semantics; the Rust binding lets any-* pass vacuously, which is
+// not copied). Property predicates
+// (#is?, #is-not?) and directives (#set! and anything ending in `!`) are
+// accepted and ignored. A malformed known predicate (wrong arity, literal
+// where a capture is required, capture as #match? regex) or an UNKNOWN
+// `?`-predicate throws QueryError — silently ignoring one would over-match.
 NodeList node_query(const Node &root, const std::string &pattern, Grammar grammar);
+
+// Regex matching over node text is bounded: std::regex (libstdc++ and libc++)
+// backtracks recursively, so a long node text (a 40 KB comment with the
+// shipped LBC010 rule, a few KB on a 1 MB Windows stack) overflows the stack
+// and kills the process. Texts longer than kRegexTextCap bytes are NOT
+// searched (treated as "no match"); the first skip prints one note on
+// stderr. Shared by lint text_matches and query #match?.
+constexpr size_t kRegexTextCap = 16384;
+bool regex_search_bounded(const std::string &text, const std::regex &re);
 
 // Node kind (ts_node_type), e.g. "document", "object", "pair", "string".
 std::string node_kind(const Node &node);

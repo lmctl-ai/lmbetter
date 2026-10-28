@@ -48,10 +48,13 @@ the TODO in scripts/select-compiler.sh).
   captures/matches are kept; a zero-capture pattern is an empty list, not an
   error; invalid patterns throw a runtime error naming the byte offset and a
   reason word (syntax/node-type/field/capture/structure/language). Query
-  predicates (`#eq?` etc.) are NOT evaluated — the cursor carries them but
-  nothing applies them; text checks stay in lmcode, which is the
-  user-redefinable part anyway. Query NodeLists share the arena and the
-  65536-object cap with Tree.nodes() lists and Node handles, and their nodes
+  predicates were NOT evaluated in v0.2.3; since v0.3.3 (E1) the host
+  evaluates them per match with upstream semantics, including the `any-*`
+  family and `#any-of?` — see 05-rule-tiers.md "E1 landed". Query NodeLists share the arena and the
+  65536-handle cap with Tree.nodes() lists; Node handles have their own
+  1<<20 cap and `NodeList.at(i)` hands out a pointer INTO the list (no
+  handle allocated per visit, so walking a 180k-node tree is fine); all
+  arenas reset before each `--dsl` program, so caps are per run. Nodes
   borrow the owning Tree (arena lifetime).
 - **Beyond JSON** (LANDED in v0.2.4): tree-sitter-c (master commit `b780e47`,
   no external scanner — parser.c only, ABI 15) is vendored and compiled like

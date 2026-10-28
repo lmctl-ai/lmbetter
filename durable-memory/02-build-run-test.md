@@ -8,10 +8,15 @@
 - Build: `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build`.
   CMake copies `schema/lmbetter.host.json` byte-exact to git-ignored
   `schema/lmbetter.dsl.json` and embeds it plus `THIRD_PARTY_NOTICES.md`.
-- Test: `./test.sh` runs 22 checks (pin verifies, build, `--version`,
-  `--notices` byte-compare, embedded-schema byte-compare, full and
-  `--without-std` signature parity with `lmscript >= 0.2.420`, CLI parse
-  cases, DSL bytecode runs, examples, static-link check). Put `build/` on
+- Test: `./test.sh` runs 62 checks (pin verifies — including a digest of
+  the extracted third_party/ trees, build, `--version`, `--notices`
+  byte-compare, embedded-schema byte-compare, full and `--without-std`
+  signature parity with `lmscript >= 0.2.442`, CLI parse/query/lint cases,
+  rule packs against violations/clean fixtures, DSL bytecode runs, examples,
+  rules/lmcode, the reparse contract, the v0.4.0 review regressions — regex
+  bound, arena caps/reset, directory-walk errors, predicate semantics —
+  and the static-link check). Count printed as `PASS: N checks`; update
+  this line when adding checks. Put `build/` on
   `PATH` before compiling examples by hand, otherwise the compiler tries to
   resolve `install="github:lmctl-ai/lmbetter@latest"` over the network.
 - Full static is the default on GNU/Linux (`LMBETTER_FULL_STATIC=ON`);

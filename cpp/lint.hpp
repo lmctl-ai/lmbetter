@@ -23,6 +23,7 @@ struct LintRule {
   std::string message;     // "{text}" expands to the matched node's text
   std::string severity = "minor"; // free-form; the pack owns the vocabulary
   std::string text_matches;      // ECMAScript regex source; empty = not set
+                                 // (applied through regex_search_bounded: see host.hpp kRegexTextCap)
   std::regex text_regex;         // valid only when text_matches is non-empty
 };
 
@@ -33,7 +34,7 @@ struct LintFinding {
 
 // Parse and validate a rule pack file. Throws dslvm::Error (plain message,
 // naming the rule id where one exists) for malformed JSON, missing fields,
-// unknown languages, bad regexes, and on/query violations.
+// duplicate ids, unknown languages, bad regexes, and on/query violations.
 std::vector<LintRule> load_rule_pack(const std::string &path);
 
 // Run the dispatcher over one file's text. Rules are grouped by grammar and
