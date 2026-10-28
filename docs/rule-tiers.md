@@ -52,8 +52,17 @@ what information they need; the tier decides when (or whether) they ship.
 - empty `if`/`while` body (`;`): `on: expression_statement` + text `;` guard,
   or a query for empty consequences
 - `malloc` result cast to a pointer type: `cast_expression` + regex
-- JSON: duplicate keys in one object — scriptable in lmcode (StrMap over
-  sibling keys), not expressible as a single pack rule
+
+### Shipped as lmcode rules (rules/lmcode/) — tier 1 with logic
+
+| id | rule | mechanism |
+| --- | --- | --- |
+| LBC101 | function too long (>60 rows) | `@function_definition` + `end_row-start_row` arithmetic |
+| LBC102 | too many parameters (>7) | child-walk count of `parameter_declaration` |
+| LBC103 | switch without default | child-walk; default = `case_statement` text prefix |
+| LBC104 | if without braces | consequence child kind != `compound_statement` |
+| LBJ101 | duplicate keys in one object | `@object` + per-object StrMap over pair keys |
+| LBJ102 | object too large (>50 entries) | pair-child counting |
 
 ## Tier 2 — needs a named extension
 

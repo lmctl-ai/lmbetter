@@ -21,6 +21,20 @@ plan then build), real semantics (tier 3, defer).
   (byte-exact output pinned in test.sh), and the clean fixture must produce
   `0 findings` (false-positive guard).
 
+## lmcode-native tier-1 rules (v0.3.1)
+
+Rules that need LOGIC beyond selector+regex ship as annotated `implements
+Rule` fns in `rules/lmcode/*.lms` (see `rules/README.md`): LBC101 function
+too long (row arithmetic), LBC102 too many parameters (child counting),
+LBC103 switch without default (default = `case_statement` with text prefix
+"default" — lmcode can't query `!value`, so the keyword text is the check),
+LBC104 if without braces (consequence child kind), LBJ101 duplicate object
+keys (per-object StrMap), LBJ102 object too large. Each file reads its
+violations fixture via `file_read`; test.sh sed-substitutes the clean-fixture
+path (and the savedsl target) into a scratch copy and asserts zero findings.
+Nothing turned out non-tier-1 in this batch — all four rule families fit
+current lmcode.
+
 ## Dropped candidates (and why)
 
 - **Implicit-int function definitions** (`!type` query): not expressible.

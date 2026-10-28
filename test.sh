@@ -323,6 +323,25 @@ while IFS= read -r line; do
 done < <(grep '^#|' examples/lint-repo.lms)
 ok "lint-repo: lmscript drives lmbetter lint and counts findings"
 
+# --- rules/lmcode (lmcode-native tier-1 rules) ---
+mkdir -p build/rules-lmcode
+for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits; do
+  "$LMSCRIPT" "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f rule compile"
+  "$HOST" --dsl "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
+  while IFS= read -r line; do
+    grep -qxF "${line:2}" "$WORK/$f.out" || fail "$f output missing: ${line:2} (got $(cat "$WORK/$f.out"))"
+  done < <(grep '^#|' "rules/lmcode/$f.lms")
+  # clean-fixture variant: substitute the fixture path AND the savedsl target
+  # into a scratch copy, expect an empty findings array and a zero count
+  sed -e 's/-violations\./-clean./' -e "s|build/rules-lmcode/$f.dslb|$WORK/$f-clean.dslb|" \
+    "rules/lmcode/$f.lms" > "$WORK/$f-clean.lms"
+  "$LMSCRIPT" "$WORK/$f-clean.lms" "$WORK/$f-clean.dslb" >/dev/null 2>&1 || fail "$f clean compile"
+  out="$("$HOST" --dsl "$WORK/$f-clean.dslb")"
+  grep -qxF '[]' <<<"$out" || fail "$f clean fixture findings: $out"
+  grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
+done
+ok "rules/lmcode: four rule files fire on violations fixtures, silent on clean"
+
 if [ "$UNAME_S" = "Darwin" ]; then
   BAD_LIBS="$(otool -L "$HOST" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/\|^/System/Library/' || true)"
   [ -z "$BAD_LIBS" ] || fail "host links non-system libraries: $BAD_LIBS"

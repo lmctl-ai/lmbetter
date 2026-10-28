@@ -1,0 +1,38 @@
+# Chapter: Rules (lmcode) - duplicate keys in JSON objects
+# Shows: @object rule, per-object StrMap bookkeeping, pair key extraction
+# Run: lmscript rules/lmcode/json-duplicate-keys.lms   (then: lmbetter --dsl build/rules-lmcode/json-duplicate-keys.dslb)
+# Needs: nothing (offline); reads tests/fixtures/json-dupkeys-violations.json
+# exit: 0
+# expect:
+#|[{"row":3,"col":2,"end_row":3,"end_col":8,"rule":"LBJ101","severity":"major","message":"duplicate key \"a\""},{"row":6,"col":4,"end_row":6,"end_col":10,"rule":"LBJ101","severity":"major","message":"duplicate key \"x\""}]
+#|2 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# Duplicate keys are sibling relationships — a query pattern cannot express
+# "same text twice among siblings", so this is lmcode logic over a StrMap.
+# The map is fn-local: each object gets a fresh scope (nested objects are
+# checked independently).
+
+@object
+fn no_duplicate_keys(n: Node) -> void implements Rule {
+  let seen = str_map();
+  for (i in range(0, n.child_count())) {
+    let pair = n.child(i);
+    if (pair.kind() == "pair") {
+      let key = pair.child(0).text();
+      if (seen.has(key)) {
+        ts.report(pair, "duplicate key " + key, "LBJ101", "major");
+      } else {
+        seen.set(key, "1");
+      }
+    }
+  }
+}
+
+let tree = ts.parse(file_read("tests/fixtures/json-dupkeys-violations.json"));
+for (o in ts.query(tree.root(), "(object) @o")) { no_duplicate_keys(o); }
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/rules-lmcode/json-duplicate-keys.dslb");

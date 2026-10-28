@@ -1,0 +1,59 @@
+# Chapter: Rules (lmcode) - C function metrics
+# Shows: @function_definition rules, Node arithmetic (end_row - start_row), child-walk parameter counting
+# Run: lmscript rules/lmcode/c-function-metrics.lms   (then: lmbetter --dsl build/rules-lmcode/c-function-metrics.dslb)
+# Needs: nothing (offline); reads tests/fixtures/c-logic-violations.c
+# exit: 0
+# expect:
+#|[{"row":0,"col":0,"end_row":65,"end_col":1,"rule":"LBC101","severity":"major","message":"function too long (65 rows)"},{"row":67,"col":0,"end_row":69,"end_col":1,"rule":"LBC102","severity":"minor","message":"too many parameters (8)"}]
+#|2 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# Tier-1 rules that need lmcode LOGIC (arithmetic, counting) — not expressible
+# as pack selector+regex. To use against your own file, copy the rule fn and
+# point file_read at it (see rules/README.md).
+
+@function_definition
+fn function_too_long(n: Node) -> void implements Rule {
+  let rows = n.end_row() - n.start_row();
+  if (rows > 60) {
+    ts.report(n, "function too long (" + str(rows) + " rows)", "LBC101", "major");
+  }
+}
+
+fn count_params(n: Node) -> int {
+  # function_definition -> function_declarator -> parameter_list -> parameter_declaration*
+  let count = 0;
+  for (i in range(0, n.child_count())) {
+    let d = n.child(i);
+    if (d.kind() == "function_declarator") {
+      for (j in range(0, d.child_count())) {
+        let pl = d.child(j);
+        if (pl.kind() == "parameter_list") {
+          for (k in range(0, pl.child_count())) {
+            if (pl.child(k).kind() == "parameter_declaration") { count = count + 1; }
+          }
+        }
+      }
+    }
+  }
+  return count;
+}
+
+@function_definition
+fn too_many_parameters(n: Node) -> void implements Rule {
+  let count = count_params(n);
+  if (count > 7) {
+    ts.report(n, "too many parameters (" + str(count) + ")", "LBC102", "minor");
+  }
+}
+
+let tree = ts.parse_c(file_read("tests/fixtures/c-logic-violations.c"));
+for (f in ts.query_c(tree.root(), "(function_definition) @f")) {
+  function_too_long(f);
+  too_many_parameters(f);
+}
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/rules-lmcode/c-function-metrics.dslb");
