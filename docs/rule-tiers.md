@@ -65,13 +65,28 @@ what information they need; the tier decides when (or whether) they ship.
 | LBJ102 | object too large (>50 entries) | pair-child counting |
 | LBC105 | control structure nested >4 deep | parent() chain walk (needs E2) |
 | LBJ103 | JSON value nested >6 levels deep | parent() chain walk (needs E2) |
+| LBC106 | `scanf`/`fscanf` without field width | query + `#match?` predicate selecting the callee (needs E1); width heuristic in lmcode |
+| LBJ104 | key literally `password` (exact, no `password_hint` false positive) | query + `#eq?` predicate (needs E1) |
+
+(LBC001/LBC004 moved their callee regexes from pack `text_matches` into the
+query as `#match?` predicates — same behavior, sharper form.)
 
 ## Tier 2 — needs a named extension
 
-- **E1: host-side evaluation of query predicates (`#eq?`, `#match?`).**
-  Unlocks: case-insensitive credential-key matching (`(#match? @key
-  "(?i)password")`); value-aware rules (key equals "password" AND value
-  empty); "call X with literal argument Y" without a post-regex.
+- **E1: host-side evaluation of query predicates — LANDED (v0.3.3).**
+  `#eq?`/`#not-eq?` (capture text vs literal or another capture) and
+  `#match?`/`#not-match?` are evaluated per match in the single query path
+  (`node_query`), so DSL `ts.query*`, pack `query` rules, and the CLI `query`
+  subcommand all share it. Semantics follow upstream
+  (`satisfies_text_predicates` in the Rust binding): text equality for
+  `#eq?`, and **unanchored** regex for `#match?` (upstream uses
+  `regex::is_match`; the "anchored" convention is that query AUTHORS write
+  `^...$` — verified against the upstream docs' own examples). Unknown
+  predicates/directives (`#set!`, `#is?`, `any-of?`, `any-*`) are ignored
+  like the tree-sitter CLI. Shipped with it: LBC106, LBJ104; LBC001/LBC004
+  upgraded to predicate form. Note: pack `text_matches` is now partly
+  redundant with `#match?` for query rules — kept, since it still applies to
+  `on`-kind rules.
 - **E2: `Node.parent()` upward navigation — LANDED (v0.3.2).** Contract:
   `Node.has_parent() -> bool` (false at root) and `Node.parent() -> Node`
   (root call is a located run-time error, exit 3 — no fake self-node).

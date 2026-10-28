@@ -3,6 +3,7 @@
   "db": {
     "password": "hunter2"
   },
+  "password_hint": "none",
   "api_secret": "x",
   "status": "TODO",
   "retry": null,

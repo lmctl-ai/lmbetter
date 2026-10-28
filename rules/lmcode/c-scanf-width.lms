@@ -1,0 +1,34 @@
+# Chapter: Rules (lmcode) - scanf without field width (tier 2: query predicates)
+# Shows: #match? predicate selecting calls, two-capture pairing (fn + format), width heuristic
+# Run: lmscript rules/lmcode/c-scanf-width.lms   (then: lmbetter --dsl build/rules-lmcode/c-scanf-width.dslb)
+# Needs: nothing (offline); reads tests/fixtures/c-scanf-violations.c
+# exit: 0
+# expect:
+#|[{"row":5,"col":2,"end_row":5,"end_col":7,"rule":"LBC106","severity":"major","message":"scanf-family call without field width in \"%s\""}]
+#|1 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# The #match? predicate does the function-name selection inside the query
+# (tier-2 extension E1). This rule needs TWO captures per match, so it cannot
+# conform to the single-node Rule interface — the pairing loop below zips the
+# flat capture list (matches in byte order, captures in pattern order: @fn
+# then @fmt per match).
+
+fn check_scanf(fn_node: Node, fmt_node: Node) -> void {
+  # string_content text without quotes; "%15s" does not contain "%s".
+  let fmt = fmt_node.text();
+  if (str_contains(fmt, "%s") || str_contains(fmt, "%[")) {
+    ts.report(fn_node, "scanf-family call without field width in \"" + fmt + "\"", "LBC106", "major");
+  }
+}
+
+let tree = ts.parse_c(file_read("tests/fixtures/c-scanf-violations.c"));
+let calls = ts.query_c(tree.root(), "((call_expression function: (identifier) @fn (argument_list (string_literal (string_content) @fmt))) (#match? @fn \"^(f)?scanf$\"))");
+for (x in range(0, calls.len() / 2)) {
+  check_scanf(calls.at(2 * x), calls.at(2 * x + 1));
+}
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/rules-lmcode/c-scanf-width.dslb");

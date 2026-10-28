@@ -34,6 +34,12 @@
       "text_matches": "^[0-9]+$",
       "message": "number encoded as string: {text}",
       "severity": "minor"
+    },
+    {
+      "id": "LBJ104",
+      "query": "((pair key: (string (string_content) @k)) (#eq? @k \"password\"))",
+      "message": "exact password key",
+      "severity": "critical"
     }
   ]
 }

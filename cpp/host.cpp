@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <new>
+#include <regex>
 #include <tree_sitter/api.h>
 
 extern "C" const TSLanguage *tree_sitter_json(void);
@@ -150,6 +151,87 @@ static const char *query_error_word(TSQueryError error) {
   }
 }
 
+// ---- query predicates (E1) -------------------------------------------------
+// Evaluated per match, following the upstream tree-sitter semantics (see
+// lib/binding_rust/lib.rs satisfies_text_predicates): #eq?/#not-eq? compare
+// capture node TEXT (source slice) against a literal or another capture;
+// #match?/#not-match? apply an UNANCHORED ECMAScript regex to the text
+// (upstream uses regex::is_match; authors anchor with ^...$ themselves).
+// With quantified captures the predicate must hold for ALL nodes under the
+// capture (upstream's match_all behavior for the non-any variants). Unknown
+// operators (#set!, #is?, #any-of?, ...) are directives/unsupported
+// predicates and are IGNORED, like the tree-sitter CLI.
+static Node wrap_node(const Tree *owner, TSNode raw) {
+  Node node;
+  node.owner = owner;
+  new (node.bytes) TSNode(raw);
+  return node;
+}
+
+static std::vector<std::string> capture_texts(const TSQueryMatch &match, uint32_t capture_index,
+                                              const Tree *owner) {
+  std::vector<std::string> texts;
+  for (uint16_t c = 0; c < match.capture_count; ++c)
+    if (match.captures[c].index == capture_index)
+      texts.push_back(node_text(wrap_node(owner, match.captures[c].node)));
+  return texts;
+}
+
+static bool predicates_ok(const TSQuery *query, const TSQueryMatch &match, const Tree *owner) {
+  uint32_t step_count = 0;
+  const TSQueryPredicateStep *steps =
+      ts_query_predicates_for_pattern(query, match.pattern_index, &step_count);
+  if (!steps) return true;
+  uint32_t i = 0;
+  while (i < step_count) {
+    if (steps[i].type != TSQueryPredicateStepTypeString) { // malformed; skip to Done
+      while (i < step_count && steps[i].type != TSQueryPredicateStepTypeDone) ++i;
+      ++i;
+      continue;
+    }
+    uint32_t len = 0;
+    const char *op = ts_query_string_value_for_id(query, steps[i].value_id, &len);
+    const std::string opname(op, len);
+    ++i;
+    std::vector<std::pair<bool, uint32_t>> args; // (is_capture, value_id)
+    while (i < step_count && steps[i].type != TSQueryPredicateStepTypeDone) {
+      args.push_back({steps[i].type == TSQueryPredicateStepTypeCapture, steps[i].value_id});
+      ++i;
+    }
+    ++i; // past Done
+    if (opname != "eq?" && opname != "not-eq?" && opname != "match?" && opname != "not-match?")
+      continue; // unknown predicate/directive: ignore
+    if (args.size() != 2 || !args[0].first) continue; // malformed: ignore
+    const std::vector<std::string> texts = capture_texts(match, args[0].second, owner);
+    const bool positive = opname == "eq?" || opname == "match?";
+    bool all_ok = true;
+    if (args[1].first) { // capture-vs-capture (eq? family)
+      const std::vector<std::string> other = capture_texts(match, args[1].second, owner);
+      for (const auto &t : texts)
+        for (const auto &o : other)
+          if ((t == o) != positive) { all_ok = false; break; }
+    } else {
+      uint32_t slen = 0;
+      const char *sv = ts_query_string_value_for_id(query, args[1].second, &slen);
+      const std::string operand(sv, slen);
+      if (opname == "match?" || opname == "not-match?") {
+        std::regex re;
+        try { re = std::regex(operand); }
+        catch (const std::regex_error &) {
+          throw QueryError("invalid #match? regex '" + operand + "'");
+        }
+        for (const auto &t : texts)
+          if (static_cast<bool>(std::regex_search(t, re)) != positive) { all_ok = false; break; }
+      } else {
+        for (const auto &t : texts)
+          if ((t == operand) != positive) { all_ok = false; break; }
+      }
+    }
+    if (!all_ok) return false;
+  }
+  return true;
+}
+
 NodeList node_query(const Node &root_node, const std::string &pattern, Grammar grammar) {
   uint32_t error_offset = 0;
   TSQueryError error_type = TSQueryErrorNone;
@@ -164,6 +246,7 @@ NodeList node_query(const Node &root_node, const std::string &pattern, Grammar g
   NodeList list;
   TSQueryMatch match;
   while (ts_query_cursor_next_match(cursor, &match)) {
+    if (!predicates_ok(query, match, root_node.owner)) continue;
     for (uint16_t i = 0; i < match.capture_count; ++i) {
       Node node;
       node.owner = root_node.owner;

@@ -179,9 +179,13 @@ VS Code interop) in pure lmcode. Since v0.2.3, `ts.query(root, pattern)` runs a
 tree-sitter S-expression query over the subtree at `root` and returns every
 captured node as a `NodeList` (match/byte order; duplicates kept; a pattern
 with zero captures yields an empty list; an invalid pattern is a runtime
-error naming the byte offset and reason). Query predicates (`#eq?` and
-friends) are NOT evaluated — do text checks in lmcode, which is the
-user-redefinable part anyway; see `examples/query-json.lms`. Since v0.2.4, a
+error naming the byte offset and reason). Since v0.3.3 the predicates
+`#eq?`/`#not-eq?` (capture text vs literal or another capture) and
+`#match?`/`#not-match?` (ECMAScript regex over capture text, UNANCHORED like
+upstream tree-sitter — anchor with `^...$` yourself) are evaluated per match;
+unknown predicates/directives (`#set!`, `#is?`, `any-*`, ...) are ignored, as
+the tree-sitter CLI does. Published query files using these predicates now
+work as written. Since v0.2.4, a
 second grammar is vendored: tree-sitter-c (pinned in `deps.lock`) with
 `ts.parse_c(text)` / `ts.query_c(root, pattern)` mirroring the JSON pair — see
 `examples/lint-c.lms` for real security rules over C. See `examples/` for

@@ -89,7 +89,9 @@ struct QueryError : std::runtime_error {
 // the subtree at root, in cursor order (matches in byte order, captures in
 // pattern order within a match). Duplicate nodes across captures/matches are
 // kept. A pattern with zero captures yields an empty list. Query predicates
-// (#eq? and friends) are NOT evaluated — do text checks in lmcode.
+// #eq?/#not-eq?/#match?/#not-match? are evaluated per match (capture text;
+// #match? is UNANCHORED, matching upstream tree-sitter — authors anchor with
+// ^...$); unknown predicates/directives (#set!, #is?, any-*, ...) are ignored.
 NodeList node_query(const Node &root, const std::string &pattern, Grammar grammar);
 
 // Node kind (ts_node_type), e.g. "document", "object", "pair", "string".

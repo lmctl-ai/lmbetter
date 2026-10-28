@@ -35,6 +35,31 @@ path (and the savedsl target) into a scratch copy and asserts zero findings.
 Nothing turned out non-tier-1 in this batch — all four rule families fit
 current lmcode.
 
+## E1 landed: query predicates (v0.3.3)
+
+`node_query` evaluates `#eq?`/`#not-eq?` (capture text vs literal/capture)
+and `#match?`/`#not-match?` (ECMAScript regex) per match; a failing match
+contributes no captures. Semantics follow upstream's
+`satisfies_text_predicates` (lib/binding_rust): text equality for eq, and
+**unanchored** regex for match (`regex::is_match`) — the "anchored"
+convention lives in query AUTHORS writing `^...$`, not in the engine; the
+task brief assumed engine-side anchoring, the upstream evidence
+(docs examples + binding source) says otherwise, and compatibility with
+published queries wins. Unknown operators (`#set!`, `#is?`, `any-of?`,
+`any-*`) are ignored like the tree-sitter CLI (over-matching risk for
+`any-*` noted as follow-up). C-API quirk: predicate steps carry no operator
+field — the operator name is the first String step of each predicate.
+Caveat: the `Rule` SAM is single-node, so multi-capture rules (LBC106's
+fn+fmt pairing) cannot `implements Rule` — a v6 entry-table design note.
+
+Rules: LBC001/LBC004 moved their callee regexes into the query as `#match?`
+(same findings, sharper form); new LBJ104 (exact `password` key via `#eq?` —
+`password_hint` was added to the violations fixture, where broad LBJ001 fires
+and exact LBJ104 does not; it could NOT go in the clean fixture because
+LBJ001's intentional substring match would fire there); new LBC106
+(scanf-family without field width; `#match?` selects the callee, lmcode does
+the width heuristic via the flat capture-pair zip).
+
 ## E2 landed: Node.parent() (v0.3.2)
 
 Contract: `Node.has_parent() -> bool` (false at root) + `Node.parent() ->
@@ -63,7 +88,7 @@ of the outer body), so no parent() fix was needed.
 
 ## Tier-2 extension plan
 
-E1 query predicates (#eq?/#match?) host-side; E2 Node.parent(); E3 same-file
-symbol index; E4 multi-file/directory lint; E5 incremental re-parse. Rules
-each unlocks: docs/rule-tiers.md. Tier 3 (types, CFG, dataflow, taint) stays
-deferred.
+LANDED: E1 query predicates (v0.3.3, above), E2 Node.parent() (v0.3.2).
+Remaining: E3 same-file symbol index; E4 multi-file/directory lint; E5
+incremental re-parse. Rules each unlocks: docs/rule-tiers.md. Tier 3 (types,
+CFG, dataflow, taint) stays deferred.

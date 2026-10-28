@@ -61,7 +61,8 @@ carry row/col/end_row/end_col plus the message, and the 4-arg overload adds
 free-form `rule`/`severity` strings (emitted by `report_json` only when
 present; the host validates nothing — policy is script-side). `ts.query`
 returns captured nodes in match/byte order (duplicates across
-captures/matches kept) and does NOT evaluate query predicates (`#eq?` and
-friends) — text checks live in lmcode.
+captures/matches kept) and evaluates the standard query predicates
+(`#eq?`/`#not-eq?`/`#match?`/`#not-match?`; `#match?` is unanchored like
+upstream tree-sitter); unknown directives are ignored.
 
 `./test.sh` compiles and runs every example as part of the check suite.

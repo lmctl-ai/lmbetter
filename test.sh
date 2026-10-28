@@ -145,6 +145,36 @@ set +e; out="$("$HOST" parse --lang rust examples/data/sample.c 2>&1)"; code=$?;
 [ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust' (known: json, c)"* ]] || fail "unknown --lang (exit $code): $out"
 ok "unknown --lang refused with the known-languages list (exit 2)"
 
+# --- query predicates (E1) ---
+printf '{"pass": 1, "word": 2}' > "$WORK/mini.json"
+out="$("$HOST" query '(pair key: (string (string_content) @k) (#eq? @k "pass"))' "$WORK/mini.json")"
+[ "$out" = 'string_content 0:2-0:6' ] || fail "predicate eq exact: $out"
+ok "query predicate: #eq? exact text match fires"
+
+out="$("$HOST" query '(pair key: (string (string_content) @k) (#eq? @k "pas"))' "$WORK/mini.json")"
+[ -z "$out" ] || fail "predicate eq substring must not fire: $out"
+ok "query predicate: #eq? substring does not fire"
+
+out="$("$HOST" query '(pair key: (string (string_content) @k) (#not-eq? @k "pass"))' "$WORK/mini.json")"
+[ "$out" = 'string_content 0:13-0:17' ] || fail "predicate not-eq: $out"
+ok "query predicate: #not-eq? excludes the equal capture"
+
+# upstream tree-sitter evaluates #match? UNANCHORED (regex is_match); authors
+# anchor with ^...$ themselves — pin both halves of that contract.
+out="$("$HOST" query '(pair key: (string (string_content) @k) (#match? @k "pas"))' "$WORK/mini.json")"
+[ "$out" = 'string_content 0:2-0:6' ] || fail "predicate match unanchored: $out"
+out="$("$HOST" query '(pair key: (string (string_content) @k) (#match? @k "^pas$"))' "$WORK/mini.json")"
+[ -z "$out" ] || fail "predicate match anchored must not fire on 'pass': $out"
+ok "query predicate: #match? is unanchored (substring fires, ^...\$ does not)"
+
+out="$("$HOST" query '(pair key: (string (string_content) @k) (#not-match? @k "^pas"))' "$WORK/mini.json")"
+[ "$out" = 'string_content 0:13-0:17' ] || fail "predicate not-match: $out"
+ok "query predicate: #not-match? excludes regex hits"
+
+out="$("$HOST" query '((string_content) @c (#set! "role" "x"))' "$WORK/mini.json")"
+[ "$(grep -c string_content <<<"$out")" = 2 ] || fail "unknown directive must be ignored: $out"
+ok "query predicate: unknown directives (#set!) are ignored, match kept"
+
 # --- lint (rule-pack dispatcher) ---
 out="$("$HOST" lint examples/rules/c-security.json examples/data/sample.c)"
 [ "$out" = '{"row":4,"col":2,"end_row":4,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call '"'"'gets'"'"'"}
@@ -208,11 +238,13 @@ ok "lint: c-tier1 pack, all 10 rules fire on violations, clean fixture silent"
 cat >"$WORK/json-tier1.expected" <<'EXPECTED_J'
 {"row":1,"col":3,"end_row":1,"end_col":14,"rule":"LBJ004","severity":"minor","message":"key not snake_case: ServiceName"}
 {"row":3,"col":5,"end_row":3,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"password\""}
-{"row":5,"col":3,"end_row":5,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"api_secret\""}
-{"row":6,"col":13,"end_row":6,"end_col":17,"rule":"LBJ002","severity":"minor","message":"placeholder string TODO"}
-{"row":7,"col":11,"end_row":7,"end_col":15,"rule":"LBJ003","severity":"minor","message":"null value present"}
-{"row":8,"col":11,"end_row":8,"end_col":15,"rule":"LBJ005","severity":"minor","message":"number encoded as string: 8080"}
-6 findings in tests/fixtures/json-tier1-violations.json
+{"row":3,"col":5,"end_row":3,"end_col":13,"rule":"LBJ104","severity":"critical","message":"exact password key"}
+{"row":5,"col":3,"end_row":5,"end_col":16,"rule":"LBJ001","severity":"critical","message":"credential key \"password_hint\""}
+{"row":6,"col":3,"end_row":6,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"api_secret\""}
+{"row":7,"col":13,"end_row":7,"end_col":17,"rule":"LBJ002","severity":"minor","message":"placeholder string TODO"}
+{"row":8,"col":11,"end_row":8,"end_col":15,"rule":"LBJ003","severity":"minor","message":"null value present"}
+{"row":9,"col":11,"end_row":9,"end_col":15,"rule":"LBJ005","severity":"minor","message":"number encoded as string: 8080"}
+8 findings in tests/fixtures/json-tier1-violations.json
 EXPECTED_J
 cmp "$WORK/json-tier1.expected" "$WORK/json-tier1.out" || { diff "$WORK/json-tier1.expected" "$WORK/json-tier1.out" >&2; fail "json-tier1 violations output"; }
 out="$("$HOST" lint rules/json-tier1.json tests/fixtures/json-tier1-clean.json)"
@@ -338,7 +370,7 @@ ok "lint-repo: lmscript drives lmbetter lint and counts findings"
 
 # --- rules/lmcode (lmcode-native tier-1 rules) ---
 mkdir -p build/rules-lmcode
-for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits c-nesting-depth json-nesting-depth; do
+for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits c-nesting-depth json-nesting-depth c-scanf-width; do
   "$LMSCRIPT" "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f rule compile"
   "$HOST" --dsl "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
   while IFS= read -r line; do
@@ -353,7 +385,7 @@ for f in c-function-metrics c-switch-style json-duplicate-keys json-size-limits 
   grep -qxF '[]' <<<"$out" || fail "$f clean fixture findings: $out"
   grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
 done
-ok "rules/lmcode: six rule files fire on violations fixtures, silent on clean"
+ok "rules/lmcode: seven rule files fire on violations fixtures, silent on clean"
 
 if [ "$UNAME_S" = "Darwin" ]; then
   BAD_LIBS="$(otool -L "$HOST" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/\|^/System/Library/' || true)"
