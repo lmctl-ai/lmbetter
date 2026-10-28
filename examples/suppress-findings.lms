@@ -1,7 +1,8 @@
 # Chapter: Rules - nosonar-style suppression as pure lmcode policy
 # Shows: suppression post-filter with StrMap + json_parse/Json.to_json over ts.report_json
-# Run: lmscript examples/suppress-findings.lms      (then: lmbetter --dsl build/suppress-findings.dslb)
-# Needs: nothing (offline); the C source is embedded below.
+# Run: lmscript examples/suppress-findings.lms      (then: build/lmbetter --dsl build/suppress-findings.dslb)
+# Needs: README setup; repo root, build/ present, lmbetter on PATH; offline after setup.
+# Data: the C source is embedded below.
 # exit: 0
 # expect:
 #|[{"row":6,"col":2,"end_row":6,"end_col":8,"rule":"LBC001","severity":"critical","message":"unsafe call 'strcpy'"},{"row":7,"col":2,"end_row":7,"end_col":9,"rule":"LBC001","severity":"critical","message":"unsafe call 'sprintf'"},{"row":7,"col":40,"end_row":7,"end_col":71,"rule":"LBC002","severity":"minor","message":"unresolved FIXME comment"}]
