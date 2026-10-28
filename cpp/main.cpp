@@ -367,9 +367,15 @@ int main(int argc, char **argv) {
     // and dirs are skipped, only known extensions (.c/.h -> c, .json -> json)
     // are lintable, and paths are sorted for byte-stable output. An explicit
     // file keeps its argument order.
+    // Output canonicalization: all printed paths use forward slashes
+    // (fs::path::generic_string), on every OS — pinned outputs are
+    // platform-independent.
+    namespace fs = std::filesystem;
+    const auto canonical = [](const std::string &path) {
+      return fs::path(path).generic_string();
+    };
     struct Target { std::string path; bool from_dir; };
     std::vector<Target> targets;
-    namespace fs = std::filesystem;
     for (int i = 3; i < argc; ++i) {
       std::error_code ec;
       if (fs::is_directory(fs::path(argv[i]), ec)) {
@@ -386,16 +392,16 @@ int main(int argc, char **argv) {
           }
           if (hidden) continue;
           const std::string ext = p.extension().string();
-          if (ext == ".c" || ext == ".h" || ext == ".json") found.push_back(p.string());
+          if (ext == ".c" || ext == ".h" || ext == ".json") found.push_back(canonical(p.string()));
         }
         if (found.empty()) {
-          std::cerr << "no lintable files in " << argv[i] << " (want .c/.h/.json)\n";
+          std::cerr << "no lintable files in " << canonical(argv[i]) << " (want .c/.h/.json)\n";
           return 2;
         }
         std::sort(found.begin(), found.end());
         for (auto &f : found) targets.push_back({f, true});
       } else {
-        targets.push_back({argv[i], false});
+        targets.push_back({canonical(argv[i]), false});
       }
     }
     // Fail fast: the first unreadable file aborts the whole run (exit 3);

@@ -57,7 +57,10 @@ re-lint finds the inserted `gets` call).
 check uses `rfind(".", 0) == 0`, with `.`/`..` exempted so `lint pack .`
 works), expansion filtered to `.c`/`.h`/`.json`, hidden paths skipped, paths
 sorted for byte-stable output, lang-less files skipped silently, empty
-expansion exit 2, fail-fast unreadable exit 3 unchanged. Cross-file rule
+expansion exit 2, fail-fast unreadable exit 3 unchanged. Output paths are
+canonicalized to forward slashes (`fs::path::generic_string`) on every OS —
+both directory-expanded and explicitly-passed args — so pinned outputs are
+platform-independent (Windows CI produced `lintdir\a.c` before this). Cross-file rule
 LBC110 (`rules/lmcode/c-cross-file.lms`) unions defined/called sets over two
 files in pure lmcode — no host multi-file magic. Include-graph resolution and
 header/source pairing stay out of scope (tier 3). Fixtures:
