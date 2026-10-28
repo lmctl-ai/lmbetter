@@ -34,7 +34,7 @@ separately if your distribution's package is older than 24.15.0. On macOS,
 install CMake and Ninja as well as the command-line compiler tools.
 
 ```sh
-git clone https://github.com/lmctl-ai/lmbetter.git
+git clone https://github.com/lmctl-ai/lmok.git
 cd lmbetter
 npm install -g @lmctl-ai/lmctl@0.2.442
 lmscript --version   # lmscript 0.2.442

@@ -2,7 +2,7 @@
 
 Technical documentation and operational notes for `lmbetter`.
 `lmbetter` embeds tree-sitter 0.27.1 with the tree-sitter-json and tree-sitter-c grammars as a standalone CLI host for lmscript.
-Repository: https://github.com/lmctl-ai/lmbetter.
+Repository: https://github.com/lmctl-ai/lmok.
 
 ## Document map
 

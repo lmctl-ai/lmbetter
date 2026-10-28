@@ -2,7 +2,7 @@
 
 Reviewed 2026-10-28 on branch `docs/user-journey`, starting at
 `dd3690ddbd0bfe3e706f2f2f2d965e5f3c095d45`.
-The [published README](https://github.com/lmctl-ai/lmbetter/blob/main/README.md)
+The [published README](https://github.com/lmctl-ai/lmok/blob/main/README.md)
 was fetched from GitHub's raw endpoint and matched the starting checkout.
 All changes in this review are documentation or example header comments;
 script behavior and `# expect:` / `#|` lines are unchanged.
@@ -46,11 +46,11 @@ The executable reports `lmbetter 0.4.0`; its actual SHA-256 is:
 ```
 
 That matches the ARM64 entry in the published
-[dist SHA256SUMS](https://github.com/lmctl-ai/lmbetter/blob/dist/SHA256SUMS).
+[dist SHA256SUMS](https://github.com/lmctl-ai/lmok/blob/dist/SHA256SUMS).
 Both `lmscript install github:lmctl-ai/lmbetter@latest` and the explicit
 `@v0.4.0` selector resolved successfully. The
-[v0.4.0 release](https://github.com/lmctl-ai/lmbetter/releases/tag/v0.4.0)
-and [dist branch](https://github.com/lmctl-ai/lmbetter/tree/dist) each expose
+[v0.4.0 release](https://github.com/lmctl-ai/lmok/releases/tag/v0.4.0)
+and [dist branch](https://github.com/lmctl-ai/lmok/tree/dist) each expose
 five platform executables plus SHA256SUMS. Only Linux ARM64 was executed;
 asset presence does not establish runtime correctness on the other four.
 
