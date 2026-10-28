@@ -38,6 +38,15 @@ the TODO in scripts/select-compiler.sh).
   nodes). The stated future direction is a DSLB v6 rule entry table
   (annotation + interface per rule; the host walks once and dispatches by
   node kind).
+- **Void rules can't count** (R35 forbids caller-local captures, and
+  `implements Rule` fixes the signature to `(Node) -> void`), so
+  `examples/lint-json.lms` needs int predicate helpers evaluated twice.
+  LANDED in v0.2.2: the host findings sink — `ts.report(node, message)` /
+  `ts.report_count()` / `ts.report_json()` (per-`--dsl`-file state in the
+  Host arena, reset before each program run like the SDK's per-run collection
+  reset; capped at 65536 findings). Rules are now just annotated void fns
+  calling `ts.report`; rendering stays script-side. See
+  `examples/report-json.lms`.
 - **No recursion in lmcode**: `examples/cst-rules.lms` walks the CST with
   fixed-depth nested loops. LANDED in v0.2.1: `Tree.nodes() -> NodeList`
   (flat pre-order list of NAMED nodes, root first; `len()` + bounds-checked

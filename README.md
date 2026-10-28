@@ -81,8 +81,12 @@ analysis rules are user-redefinable scripts over the CST — see
 require `lmscript` >= 0.2.442. Since v0.2.1, `Tree.nodes()` returns a
 `NodeList` (flat pre-order list of named nodes, root first; `.len()` and
 bounds-checked `.at(i)`), so `for (n in tree.nodes())` runs a whole-tree scan
-in one foreach — see `examples/lint-json.lms`. See `examples/` for runnable
-scripts.
+in one foreach — see `examples/lint-json.lms`. Since v0.2.2, the host keeps a
+per-run findings sink: `ts.report(node, message)` appends a finding
+{row, col, end_row, end_col, message} (0-based positions, capped at 65536 per
+run), read back with `ts.report_count()` and `ts.report_json()` (a JSON array
+string with stable key order) — the script decides the rendering, see
+`examples/report-json.lms`. See `examples/` for runnable scripts.
 
 ## Repository layout
 

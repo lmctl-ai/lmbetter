@@ -25,10 +25,18 @@ using dslvm::Args;
 using dslvm::Value;
 
 // ---- arena for schema object handles ----
+struct Finding {
+  int64_t row, col, end_row, end_col; // 0-based, tree-sitter convention
+  std::string message;
+};
+
 struct Host {
   std::vector<std::unique_ptr<lmbetter::Tree>> trees;
   std::vector<std::unique_ptr<lmbetter::Node>> nodes;
   std::vector<std::unique_ptr<lmbetter::NodeList>> node_lists;
+  // Findings collected via ts.report; reset per --dsl file (see the run loop),
+  // matching the SDK's per-run reset of standard collection handles.
+  std::vector<Finding> findings;
   template <class T>
   Value hold(std::vector<std::unique_ptr<T>> &arena, const char *type, T value) {
     if (arena.size() >= 65536)
@@ -67,6 +75,27 @@ std::string read_file(const std::string &path) {
   return data.str();
 }
 
+// JSON string escaping for ts.report_json output.
+std::string json_escape(const std::string &s) {
+  std::string out;
+  for (unsigned char c : s) {
+    switch (c) {
+    case '"': out += "\\\""; break;
+    case '\\': out += "\\\\"; break;
+    case '\n': out += "\\n"; break;
+    case '\r': out += "\\r"; break;
+    case '\t': out += "\\t"; break;
+    default:
+      if (c < 0x20) {
+        char buf[8];
+        std::snprintf(buf, sizeof buf, "\\u%04x", c);
+        out += buf;
+      } else out += static_cast<char>(c);
+    }
+  }
+  return out;
+}
+
 // ---- DSL registry: the schema implementation ----
 void register_host(dslvm::Registry &reg, Host &host) {
   reg.context("ts", "Ts");
@@ -80,6 +109,33 @@ void register_host(dslvm::Registry &reg, Host &host) {
   // compiler resolves ts.parse(...) as a method call on the context object.
   reg.method("Ts", "parse", {"string"}, "Tree", [&host](void *, Args &args) {
     return host.hold(host.trees, "Tree", lmbetter::parse_json(args[0].s));
+  });
+  // The findings sink: rules are void fns, so they report into the host and
+  // the chunk body reads the collection back (count / JSON array string).
+  reg.method("Ts", "report", {"Node", "string"}, "void", [&host](void *, Args &args) {
+    if (host.findings.size() >= 65536)
+      throw dslvm::Error("report limit exceeded (65536)");
+    const lmbetter::Node *n = node_of(args[0].obj, "report");
+    host.findings.push_back({lmbetter::node_start_row(*n), lmbetter::node_start_col(*n),
+                             lmbetter::node_end_row(*n), lmbetter::node_end_col(*n), args[1].s});
+    return Value::none();
+  });
+  reg.method("Ts", "report_count", {}, "int", [&host](void *, Args &) {
+    return Value::integer(static_cast<int64_t>(host.findings.size()));
+  });
+  reg.method("Ts", "report_json", {}, "string", [&host](void *, Args &) {
+    std::ostringstream out;
+    out << "[";
+    bool first = true;
+    for (const auto &f : host.findings) {
+      if (!first) out << ",";
+      first = false;
+      out << "{\"row\":" << f.row << ",\"col\":" << f.col
+          << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col
+          << ",\"message\":\"" << json_escape(f.message) << "\"}";
+    }
+    out << "]";
+    return Value::string(out.str());
   });
 
   reg.method("Tree", "sexp", {}, "string", [](void *s, Args &) {
@@ -220,6 +276,7 @@ int main(int argc, char **argv) {
       }
     }
     for (const auto &program : programs) {
+      host.findings.clear(); // findings are per-file state
       try {
         program.run(context, reg);
       } catch (const dslvm::Error &error) {

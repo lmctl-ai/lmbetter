@@ -11,6 +11,27 @@
             ],
             "returns": "Tree"
           }
+        ],
+        "report": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "void"
+          }
+        ],
+        "report_count": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "report_json": [
+          {
+            "params": [],
+            "returns": "string"
+          }
         ]
       }
     },

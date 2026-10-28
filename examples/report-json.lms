@@ -1,0 +1,60 @@
+# Chapter: Rules - lint a JSON document with the host findings sink
+# Shows: ts.report/report_json/report_count, Tree.nodes + foreach, @NODE-KIND fn ... implements Rule
+# Run: lmscript examples/report-json.lms      (then: lmbetter --dsl build/report-json.dslb)
+# Needs: nothing (offline); the JSON fixture is embedded below.
+# exit: 0
+# expect:
+#|[{"row":2,"col":10,"end_row":2,"end_col":14,"message":"magic port 1337"},{"row":5,"col":4,"end_row":5,"end_col":25,"message":"password key \"password\""},{"row":7,"col":12,"end_row":7,"end_col":18,"message":"placeholder string \"TODO\""}]
+#|3 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# One rule = one annotated void fn implementing the schema's SAM interface
+# Rule. Each rule just reports into the host sink: no predicate helpers, no
+# manual counting (compare examples/lint-json.lms, which needs both because a
+# void rule cannot update a chunk-level counter). The annotation names the
+# tree-sitter CST node kind the rule subscribes to; it is compile-time
+# metadata only, so each rule still re-checks n.kind() itself.
+
+@PAIR
+fn no_password_key(n: Node) -> void implements Rule {
+  if (n.kind() == "pair" && str_contains(n.child(0).text(), "password")) {
+    ts.report(n, "password key " + n.child(0).text());
+  }
+}
+
+@STRING
+fn no_placeholder(n: Node) -> void implements Rule {
+  if (n.kind() == "string" && n.child_count() > 0) {
+    let content = n.child(0).text();
+    if (content == "TODO" || content == "CHANGEME") {
+      ts.report(n, "placeholder string " + n.text());
+    }
+  }
+}
+
+@NUMBER
+fn no_magic_port(n: Node) -> void implements Rule {
+  if (n.kind() == "number" && n.text() == "1337") {
+    ts.report(n, "magic port " + n.text());
+  }
+}
+
+fn apply_rules(n: Node) -> void {
+  no_password_key(n);
+  no_placeholder(n);
+  no_magic_port(n);
+}
+
+let tree = ts.parse("{\n  \"service\": \"demo\",\n  \"port\": 1337,\n  \"auth\": {\n    \"user\": \"root\",\n    \"password\": \"hunter2\"\n  },\n  \"status\": \"TODO\"\n}");
+
+for (n in tree.nodes()) {
+  apply_rules(n);
+}
+
+# Findings carry 0-based row/col/end_row/end_col captured from the node; the
+# script decides the rendering (here: one JSON array plus a summary line).
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/report-json.dslb");
