@@ -7,6 +7,7 @@
 // values so no tree-sitter header leaks into this file.
 
 #include <cstdint>
+#include <functional>
 #include <regex>
 #include <string>
 #include <stdexcept>
@@ -114,6 +115,10 @@ struct NodeList {
 
 // Pre-order traversal of the named nodes of tree (root first).
 NodeList tree_nodes(const Tree &tree);
+
+// Single pre-order cursor walk including anonymous tokens. The callback may
+// inspect/query nodes; it must not edit the tree while its cursor is live.
+void walk_nodes(const Tree &tree, const std::function<void(const Node &)> &visit);
 
 // Thrown by node_query for an invalid pattern: what() is
 // "query error at byte offset N: <syntax|node-type|field|capture|structure|language>".

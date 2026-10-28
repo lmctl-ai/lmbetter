@@ -199,6 +199,23 @@ NodeList tree_nodes(const Tree &tree) {
   return list;
 }
 
+void walk_nodes(const Tree &tree, const std::function<void(const Node &)> &visit) {
+  struct Cursor {
+    TSTreeCursor value;
+    ~Cursor() { ts_tree_cursor_delete(&value); }
+  } cursor{ts_tree_cursor_new(root(tree))};
+  for (;;) {
+    Node node;
+    node.owner = &tree;
+    new (node.bytes) TSNode(ts_tree_cursor_current_node(&cursor.value));
+    visit(node); // do not filter named nodes: @if denotes an anonymous token
+    if (ts_tree_cursor_goto_first_child(&cursor.value)) continue;
+    while (!ts_tree_cursor_goto_next_sibling(&cursor.value)) {
+      if (!ts_tree_cursor_goto_parent(&cursor.value)) return;
+    }
+  }
+}
+
 std::string node_kind(const Node &node) { return ts_node_type(ts(node)); }
 
 std::string node_text(const Node &node) {

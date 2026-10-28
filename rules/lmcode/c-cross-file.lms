@@ -1,6 +1,7 @@
 # Chapter: Rules (lmcode) - cross-file symbol check (tier-2 E4, script-side)
 # Shows: two files, union defined/called sets via StrMap, report only on the calling file
 # Run: lmscript rules/lmcode/c-cross-file.lms   (then: lmbetter --dsl build/rules-lmcode/c-cross-file.dslb)
+# dispatch: body-only multi-file example (use --dsl; it is not an entry-dispatch rule)
 # Needs: nothing (offline); reads tests/fixtures/cross/{a.c,b.c}
 # exit: 0
 # expect:

@@ -15,3 +15,4 @@ Repository: https://github.com/lmctl-ai/lmok.
 | [05-rule-tiers.md](05-rule-tiers.md) | Three-tier rule strategy, shipped packs, dropped candidates, tier-2 plan |
 | [06-realworld-validation.md](06-realworld-validation.md) | c-tier1 validated against real-world C codebases (sds, kilo, cJSON) |
 | [07-robustness.md](07-robustness.md) | Bounded queries/regexes, input hardening, finding output escaping |
+| [08-v6-entry-dispatch.md](08-v6-entry-dispatch.md) | v6 lmcode entry loading, CST dispatch, findings and CLI contract |

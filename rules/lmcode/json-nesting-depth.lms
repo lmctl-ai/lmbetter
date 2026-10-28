@@ -1,12 +1,13 @@
 # Chapter: Rules (lmcode) - deep value nesting in JSON (tier 2: Node.parent)
 # Shows: Node.has_parent/parent chain walk, container-kind predicate
-# Run: lmscript rules/lmcode/json-nesting-depth.lms   (then: lmbetter --dsl build/rules-lmcode/json-nesting-depth.dslb)
+# Run: lmscript rules/lmcode/json-nesting-depth.lms   (then: lmbetter check --lang json build/rules-lmcode/json-nesting-depth.dslb tests/fixtures/json-nesting-violations.json)
+# check: json tests/fixtures/json-nesting-violations.json
 # Needs: nothing (offline); reads tests/fixtures/json-nesting-violations.json
 # exit: 0
 # expect:
 #|[{"row":0,"col":36,"end_row":0,"end_col":44,"rule":"LBJ103","severity":"major","message":"value nested 7 levels deep (max 6)"}]
 #|1 findings
-p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _lmcode_ cli="lmbetter";
 
 # Depth = number of object/array containers on the ancestor chain (self
 # included); pairs and scalars don't count. Report the deepest container only:
@@ -34,10 +35,8 @@ fn no_deep_nesting(n: Node) -> void implements Rule {
   }
 }
 
-let tree = ts.parse(file_read("tests/fixtures/json-nesting-violations.json"));
-for (n in tree.nodes()) { no_deep_nesting(n); }
-println(ts.report_json());
-println(str(ts.report_count()) + " findings");
+@array
+fn no_deep_nesting_array(n: Node) -> void implements Rule { no_deep_nesting(n); }
 
 end _lmcode_
 savedsl(p, "build/rules-lmcode/json-nesting-depth.dslb");

@@ -1,12 +1,13 @@
 # Chapter: Rules (lmcode) - C switch/branch style
 # Shows: @switch_statement/@if_statement rules, kind checks over children, text prefix check for default
-# Run: lmscript rules/lmcode/c-switch-style.lms   (then: lmbetter --dsl build/rules-lmcode/c-switch-style.dslb)
+# Run: lmscript rules/lmcode/c-switch-style.lms   (then: lmbetter check --lang c build/rules-lmcode/c-switch-style.dslb tests/fixtures/c-logic-violations.c)
+# check: c tests/fixtures/c-logic-violations.c
 # Needs: nothing (offline); reads tests/fixtures/c-logic-violations.c
 # exit: 0
 # expect:
 #|[{"row":72,"col":2,"end_row":75,"end_col":3,"rule":"LBC103","severity":"minor","message":"switch without default"},{"row":80,"col":13,"end_row":80,"end_col":17,"rule":"LBC104","severity":"minor","message":"if without braces"}]
 #|2 findings
-p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _lmcode_ cli="lmbetter";
 
 # default: is a case_statement WITHOUT a value; in lmcode the robust check is
 # the text prefix (the keyword is part of the node text).
@@ -35,13 +36,6 @@ fn if_without_braces(n: Node) -> void implements Rule {
     ts.report(n.child(1), "if without braces", "LBC104", "minor");
   }
 }
-
-let tree = ts.parse_c(file_read("tests/fixtures/c-logic-violations.c"));
-let root = tree.root();
-for (s in ts.query_c(root, "(switch_statement) @s")) { switch_without_default(s); }
-for (i in ts.query_c(root, "(if_statement) @i")) { if_without_braces(i); }
-println(ts.report_json());
-println(str(ts.report_count()) + " findings");
 
 end _lmcode_
 savedsl(p, "build/rules-lmcode/c-switch-style.dslb");

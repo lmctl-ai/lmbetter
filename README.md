@@ -24,7 +24,7 @@ Prerequisites for the commands below (Bash on Linux or macOS):
 - CMake >= 3.24, Ninja, and C/C++ compilers with C++17 support (GCC or Clang).
   Linux builds also need static C/C++ runtime libraries; on Ubuntu these
   come with `build-essential`. On macOS install Xcode Command Line Tools.
-- Node.js >= 24.15.0 and npm for `@lmctl-ai/lmctl@0.2.442`.
+- Node.js >= 24.15.0 and npm for `@lmctl-ai/lmctl@0.2.444`.
 - Python 3 for `./test.sh`, plus the usual Unix shell utilities. The SDK
   headers are already checked in; no sibling `lmcode-cpp` checkout is needed.
 
@@ -36,8 +36,9 @@ install CMake and Ninja as well as the command-line compiler tools.
 ```sh
 git clone https://github.com/lmctl-ai/lmok.git
 cd lmbetter
-npm install -g @lmctl-ai/lmctl@0.2.442
-lmscript --version   # lmscript 0.2.442
+npm install --prefix /tmp/lmok-tools @lmctl-ai/lmctl@0.2.444
+export PATH="/tmp/lmok-tools/node_modules/.bin:$PATH"
+lmscript --version   # lmscript 0.2.444
 scripts/sync-deps.sh   # pinned tree-sitter sources (third_party/, git-ignored)
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
@@ -53,7 +54,7 @@ add its global executable directory to PATH too.
 Produces `build/lmbetter`: one statically linked executable (`ldd` reports
 "not a dynamic executable" on Linux; macOS links only system libraries).
 The test suite rebuilds the host, checks dependency pins, and runs examples
-and rule fixtures; on Linux this revision ends with `PASS: 53 checks`.
+and rule fixtures; on Linux this revision ends with `PASS: 77 checks`.
 
 ```sh
 lmscript examples/parse-string.lms
@@ -111,6 +112,7 @@ lmbetter --dsl-signatures
 lmbetter parse [--lang json|c|python|bash] FILE          # '-' reads stdin
 lmbetter query [--lang json|c|python|bash] PATTERN FILE  # '-' reads stdin
 lmbetter lint RULES.json FILE...
+lmbetter check [--lang json|c|python|bash] RULES.dslb FILE...
 lmbetter --dsl FILE [FILE ...]
 ```
 
@@ -141,8 +143,18 @@ $ lmbetter lint examples/rules/c-security.json examples/data/sample.c
 1 findings in examples/data/sample.c
 ```
 
-The `--dsl` interface runs lmscript bytecode against the same engine with
-structured access to parsed trees.
+The `--dsl` interface runs the body of lmscript bytecode against the same engine
+with structured access to parsed trees. `check RULES.dslb FILE...` is the v6
+entry path: it loads one DSLB file, indexes entries by annotation, runs its
+body once, then parses and walks each explicit input file once. It dispatches
+matching entries in source order, including anonymous tree-sitter kinds, and
+emits the existing `ts.report_json()` findings plus `N findings` and
+the standard success record for each input. Files are explicit; directories
+and stdin are not accepted. A fresh host arena and findings sink are used per
+input. Rule and severity metadata come from `ts.report` payloads; entry names
+are not silently used as finding ids. DSLB v6 is the only accepted runtime
+format, so old bytecode must be recompiled. Install the private compiler with
+`npm install --prefix /tmp/lmok-tools @lmctl-ai/lmctl@0.2.444` when needed.
 
 ## Rule packs
 
@@ -166,10 +178,8 @@ structured access to parsed trees.
   the pack owns the vocabulary).
 - Selector — exactly one of (both present is a pack error, exit 2):
   - `on`: a tree-sitter node kind, matched against NAMED nodes. This mirrors
-    the `@ANNOTATION` value of an lmcode rule fn and is the v6-pluggable
-    path: when the v6 bytecode rule entry table lands, `--dsl` chunks will
-    export annotated rules and this same kind-indexed dispatcher will walk
-    once and dispatch to them.
+    the `@ANNOTATION` value of an lmcode rule fn. The `check` subcommand uses
+    the v6 entry table and this same kind-indexed dispatcher.
   - `query`: an S-expression pattern; every captured node of every match is a
     candidate.
 - `text_matches`: optional `std::regex` (ECMAScript) applied with
@@ -259,8 +269,9 @@ root) and `.parent()` (a located run-time error at the root). The schema also de
 `Rule(n: Node) -> void`: top-level lmcode functions can carry a `@NODE-KIND`
 annotation and an `implements Rule` clause (checked at compile time), so
 analysis rules are user-redefinable scripts over the CST — see
-[examples/cst-rules.lms](examples/cst-rules.lms) and [durable-memory/03-rule-methods.md](durable-memory/03-rule-methods.md). Rule methods
-require `lmscript` >= 0.2.442. Since v0.2.1, `Tree.nodes()` returns a
+[examples/cst-rules.lms](examples/cst-rules.lms) and [durable-memory/03-rule-methods.md](durable-memory/03-rule-methods.md). The v6 `check` command
+dispatches these entries by annotation; ordinary `--dsl` execution remains body-driven. Rule methods
+require `lmscript` >= 0.2.444. Since v0.2.1, `Tree.nodes()` returns a
 `NodeList` (flat pre-order list of named nodes, root first; `.len()` and
 bounds-checked `.at(i)`), so `for (n in tree.nodes())` runs a whole-tree scan
 in one foreach — see [examples/lint-json.lms](examples/lint-json.lms). Since v0.2.2, the host keeps a
@@ -304,7 +315,7 @@ runnable scripts.
 
 - `cpp/` — the CLI host: DSL VM integration plus the tree-sitter wrapper
 - `docs/` — design documents (e.g. `rule-snippets.md`: analysis rules as lmscript snippets)
-- `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.442 supplies the built-in standard library implicitly)
+- `schema/lmbetter.host.json` — the host-only DSL schema (copied to `schema/lmbetter.dsl.json` and embedded into the binary; `lmscript` >= 0.2.444 supplies the built-in standard library implicitly)
 - `examples/` — lmscript examples (plus `examples/rules/` demo packs)
 - `rules/` — the canonical rule library: tier-1 packs plus `rules/lmcode/` logic rules (see [rules/README.md](rules/README.md), [docs/rule-tiers.md](docs/rule-tiers.md))
 - `tests/fixtures/` — lint fixtures (violations fire every rule; clean guards false positives)

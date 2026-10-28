@@ -1,7 +1,7 @@
 # Examples
 
 Run from the repository root after the [build and setup](../README.md#build-and-run).
-Use `lmscript` >= 0.2.442 with the matching host on PATH:
+Use `lmscript` >= 0.2.444 with the matching host on PATH:
 
 ```sh
 export PATH="$PWD/build:$PATH"
@@ -87,8 +87,8 @@ idiom that replaces it for whole-tree scans; `report-json.lms` shows the
 `ts.report` sink that replaces the predicate-helper/counting idiom from
 `lint-json.lms`; `query-json.lms` shows S-expression selectors replacing
 structural navigation. Rule annotations (`@PAIR`, `@STRING`, `@NUMBER`) are
-compile-time metadata — nothing dispatches on them yet, so every rule runs on
-every node and re-checks `n.kind()` itself (or trusts the query's selection).
+v6 entry dispatch keys when the compiled file is run through `lmbetter check`.
+The ordinary `--dsl` examples remain body-driven and keep their explicit loops.
 Node rows/columns are 0-based (tree-sitter convention); `ts.report` findings
 carry row/col/end_row/end_col plus the message, and the 4-arg overload adds
 free-form `rule`/`severity` strings (emitted by `report_json` only when
@@ -99,3 +99,13 @@ captures/matches kept) and evaluates the standard query predicates
 upstream tree-sitter); unknown directives are ignored.
 
 `./test.sh` compiles and runs every example as part of the check suite.
+
+To run the entry dispatcher over an existing rule file and a C input, use the
+explicit language flag:
+
+```sh
+lmbetter check --lang c build/c-function-metrics.dslb examples/data/sample.c
+```
+
+The command parses each named input once and resets transient trees/findings
+between inputs. Cross-file aggregation remains a body-level `--dsl` concern.

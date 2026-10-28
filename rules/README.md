@@ -62,17 +62,22 @@ Three delivery forms, by how much logic a rule needs:
   functions defined in none of the input files), plus
   `python-function-metrics.lms` (LBP101 function too long) and
   `bash-unquoted-vars.lms` (LBS101 unquoted variable — expansion node with
-  no `string` ancestor, needs `Node.parent()`).
+  no `string` ancestor, needs `Node.parent()`). In DSLB v6, per-node files are
+  entry-only programs: the host's `check` command indexes `@annotation` entries,
+  walks the CST once, and calls matching rules in source order. Their `# check:`
+  line identifies the grammar and fixture used by the test harness.
+  `c-symbol-rules.lms` retains a translation-unit entry for set algebra plus its
+  function-definition entry. `c-cross-file.lms` remains body-oriented because
+  one entry cannot own facts from two trees.
 
 - **Teaching examples** (`examples/*.lms`) — the same techniques in
   narrative order; read these first.
 
 ## Using an lmcode rule
 
-The `.lms` files in `rules/lmcode/` are self-contained demos: each reads a
-known fixture from `tests/fixtures/` and prints findings. Copy the rule
-functions and their dispatch or set logic into your own script, then point
-`file_read` at your input files.
+The per-node `.lms` files compile reusable entry rules. Pass your input files
+to `check`; the `# check:` header names only the repository test fixture.
+`c-cross-file.lms` remains an aggregate body script with explicit file reads.
 
 First follow the [build and setup](../README.md#build-and-run). Run these
 commands from the repository root; the fixtures are local files, not fetched
@@ -82,7 +87,7 @@ with a raw script URL:
 export PATH="$PWD/build:$PATH"
 mkdir -p build/rules-lmcode
 lmscript rules/lmcode/c-function-metrics.lms
-build/lmbetter --dsl build/rules-lmcode/c-function-metrics.dslb
+build/lmbetter check --lang c build/rules-lmcode/c-function-metrics.dslb tests/fixtures/c-logic-violations.c
 ```
 
 Expect a findings array containing LBC101 and LBC102, `2 findings`, then
@@ -96,7 +101,14 @@ Run all twelve rule demos:
 ```sh
 for source in rules/lmcode/*.lms; do
   lmscript "$source" || exit 1
-  build/lmbetter --dsl "build/rules-lmcode/$(basename "$source" .lms).dslb" || exit 1
+  bytecode="build/rules-lmcode/$(basename "$source" .lms).dslb"
+  spec="$(sed -n 's/^# check: //p' "$source")"
+  if [ -n "$spec" ]; then
+    read -r lang input <<< "$spec"
+    build/lmbetter check --lang "$lang" "$bytecode" "$input" || exit 1
+  else
+    build/lmbetter --dsl "$bytecode" || exit 1
+  fi
 done
 ```
 

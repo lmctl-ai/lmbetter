@@ -1,12 +1,13 @@
 # Chapter: Rules (lmcode) - JSON object size limits
 # Shows: @object rule, counting children by kind
-# Run: lmscript rules/lmcode/json-size-limits.lms   (then: lmbetter --dsl build/rules-lmcode/json-size-limits.dslb)
+# Run: lmscript rules/lmcode/json-size-limits.lms   (then: lmbetter check --lang json build/rules-lmcode/json-size-limits.dslb tests/fixtures/json-size-violations.json)
+# check: json tests/fixtures/json-size-violations.json
 # Needs: nothing (offline); reads tests/fixtures/json-size-violations.json
 # exit: 0
 # expect:
 #|[{"row":0,"col":0,"end_row":52,"end_col":1,"rule":"LBJ102","severity":"minor","message":"object too large (51 entries)"}]
 #|1 findings
-p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+p = _lmcode_ cli="lmbetter";
 
 @object
 fn object_too_large(n: Node) -> void implements Rule {
@@ -18,11 +19,6 @@ fn object_too_large(n: Node) -> void implements Rule {
     ts.report(n, "object too large (" + str(pairs) + " entries)", "LBJ102", "minor");
   }
 }
-
-let tree = ts.parse(file_read("tests/fixtures/json-size-violations.json"));
-for (o in ts.query(tree.root(), "(object) @o")) { object_too_large(o); }
-println(ts.report_json());
-println(str(ts.report_count()) + " findings");
 
 end _lmcode_
 savedsl(p, "build/rules-lmcode/json-size-limits.dslb");

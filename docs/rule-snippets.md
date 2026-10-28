@@ -61,8 +61,11 @@ tree-sitter's query engine (`ts_query_*`, already compiled into our binary via
 `lib/src/lib.c`) is the native selector — S-expression patterns with captures,
 the direct analog of esquery selectors and `nodesToVisit()` combined.
 
-- **Rule = one `.lms` snippet.** No compilation, no packaging, no server:
-  `lmbetter --dsl rule.dslb` or `lmctl autorun rules/no-foo.lms`.
+- **Rule = one `.lms` snippet.** Compile it to a v6 `.dslb`;
+  `lmbetter check rule.dslb FILE...` dispatches annotated entries by
+  tree-sitter node kind. `lmbetter --dsl rule.dslb` remains the body/configuration
+  path, and `lmctl autorun rules/no-foo.lms` remains useful for scripts without
+  host entry dispatch.
 - **Selector**: `ts.query(tree, pattern)` → matches with captures (planned DSL
   addition; the C API is already linked in).
 - **Check**: ordinary lmscript over matches/nodes — node accessors

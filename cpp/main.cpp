@@ -16,6 +16,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -136,6 +137,25 @@ std::string json_escape(const std::string &s) {
   return out;
 }
 
+// One JSON representation for script reports and host-dispatched findings.
+// IDs/severity come from ts.report, never from the entry's dispatch name.
+std::string findings_json(const std::vector<Finding> &findings) {
+    std::ostringstream out;
+    out << "[";
+    bool first = true;
+    for (const auto &f : findings) {
+      if (!first) out << ",";
+      first = false;
+      out << "{\"row\":" << f.row << ",\"col\":" << f.col
+          << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col;
+      if (!f.rule.empty()) out << ",\"rule\":\"" << json_escape(f.rule) << "\"";
+      if (!f.severity.empty()) out << ",\"severity\":\"" << json_escape(f.severity) << "\"";
+      out << ",\"message\":\"" << json_escape(f.message) << "\"}";
+    }
+    out << "]";
+    return out.str();
+}
+
 // ---- DSL registry: the schema implementation ----
 void register_host(dslvm::Registry &reg, Host &host) {
   reg.context("ts", "Ts");
@@ -178,20 +198,7 @@ void register_host(dslvm::Registry &reg, Host &host) {
     return Value::integer(static_cast<int64_t>(host.findings.size()));
   });
   reg.method("Ts", "report_json", {}, "string", [&host](void *, Args &) {
-    std::ostringstream out;
-    out << "[";
-    bool first = true;
-    for (const auto &f : host.findings) {
-      if (!first) out << ",";
-      first = false;
-      out << "{\"row\":" << f.row << ",\"col\":" << f.col
-          << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col;
-      if (!f.rule.empty()) out << ",\"rule\":\"" << json_escape(f.rule) << "\"";
-      if (!f.severity.empty()) out << ",\"severity\":\"" << json_escape(f.severity) << "\"";
-      out << ",\"message\":\"" << json_escape(f.message) << "\"}";
-    }
-    out << "]";
-    return Value::string(out.str());
+    return Value::string(findings_json(host.findings));
   });
   const auto query_method = [&reg, &host](const char *name, lmbetter::Grammar grammar) {
     reg.method("Ts", name, {"Node", "string"}, "NodeList", [&host, grammar](void *, Args &args) {
@@ -328,6 +335,7 @@ int main(int argc, char **argv) {
       "       lmbetter parse [--lang json|c|python|bash] FILE\n"
       "       lmbetter query [--lang json|c|python|bash] PATTERN FILE\n"
       "       lmbetter lint RULES.json FILE...\n"
+      "       lmbetter check [--lang json|c|python|bash] RULES.dslb FILE...\n"
       "       lmbetter --dsl FILE [FILE ...]\n";
   if (argc == 2 && std::string(argv[1]) == "--version") {
     std::cout << "lmbetter " LMBETTER_VERSION "\n";
@@ -518,6 +526,55 @@ int main(int argc, char **argv) {
       std::cout << findings.size() << " findings in " << target.path << "\n";
     }
     return std::cout ? 0 : 4;
+  }
+  if (argc >= 2 && std::string(argv[1]) == "check") {
+    int argi = 2;
+    lmbetter::Grammar grammar = lmbetter::Grammar::Json;
+    if (argi + 1 < argc && std::string(argv[argi]) == "--lang") {
+      const std::string lang = argv[argi + 1];
+      if (lang == "json") grammar = lmbetter::Grammar::Json;
+      else if (lang == "c") grammar = lmbetter::Grammar::C;
+      else if (lang == "python") grammar = lmbetter::Grammar::Python;
+      else if (lang == "bash") grammar = lmbetter::Grammar::Bash;
+      else { std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash)\n"; return 2; }
+      argi += 2;
+    }
+    if (argi + 1 >= argc) { std::cerr << usage; return 2; }
+    for (int i = argi; i < argc; ++i) {
+      if (std::string(argv[i]).empty() || std::string(argv[i]).rfind("--", 0) == 0) { std::cerr << usage; return 2; }
+    }
+    const std::string schema(reinterpret_cast<const char *>(lmbetter::embedded_schema), lmbetter::embedded_schema_size);
+    dslvm::Program program;
+    try { program = dslvm::Program::load(dslvm::read_file(argv[argi++]), schema, reg); }
+    catch (const dslvm::Error &error) { return dslvm::report_error("load", error); }
+    std::map<std::string, std::vector<size_t>> by_kind;
+    for (size_t i = 0; i < program.entries().size(); ++i) {
+      const auto &entry = program.entries()[i];
+      if (entry.iface != "interface Rule(Node) -> void") {
+        return dslvm::report_error("load", dslvm::Error("LOAD_BAD_BYTECODE", "check entry '" + entry.name + "' must implement Rule(Node) -> void"));
+      }
+      by_kind[entry.annotation].push_back(i); // duplicate kinds retain source order
+    }
+    dslvm::Context context;
+    context.set("ts", &host);
+    try {
+      program.run(context, reg); // configuration/effects once, not once per node or file
+      for (; argi < argc; ++argi) {
+        host.reset(); // transient body/file objects and findings do not escape an input
+        const lmbetter::Tree tree = lmbetter::parse(grammar, read_file(argv[argi]));
+        lmbetter::walk_nodes(tree, [&](const lmbetter::Node &node) {
+          const auto found = by_kind.find(lmbetter::node_kind(node));
+          if (found == by_kind.end()) return;
+          const Value handle = host.hold_node(node); // per-file arena; Tree stays alive
+          for (size_t entry : found->second) program.call(entry, context, reg, {handle});
+        });
+        std::cout << findings_json(host.findings) << "\n" << host.findings.size() << " findings\n";
+        dslvm::report_ok();
+        if (!std::cout) return 4;
+      }
+    } catch (const dslvm::Error &error) { return dslvm::report_error("run", error); }
+      catch (const std::exception &error) { return dslvm::report_error("run", dslvm::Error("RUN_HOST", error.what())); }
+    return 0;
   }
   if (argc >= 3 && std::string(argv[1]) == "--dsl") {
     for (int i = 2; i < argc; ++i) {

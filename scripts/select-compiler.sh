@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# TODO: confirm first release containing R47/R48 rule methods (staging publish
-# pending); the floor must target the npm @lmctl-ai/lmctl release numbering.
-NEED_VERSION="0.2.442"
+# R49 requires entry-capable v6 bytecode, not only annotation syntax.
+NEED_VERSION="0.2.444"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/lmcode-compiler-XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 case "$(uname -s)" in
@@ -48,7 +47,7 @@ for source in "$PROBE" "$WORK/probe-lmcode.lms"; do
 import hashlib, pathlib, sys
 bytecode = pathlib.Path(sys.argv[1]).read_bytes()
 schema = pathlib.Path(sys.argv[2]).read_bytes()
-if bytecode[:6] != b'DSLB\x00\x05': raise SystemExit('error: compiler did not emit DSL bytecode v5')
+if bytecode[:6] != b'DSLB\x00\x06': raise SystemExit('error: compiler did not emit DSL bytecode v6')
 if bytecode[6:38] != hashlib.sha256(schema).digest(): raise SystemExit('error: bytecode schema hash does not match raw host schema bytes')
 PY
 done

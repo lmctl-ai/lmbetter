@@ -305,7 +305,7 @@ end _dsl_
 savedsl(p, "$WORK/smoke.dslb");
 EOF
 "$LMSCRIPT" "$WORK/smoke.lms" "$WORK/smoke.dslb" >/dev/null || fail "smoke compile"
-[ "$(od -An -t u1 -j 5 -N 1 "$WORK/smoke.dslb" | tr -d ' ')" = 5 ] || fail "smoke was not compiled as bytecode v5"
+[ "$(od -An -t u1 -j 5 -N 1 "$WORK/smoke.dslb" | tr -d ' ')" = 6 ] || fail "smoke was not compiled as bytecode v6"
 out="$("$HOST" --dsl "$WORK/smoke.dslb")"
 [ "$(tail -1 <<<"$out")" = '{"ok": true, "result": null}' ] || fail "smoke run: $out"
 grep -qxF '(document (object (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (array (string (string_content)) (string (string_content))))))' <<<"$out" || fail "smoke sexp line: $out"
@@ -411,11 +411,24 @@ while IFS= read -r line; do
 done < <(grep '^#|' examples/lint-repo.lms)
 ok "lint-repo: lmscript drives lmbetter lint and counts findings"
 
+# Entry rules declare their language/input in a non-executable test header.
+# Aggregate scripts without that header retain the body-only --dsl path.
+run_rule() {
+  local rule_source="$1" rule_bytecode="$2" rule_spec rule_lang rule_input
+  rule_spec="$(sed -n 's/^# check: //p' "$rule_source")"
+  if [ -n "$rule_spec" ]; then
+    read -r rule_lang rule_input <<< "$rule_spec"
+    "$HOST" check --lang "$rule_lang" "$rule_bytecode" "$rule_input"
+  else
+    "$HOST" --dsl "$rule_bytecode"
+  fi
+}
+
 # --- rules/lmcode (lmcode-native tier-1 rules) ---
 mkdir -p build/rules-lmcode
 for f in c-function-metrics c-switch-style json-duplicate-values json-duplicate-keys json-size-limits c-nesting-depth json-nesting-depth c-scanf-width c-symbol-rules c-cross-file; do
   "$LMSCRIPT" "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f rule compile"
-  "$HOST" --dsl "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
+  run_rule "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
   while IFS= read -r line; do
     grep -qxF "${line:2}" "$WORK/$f.out" || fail "$f output missing: ${line:2} (got $(cat "$WORK/$f.out"))"
   done < <(grep '^#|' "rules/lmcode/$f.lms")
@@ -425,7 +438,7 @@ for f in c-function-metrics c-switch-style json-duplicate-values json-duplicate-
       -e "s|build/rules-lmcode/$f.dslb|$WORK/$f-clean.dslb|" \
     "rules/lmcode/$f.lms" > "$WORK/$f-clean.lms"
   "$LMSCRIPT" "$WORK/$f-clean.lms" "$WORK/$f-clean.dslb" >/dev/null 2>&1 || fail "$f clean compile"
-  out="$("$HOST" --dsl "$WORK/$f-clean.dslb")"
+  out="$(run_rule "$WORK/$f-clean.lms" "$WORK/$f-clean.dslb")"
   grep -qxF '[]' <<<"$out" || fail "$f clean fixture findings: $out"
   grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
 done
@@ -711,14 +724,14 @@ ok "lint: bash-tier1 pack, all 6 rules fire on violations, clean fixture silent"
 mkdir -p build/rules-lmcode
 for f in python-function-metrics bash-unquoted-vars; do
   "$LMSCRIPT" "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f rule compile"
-  "$HOST" --dsl "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
+  run_rule "rules/lmcode/$f.lms" "build/rules-lmcode/$f.dslb" >"$WORK/$f.out" || fail "$f rule run"
   while IFS= read -r line; do
     grep -qxF "${line:2}" "$WORK/$f.out" || fail "$f output missing: ${line:2} (got $(cat "$WORK/$f.out"))"
   done < <(grep '^#|' "rules/lmcode/$f.lms")
   sed -e 's/-violations\./-clean./' -e "s|build/rules-lmcode/$f.dslb|$WORK/$f-clean.dslb|" \
     "rules/lmcode/$f.lms" > "$WORK/$f-clean.lms"
   "$LMSCRIPT" "$WORK/$f-clean.lms" "$WORK/$f-clean.dslb" >/dev/null 2>&1 || fail "$f clean compile"
-  out="$("$HOST" --dsl "$WORK/$f-clean.dslb")"
+  out="$(run_rule "$WORK/$f-clean.lms" "$WORK/$f-clean.dslb")"
   grep -qxF '[]' <<<"$out" || fail "$f clean fixture findings: $out"
   grep -qxF '0 findings' <<<"$out" || fail "$f clean fixture count: $out"
 done
@@ -856,4 +869,6 @@ PY_UTF8
 ok "robustness: invalid UTF-8 replaced in JSON findings; valid UTF-8 preserved (exact bytes)"
 
 
+LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-entries.py "$HOST" || fail "v6 entry dispatch controls"
+ok "v6 entries: kind dispatch, source order, anonymous nodes, per-file state and refusals"
 echo "PASS: $pass checks"
