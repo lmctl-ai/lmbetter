@@ -341,3 +341,20 @@ lmok-authored code is MIT licensed (see `LICENSE`). It builds against
 tree-sitter, tree-sitter-json, and tree-sitter-c, all MIT licensed (`THIRD_PARTY_NOTICES.md`;
 also embedded in the binary, see `lmok --notices`). Made by
 **Lattice Systems LLC**.
+
+## Native OS regression checks
+
+Every matrix runner executes tests/check-native-os.py through bash ./test.sh.
+The checks use byte output, not Python newline translation: file/stdin parsing,
+CRLF/LF/BOM, NUL/0xff/^Z, empty and multi-buffer inputs, UTF-8 paths, drive/separator
+handling, diagnostics, executable discovery output and bounded queries. Windows
+uses wide CRT arguments converted to UTF-8; filesystem paths cross through u8path.
+Symlink assertions run when the OS grants that capability, with an explicit note
+when Windows lacks the privilege.
+
+Executable headers must match the matrix's x64/arm64 target. Linux ldd must show
+no dynamic dependencies, macOS otool may list only system libraries, and Windows
+PE imports may list only system DLLs. Each test group rejects a deliberately
+corrupted output or architecture header; Linux also rejects a real dynamically
+linked control executable. These tests and the disposable Git repositories used
+by tests/release-hygiene.py need no network, models or installed lmok command.
