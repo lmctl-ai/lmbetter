@@ -7,7 +7,8 @@ Three delivery forms, by how much logic a rule needs:
   `text_matches` regex, message, severity. No code. See [rule tiers](../docs/rule-tiers.md)
   for the framework and [Rule packs](../README.md#rule-packs) for the format.
   Shipped: `c-tier1.json` (11 rules), `json-tier1.json` (11 rules:
-  LBJ001–LBJ010 and LBJ104).
+  LBJ001–LBJ010 and LBJ104), `python-tier1.json` (9 rules),
+  `bash-tier1.json` (6 rules).
   JSON checks cover credential keys, placeholders, nulls, key naming, numeric
   strings, HTTP URLs, unpinned versions, empty containers, and long source
   strings. The length threshold is >200 source bytes excluding quotes, not
@@ -31,6 +32,17 @@ Three delivery forms, by how much logic a rule needs:
     code examples deeper in the block no longer fire; the trade-off is
     that `/*`-blocks whose code starts on line 2+ are missed.
 
+  python-tier1 heuristic notes:
+  - LBP002 (`shell=True`) matches the keyword argument wherever it appears,
+    not only subprocess calls — `shell=True` is subprocess vocabulary, so
+    false positives elsewhere are unlikely.
+  - LBP007 (bare except) anchors on the clause head: the `except_clause`
+    node includes its block, so the regex is `^except\s*:` (no `$`).
+
+  bash-tier1 heuristic notes:
+  - LBS004 (cd) fires on guarded `cd x || exit` too — a pack cannot see the
+    enclosing `list` node; refining that needs `Node.parent()` (lmcode).
+
 - **lmcode rules** (`rules/lmcode/*.lms`) — rules that need LOGIC beyond
   selector+regex: arithmetic (`end_row - start_row`), counting children,
   per-node bookkeeping (StrMap for duplicate keys). Most use annotated
@@ -47,7 +59,10 @@ Three delivery forms, by how much logic a rule needs:
   needs E1 query predicates) and `c-symbol-rules.lms` (LBC107 unused static
   function, LBC108 undefined call, LBC109 direct recursion — set algebra in
   lmcode, no host index needed), and `c-cross-file.lms` (LBC110 calls to
-  functions defined in none of the input files).
+  functions defined in none of the input files), plus
+  `python-function-metrics.lms` (LBP101 function too long) and
+  `bash-unquoted-vars.lms` (LBS101 unquoted variable — expansion node with
+  no `string` ancestor, needs `Node.parent()`).
 
 - **Teaching examples** (`examples/*.lms`) — the same techniques in
   narrative order; read these first.
@@ -76,7 +91,7 @@ Expect a findings array containing LBC101 and LBC102, `2 findings`, then
 the bytecode filename; passing another argument to `lmscript` does not
 change it.
 
-Run all ten rule demos:
+Run all twelve rule demos:
 
 ```sh
 for source in rules/lmcode/*.lms; do
@@ -87,7 +102,8 @@ done
 
 Expected finding counts: function metrics 2, switch style 2, duplicate keys
 2, size limits 1, C nesting 1, JSON nesting 1, scanf width 1, same-file
-symbols 3, cross-file calls 1, sibling duplicate values 4. Exact findings appear in each script's
+symbols 3, cross-file calls 1, sibling duplicate values 4, python function
+metrics 1, bash unquoted variables 3. Exact findings appear in each script's
 `# expect:` / `#|` comments. Findings do not make the process fail.
 
 For the data-only packs, no lmscript compilation is needed:
