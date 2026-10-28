@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <utility>
 
@@ -44,7 +45,7 @@ std::string expand_message(const std::string &message, const std::string &text) 
 
 void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding> &findings) {
   const std::string text = node_text(node);
-  if (!rule.text_matches.empty() && !std::regex_search(text, rule.text_regex)) return;
+  if (!rule.text_matches.empty() && !regex_search_bounded(text, rule.text_regex)) return;
   findings.push_back({node_start_row(node), node_start_col(node),
                       node_end_row(node), node_end_col(node),
                       rule.id, rule.severity, expand_message(rule.message, text)});
@@ -84,6 +85,7 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
     throw dslvm::Error(pack_error(path, "missing 'rules' array"));
 
   std::vector<LintRule> rules;
+  std::set<std::string> seen_ids;
   size_t index = 0;
   for (const auto &entry : rules_node->array) {
     ++index;
@@ -100,6 +102,7 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
     if (!id || id->kind != JsonNode::Kind::String || id->text.empty())
       fail("missing 'id'");
     rule.id = id->text;
+    if (!seen_ids.insert(rule.id).second) fail("duplicate rule id (ids must be unique within a pack)");
     const JsonNode *on = member(entry, "on");
     if (on) {
       if (on->kind != JsonNode::Kind::String || on->text.empty()) fail("'on' must be a node-kind string");

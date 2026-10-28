@@ -107,9 +107,13 @@ query as `#match?` predicates — same behavior, sharper form.)
   (`satisfies_text_predicates` in the Rust binding): text equality for
   `#eq?`, and **unanchored** regex for `#match?` (upstream uses
   `regex::is_match`; the "anchored" convention is that query AUTHORS write
-  `^...$` — verified against the upstream docs' own examples). Unknown
-  predicates/directives (`#set!`, `#is?`, `any-of?`, `any-*`) are ignored
-  like the tree-sitter CLI. Shipped with it: LBC106, LBJ104; LBC001/LBC004
+  `^...$` — verified against the upstream docs' own examples). The `any-*`
+  family (`#any-eq?`, `#any-match?`, `#any-of?`, `#not-any-of?`) is
+  evaluated too (at-least-one semantics; the plain forms are all-nodes);
+  `#is?`/`#is-not?` and `!` directives are accepted and ignored; malformed
+  or unknown `?` predicates are refused (exit 3) because an ignored
+  predicate silently over-matches. Regex text is capped at 16 KiB (std::regex
+  recursion). Shipped with it: LBC106, LBJ104; LBC001/LBC004
   upgraded to predicate form. Note: pack `text_matches` is now partly
   redundant with `#match?` for query rules — kept, since it still applies to
   `on`-kind rules.
@@ -148,7 +152,11 @@ query as `#match?` predicates — same behavior, sharper form.)
   new_end)` records a byte-offset edit (applied at reparse time, when the new
   text — and thus the new-end point — is known; one pending edit per reparse;
   bad offsets are a located run-time error). `ts.reparse`/`ts.reparse_c(old,
-  new_text)` return the new tree; the old tree stays alive for
+  new_text)` return the new tree (contract: an edit must be pending unless
+  the text is unchanged, and the new text's length must equal what the edit
+  implies — both are exit-3 errors, since tree-sitter would otherwise reuse
+  the old tree and return it silently for different text); the old tree
+  stays alive for
   `ts.changed_ranges(old, new) -> string` (JSON array of [start,end] pairs).
   [examples/incremental-reparse.lms](../examples/incremental-reparse.lms) shows the edit → reparse → re-lint loop.
 

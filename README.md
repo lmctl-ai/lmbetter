@@ -172,7 +172,11 @@ structured access to parsed trees.
     candidate.
 - `text_matches`: optional `std::regex` (ECMAScript) applied with
   `regex_search` (unanchored — anchor with `^`/`$` yourself) to the
-  candidate's text as a post-match filter.
+  candidate's text as a post-match filter. Regex matching is bounded: node
+  texts longer than 16 KiB are not searched (treated as no match, one note
+  on stderr), because `std::regex` backtracks recursively and a long comment
+  or string would otherwise overflow the stack. The same bound applies to
+  query `#match?`.
 - Language: `rule.lang` overrides the pack-level `lang`; a rule with neither
   is a pack error. Known languages: `json`, `c`.
 - Dispatch: per file, parse once per grammar used. `on` rules share ONE
@@ -183,11 +187,15 @@ structured access to parsed trees.
   `ts.report_json` (row, col, end_row, end_col, rule, severity, message),
   then `N findings in <file>`.
 - **Directories**: a FILE argument that is a directory expands recursively to
-  its regular files — hidden files/dirs skipped, only `.c`/`.h` (c) and
-  `.json` (json) are lintable, paths sorted for byte-stable output, a file
-  whose language has no rules in the pack is skipped silently, and a
-  directory with no lintable files is a usage error (exit 2). File and
-  directory args mix freely.
+  its regular files — hidden files/dirs BELOW the argument skipped (the
+  argument itself may live under a dot-path), only `.c`/`.h` (c) and `.json`
+  (json) are lintable, paths sorted for byte-stable output, a file whose
+  language has no rules in the pack is skipped silently, and a directory
+  with no lintable files is a usage error (exit 2). A directory the walk
+  cannot read aborts the run (exit 3, like an unreadable file) — never a
+  silent partial list. Symlinks to files are followed, symlinks to
+  directories are not. File and directory args mix freely. Rule ids must be
+  unique within a pack (exit 2 otherwise).
 
 Packs live in `examples/rules/` (`c-security.json`, `json-config.json`) as
 small demos; the canonical rule library is `rules/` (see below).
@@ -265,13 +273,17 @@ VS Code interop) in pure lmcode. Since v0.2.3, `ts.query(root, pattern)` runs a
 tree-sitter S-expression query over the subtree at `root` and returns every
 captured node as a `NodeList` (match/byte order; duplicates kept; a pattern
 with zero captures yields an empty list; an invalid pattern is a runtime
-error naming the byte offset and reason). Since v0.3.3 the predicates
-`#eq?`/`#not-eq?` (capture text vs literal or another capture) and
-`#match?`/`#not-match?` (ECMAScript regex over capture text, UNANCHORED like
-upstream tree-sitter — anchor with `^...$` yourself) are evaluated per match;
-unknown predicates/directives (`#set!`, `#is?`, `any-*`, ...) are ignored, as
-the tree-sitter CLI does. Published query files using these predicates now
-work as written. Since v0.2.4, a
+error naming the byte offset and reason). Since v0.3.3 query predicates are
+evaluated per match with upstream tree-sitter's semantics: `#eq?`/`#not-eq?`/
+`#any-eq?`/`#any-not-eq?` (capture text vs literal or another capture),
+`#match?`/`#not-match?`/`#any-match?`/`#any-not-match?`
+(ECMAScript regex over capture text, UNANCHORED like upstream — anchor with
+`^...$` yourself; texts over 16 KiB are not searched), and
+`#any-of?`/`#not-any-of?`; the non-`any` forms must hold for every node of a
+quantified capture. `#is?`/`#is-not?` and directives (`#set!`) are accepted
+and ignored. A malformed predicate or an unknown `#…?` predicate is a
+runtime error (exit 3) rather than a silent over-match. Published query files
+using these predicates work as written. Since v0.2.4, a
 second grammar is vendored: tree-sitter-c (pinned in `deps.lock`) with
 `ts.parse_c(text)` / `ts.query_c(root, pattern)` mirroring the JSON pair — see
 [examples/lint-c.lms](examples/lint-c.lms) for real security rules over C. See `examples/` for

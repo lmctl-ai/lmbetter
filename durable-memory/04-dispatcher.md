@@ -26,7 +26,12 @@ the same kind-indexed walk later.
   deliberately no Rete.
 - `text_matches` is `std::regex` ECMAScript via `regex_search` (unanchored;
   packs anchor with `^`/`$` themselves), applied post-match to the node's
-  text. `on` matches NAMED nodes only (the flatten skips anonymous tokens).
+  text through `regex_search_bounded` (host.hpp): texts over 16 KiB are not
+  searched (no match + one stderr note). Reason: libstdc++/libc++ regex
+  backtracks recursively; the shipped LBC010 rule segfaulted on a 40 KB
+  comment with an 8 MB stack (a few KB on Windows' 1 MB). The same bound
+  covers query `#match?`. Rule ids must be unique within a pack (exit 2).
+  `on` matches NAMED nodes only (the flatten skips anonymous tokens).
 - Output is one JSON object per line with the `ts.report_json` field order
   (row, col, end_row, end_col, rule, severity, message) plus `N findings in
   <file>` per file. Exit 0 regardless of findings (gating is the caller's

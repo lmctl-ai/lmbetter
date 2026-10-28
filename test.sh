@@ -460,6 +460,164 @@ set +e; out="$("$HOST" --dsl "$WORK/bad-edit.dslb" 2>&1)"; code=$?; set -e
 [ "$code" = 3 ] && [[ "$out" == *'bad byte offsets'* ]] || fail "edit out of range (exit $code): $out"
 ok "Tree.edit: out-of-range offsets refused (exit 3)"
 
+# --- review fixes: regex crash, reparse contract, arena caps, directory walk, predicates ---
+# C1: std::regex backtracks recursively; a 100 KB single-line comment with the
+# shipped LBC010 rule used to segfault (exit 139). Now bounded (16 KiB cap,
+# one stderr note), both for pack text_matches and query #match?.
+python3 -c "print('// x = ' + 'a'*100000 + ';')" > "$WORK/longcomment.c"
+set +e; out="$("$HOST" lint rules/c-tier1.json "$WORK/longcomment.c" 2>"$WORK/longcomment.err")"; code=$?; set -e
+[ "$code" = 0 ] && [ "$out" = "0 findings in $WORK/longcomment.c" ] || fail "long comment lint (exit $code): $out"
+grep -q 'regex not applied to a 100008-byte node text' "$WORK/longcomment.err" || fail "long comment lint: missing stderr note: $(cat "$WORK/longcomment.err")"
+set +e; out="$("$HOST" query --lang c '((comment) @c (#match? @c "(.*)*b"))' "$WORK/longcomment.c" 2>/dev/null)"; code=$?; set -e
+[ "$code" = 0 ] && [ -z "$out" ] || fail "long comment #match? (exit $code): $out"
+ok "regex over node text is bounded: 100 KB comment lints and queries without crashing (one stderr note)"
+
+# M1: reparse without an edit must not hand back the old tree for new text.
+cat > "$WORK/reparse-noedit.lms" <<EOF2
+p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+let same = ts.parse("{}");
+println("same " + ts.reparse(same, "{}").sexp());
+let old = ts.parse("{}");
+let new = ts.reparse(old, "[1, 2, 3]");
+println("unreachable " + new.sexp());
+end _dsl_
+savedsl(p, "$WORK/reparse-noedit.dslb");
+EOF2
+"$LMSCRIPT" "$WORK/reparse-noedit.lms" "$WORK/reparse-noedit.dslb" >/dev/null || fail "reparse-noedit compile"
+set +e; out="$("$HOST" --dsl "$WORK/reparse-noedit.dslb" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'no pending edit for changed text'* ]] && grep -q '^same (document (object))$' <<<"$out" \
+  || fail "reparse without edit (exit $code): $out"
+cat > "$WORK/reparse-badlen.lms" <<EOF2
+p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+let t = ts.parse("{\"a\": 1}");
+t.edit(1, 1, 50);
+let n = ts.reparse(t, "{\"a\": 1}");
+end _dsl_
+savedsl(p, "$WORK/reparse-badlen.dslb");
+EOF2
+"$LMSCRIPT" "$WORK/reparse-badlen.lms" "$WORK/reparse-badlen.dslb" >/dev/null || fail "reparse-badlen compile"
+set +e; out="$("$HOST" --dsl "$WORK/reparse-badlen.dslb" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'new text is 8 bytes but the pending edit implies 57'* ]] || fail "reparse inconsistent edit (exit $code): $out"
+ok "reparse contract: identical text ok, changed text without edit refused, edit/text length mismatch refused (exit 3)"
+
+# M2: iterating a NodeList allocates no handles, so a 180k-node tree walks in one run.
+python3 - "$WORK/many.c" <<'PY'
+import sys
+with open(sys.argv[1], 'w') as f:
+    f.write('#include <stdio.h>\n')
+    for i in range(10000):
+        f.write(f'int f{i}(int a, int b) {{ return a + b * {i}; }}\n')
+PY
+cat > "$WORK/bigwalk.lms" <<EOF2
+p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+let t = ts.parse_c(file_read("$WORK/many.c"));
+let ns = t.nodes();
+let c = 0;
+for (n in ns) { if (n.kind() == "identifier") { c = c + 1; } }
+println("named " + str(ns.len()) + " identifiers " + str(c));
+end _dsl_
+savedsl(p, "$WORK/bigwalk.dslb");
+EOF2
+"$LMSCRIPT" "$WORK/bigwalk.lms" "$WORK/bigwalk.dslb" >/dev/null || fail "bigwalk compile"
+out="$("$HOST" --dsl "$WORK/bigwalk.dslb")" || fail "bigwalk run: $out"
+grep -q '^named 180003 identifiers 50000$' <<<"$out" || fail "bigwalk output: $out"
+ok "NodeList iteration over a 180k-node C tree runs in one program (no per-visit Node handles)"
+
+# M3: arenas reset per --dsl file: 3 runs x 400k root() handles would exceed
+# the 1<<20 Node cap if the arena carried over; findings reset too.
+cat > "$WORK/handles.lms" <<EOF2
+p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+let t = ts.parse("{}");
+let r = t.root();
+for (i in range(0, 400000)) { r = t.root(); }
+ts.report(r, "one per run");
+println("findings " + str(ts.report_count()));
+end _dsl_
+savedsl(p, "$WORK/handles.dslb");
+EOF2
+"$LMSCRIPT" "$WORK/handles.lms" "$WORK/handles.dslb" >/dev/null || fail "handles compile"
+out="$("$HOST" --dsl "$WORK/handles.dslb" "$WORK/handles.dslb" "$WORK/handles.dslb")" || fail "handles x3 run: $out"
+[ "$(grep -c '^findings 1$' <<<"$out")" = 3 ] && [ "$(grep -c '^{"ok": true, "result": null}$' <<<"$out")" = 3 ] || fail "handles x3 output: $out"
+ok "--dsl arenas (trees/nodes/lists/findings) reset per program: 3 x 400k handles run, findings restart at 1"
+
+# M4: an iterator error during directory expansion fails fast (exit 3), never a silent partial list.
+if [ "$(id -u 2>/dev/null || echo 0)" != 0 ] && [[ "$UNAME_S" != MINGW* && "$UNAME_S" != MSYS* && "$UNAME_S" != CYGWIN* ]]; then
+  mkdir -p "$WORK/walkerr/ok" "$WORK/walkerr/locked"
+  printf 'int main(void) { return 0; }\n' > "$WORK/walkerr/ok/z.c"
+  chmod 000 "$WORK/walkerr/locked"
+  set +e; out="$("$HOST" lint examples/rules/c-security.json "$WORK/walkerr" 2>&1)"; code=$?; set -e
+  chmod 755 "$WORK/walkerr/locked"
+  [ "$code" = 3 ] && [[ "$out" == *'cannot read '*'walkerr/locked'* ]] || fail "lint unreadable subdir (exit $code): $out"
+  ok "lint: unreadable subdirectory aborts the run (exit 3) instead of silently dropping files"
+else
+  ok "lint: unreadable-subdirectory check skipped (root or Windows cannot make a directory unreadable)"
+fi
+
+# M5: hidden-path filtering applies below the argument root only.
+mkdir -p "$WORK/.dotproj/src" "$WORK/.dotproj/.git"
+cp tests/fixtures/lintdir/a.c "$WORK/.dotproj/src/a.c"
+cp tests/fixtures/lintdir/a.c "$WORK/.dotproj/.git/skip.c"
+out="$("$HOST" lint examples/rules/c-security.json "$WORK/.dotproj")" || fail "lint dot-root dir run"
+[ "$(tail -1 <<<"$out")" = "2 findings in $WORK/.dotproj/src/a.c" ] && ! grep -q 'skip.c' <<<"$out" || fail "lint dot-root dir: $out"
+ok "lint: a directory argument under a dot-path is lintable; hidden entries below it are still skipped"
+
+# M6: predicate semantics follow upstream; malformed or unknown predicates are refused.
+printf '{"a": "a", "b": "c"}' > "$WORK/pred.json"
+out="$("$HOST" query '((pair key: (string (string_content) @k) value: (string (string_content) @v)) (#eq? @k @v))' "$WORK/pred.json")"
+[ "$out" = 'string_content 0:2-0:3
+string_content 0:7-0:8' ] || fail "eq capture-vs-capture: $out"
+out="$("$HOST" query '((pair key: (string (string_content) @k) value: (string (string_content) @v)) (#not-eq? @k @v))' "$WORK/pred.json")"
+[ "$out" = 'string_content 0:12-0:13
+string_content 0:17-0:18' ] || fail "not-eq capture-vs-capture: $out"
+out="$("$HOST" query '((string_content) @s (#any-of? @s "a" "zzz"))' "$WORK/pred.json")"
+[ "$(grep -c string_content <<<"$out")" = 2 ] || fail "any-of: $out"
+out="$("$HOST" query '((string_content) @s (#not-any-of? @s "a" "b"))' "$WORK/pred.json")"
+[ "$out" = 'string_content 0:17-0:18' ] || fail "not-any-of: $out"
+printf '[[1, 2], [3, 4]]' > "$WORK/quant.json"
+out="$("$HOST" query '((array (number) @n) (#eq? @n "1"))' "$WORK/quant.json")"
+[ "$out" = 'number 0:2-0:3' ] || fail "eq? literal: $out"
+# any-* must REJECT when no node satisfies (web-binding `some`; the Rust
+# binding's loop would pass vacuously) — including an absent optional capture.
+out="$("$HOST" query '((array (number) @n) (#any-eq? @n "9"))' "$WORK/quant.json")"
+[ -z "$out" ] || fail "any-eq? with no satisfying node must reject: $out"
+out="$("$HOST" query '((array (number)? @n) (#any-eq? @n "1"))' "$WORK/quant.json")"
+[ "$out" = 'number 0:2-0:3' ] || fail "any-eq? over an absent optional capture must reject: $out"
+out="$("$HOST" query '((array (number) @n) (#any-match? @n "^4$"))' "$WORK/quant.json")"
+[ "$out" = 'number 0:13-0:14' ] || fail "any-match?: $out"
+out="$("$HOST" query '((array (number) @n) (#match? @n "^[34]$"))' "$WORK/quant.json")"
+[ "$out" = 'number 0:10-0:11
+number 0:13-0:14' ] || fail "match? literal regex: $out"
+out="$("$HOST" query '((string_content) @s (#is? local) (#set! "role" "x"))' "$WORK/pred.json")"
+[ "$(grep -c string_content <<<"$out")" = 4 ] || fail "is?/set! must be accepted and ignored: $out"
+set +e; out="$("$HOST" query '((string_content) @s (#match? @s @s))' "$WORK/pred.json" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'#match? second argument must be a regex literal'* ]] || fail "match? with capture regex (exit $code): $out"
+set +e; out="$("$HOST" query '((string_content) @s (#eq? @s))' "$WORK/pred.json" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'#eq? takes 2 arguments, got 1'* ]] || fail "eq? arity (exit $code): $out"
+set +e; out="$("$HOST" query '((string_content) @s (#lua-match? @s "x"))' "$WORK/pred.json" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'#lua-match? is not a supported predicate'* ]] || fail "unknown predicate (exit $code): $out"
+set +e; out="$("$HOST" query '((string_content) @s (#match? @s "("))' "$WORK/pred.json" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *"#match? has an invalid regex '('"* ]] || fail "invalid regex (exit $code): $out"
+ok "query predicates: eq?/not-eq? zip captures, any-of?/any-eq?/any-match? evaluated, is?/set! ignored, malformed/unknown refused (exit 3)"
+
+# M7: rule ids are unique within a pack; the shipped C pack has exactly 10 distinct rules.
+printf '{"lang":"c","rules":[{"id":"DUP","on":"comment","message":"a"},{"id":"DUP","on":"goto_statement","message":"b"}]}' > "$WORK/dup.json"
+set +e; out="$("$HOST" lint "$WORK/dup.json" examples/data/sample.c 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *'rule DUP: duplicate rule id'* ]] || fail "duplicate rule id (exit $code): $out"
+python3 - <<'PY'
+import json
+for path, want in (("rules/c-tier1.json", 11), ("rules/json-tier1.json", 11)):
+    ids = [r["id"] for r in json.load(open(path))["rules"]]
+    assert len(ids) == want and len(set(ids)) == want, (path, ids)
+PY
+ok "rule packs: duplicate ids refused (exit 2); shipped packs carry unique ids (c 11, json 11)"
+
+# Minor CLI contracts from the same review.
+set +e; out="$("$HOST" parse "$WORK" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'is a directory'* ]] || fail "parse on a directory (exit $code): $out"
+set +e; out="$("$HOST" parse --lang 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *'--lang needs a value'* ]] || fail "--lang without value (exit $code): $out"
+ok "CLI: a directory where a file is expected is refused (exit 3); --lang without a value is a usage error (exit 2)"
+
 if [ "$UNAME_S" = "Darwin" ]; then
   BAD_LIBS="$(otool -L "$HOST" | tail -n +2 | awk '{print $1}' | grep -v '^/usr/lib/\|^/System/Library/' || true)"
   [ -z "$BAD_LIBS" ] || fail "host links non-system libraries: $BAD_LIBS"
