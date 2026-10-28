@@ -885,4 +885,6 @@ LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-entries.py "$HOST" || fail "v6 entr
 ok "v6 entries: kind dispatch, source order, anonymous nodes, per-file state and refusals"
 python3 tests/check-native-os.py "$HOST" --prove-controls || fail "native OS contracts"
 ok "native OS byte/path/linkage contracts and negative controls"
+LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-rules-os.py "$HOST" --prove-controls || fail "rule pack OS oracles"
+ok "rule packs per OS: all twelve converted packs, CRLF/no-newline/unicode fixtures, anonymous kinds, argument order"
 echo "PASS: $pass checks"
