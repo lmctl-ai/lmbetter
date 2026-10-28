@@ -137,6 +137,14 @@ void register_host(dslvm::Registry &reg, Host &host) {
     out << "]";
     return Value::string(out.str());
   });
+  reg.method("Ts", "query", {"Node", "string"}, "NodeList", [&host](void *, Args &args) {
+    try {
+      return host.hold(host.node_lists, "NodeList",
+                       lmbetter::node_query(*node_of(args[0].obj, "query"), args[1].s));
+    } catch (const lmbetter::QueryError &error) {
+      throw dslvm::Error(error.what());
+    }
+  });
 
   reg.method("Tree", "sexp", {}, "string", [](void *s, Args &) {
     return Value::string(lmbetter::tree_sexp(*tree_of(s, "sexp")));
@@ -214,6 +222,7 @@ int main(int argc, char **argv) {
   const std::string usage =
       "usage: lmbetter --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
       "       lmbetter parse FILE\n"
+      "       lmbetter query PATTERN FILE\n"
       "       lmbetter --dsl FILE [FILE ...]\n";
   if (argc == 2 && std::string(argv[1]) == "--version") {
     std::cout << "lmbetter " LMBETTER_VERSION "\n";
@@ -254,6 +263,31 @@ int main(int argc, char **argv) {
     }
     const lmbetter::Tree tree = lmbetter::parse_json(raw);
     std::cout << lmbetter::tree_sexp(tree) << "\n";
+    return std::cout ? 0 : 4;
+  }
+  if (argc == 4 && std::string(argv[1]) == "query") {
+    std::string raw;
+    const std::string path = argv[3];
+    if (path == "-") {
+      std::ostringstream data;
+      data << std::cin.rdbuf();
+      raw = data.str();
+    } else {
+      try { raw = read_file(path); }
+      catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
+    }
+    const lmbetter::Tree tree = lmbetter::parse_json(raw);
+    lmbetter::NodeList captures;
+    try {
+      captures = lmbetter::node_query(lmbetter::node_root(tree), argv[2]);
+    } catch (const lmbetter::QueryError &e) {
+      std::cerr << e.what() << "\n";
+      return 3;
+    }
+    for (const auto &node : captures.items)
+      std::cout << lmbetter::node_kind(node) << " "
+                << lmbetter::node_start_row(node) << ":" << lmbetter::node_start_col(node)
+                << "-" << lmbetter::node_end_row(node) << ":" << lmbetter::node_end_col(node) << "\n";
     return std::cout ? 0 : 4;
   }
   if (argc >= 3 && std::string(argv[1]) == "--dsl") {

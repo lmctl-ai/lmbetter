@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <string>
+#include <stdexcept>
 #include <vector>
 
 namespace lmbetter {
@@ -70,6 +71,20 @@ struct NodeList {
 
 // Pre-order traversal of the named nodes of tree (root first).
 NodeList tree_nodes(const Tree &tree);
+
+// Thrown by node_query for an invalid pattern: what() is
+// "query error at byte offset N: <syntax|node-type|field|capture|structure|language>".
+struct QueryError : std::runtime_error {
+  using std::runtime_error::runtime_error;
+};
+
+// All captured nodes of all matches of a tree-sitter S-expression query
+// pattern (e.g. `(pair key: (string (string_content) @key))`), executed over
+// the subtree at root, in cursor order (matches in byte order, captures in
+// pattern order within a match). Duplicate nodes across captures/matches are
+// kept. A pattern with zero captures yields an empty list. Query predicates
+// (#eq? and friends) are NOT evaluated — do text checks in lmcode.
+NodeList node_query(const Node &root, const std::string &pattern);
 
 // Node kind (ts_node_type), e.g. "document", "object", "pair", "string".
 std::string node_kind(const Node &node);

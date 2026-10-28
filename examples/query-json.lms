@@ -1,0 +1,38 @@
+# Chapter: Rules - select nodes with a tree-sitter query
+# Shows: ts.query, S-expression patterns with @captures, Tree.root, ts.report_json/report_count
+# Run: lmscript examples/query-json.lms      (then: lmbetter --dsl build/query-json.dslb)
+# Needs: nothing (offline); the JSON fixture is embedded below.
+# exit: 0
+# expect:
+#|[{"row":5,"col":5,"end_row":5,"end_col":13,"message":"password key password"}]
+#|1 findings
+p = _lmcode_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
+
+# The selector half of rule-writing: a tree-sitter S-expression pattern picks
+# the candidate nodes (the direct analog of SonarJS's esquery selectors); the
+# rule body does the text check and reports. Query predicates (#eq? ...) are
+# NOT evaluated by the host — text checks live in lmcode, which is the
+# user-redefinable part anyway.
+
+@PAIR
+fn no_password_key(n: Node) -> void implements Rule {
+  # n is a captured string_content node (the key text, without quotes).
+  if (str_contains(n.text(), "password")) {
+    ts.report(n, "password key " + n.text());
+  }
+}
+
+let tree = ts.parse("{\n  \"service\": \"demo\",\n  \"port\": 1337,\n  \"auth\": {\n    \"user\": \"root\",\n    \"password\": \"hunter2\"\n  },\n  \"status\": \"TODO\"\n}");
+
+# The query returns every captured node in match/byte order; the annotation
+# stays compile-time metadata, so the pattern selects the candidates and the
+# rule re-checks the text.
+for (key in ts.query(tree.root(), "(pair key: (string (string_content) @key))")) {
+  no_password_key(key);
+}
+
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/query-json.dslb");

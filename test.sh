@@ -108,6 +108,26 @@ set +e; "$HOST" parse >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 2 ] || fail "parse without arguments exits 2 (got $code)"
 ok "parse without arguments refused (exit 2)"
 
+# --- query ---
+out="$("$HOST" query '(pair key: (string (string_content) @key))' examples/data/sample.json)"
+[ "$out" = 'string_content 1:3-1:7
+string_content 2:3-2:10
+string_content 3:3-3:5
+string_content 4:3-4:12' ] || fail "query captures: $out"
+ok "query: captured nodes printed as kind start-end (0-based)"
+
+set +e; out="$("$HOST" query '(pair' examples/data/sample.json 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'query error at byte offset'*'syntax'* ]] || fail "bad query pattern (exit $code): $out"
+ok "query: invalid pattern refused (exit 3, offset + reason)"
+
+out="$("$HOST" query '(pair (string))' examples/data/sample.json)"
+[ -z "$out" ] || fail "zero-capture query must print nothing: $out"
+ok "query: zero-capture pattern returns an empty list (exit 0)"
+
+set +e; "$HOST" query '(x)' >/dev/null 2>&1; code=$?; set -e
+[ "$code" = 2 ] || fail "query without a file argument exits 2 (got $code)"
+ok "query without a file argument refused (exit 2)"
+
 # --- DSL bytecode ---
 cat > "$WORK/smoke.lms" <<EOF
 p = _dsl_ cli="lmbetter" install="github:lmctl-ai/lmbetter@latest";
@@ -175,7 +195,7 @@ ok "multiple bytecode files run sequentially"
 
 # --- examples compile and run ---
 mkdir -p build
-for f in parse-string parse-file detect-error cst-rules lint-json report-json; do
+for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json; do
   "$LMSCRIPT" "examples/$f.lms" "build/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f example compile"
   "$HOST" --dsl "build/$f.dslb" >"$WORK/$f.out" || fail "$f example run"
   # every '# expect:' line must appear in the program output

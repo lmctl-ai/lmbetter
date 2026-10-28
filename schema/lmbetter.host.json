@@ -32,6 +32,15 @@
             "params": [],
             "returns": "string"
           }
+        ],
+        "query": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "NodeList"
+          }
         ]
       }
     },

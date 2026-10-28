@@ -118,4 +118,42 @@ Node node_child(const Node &node, int64_t index) {
   return child;
 }
 
+static const char *query_error_word(TSQueryError error) {
+  switch (error) {
+  case TSQueryErrorSyntax: return "syntax";
+  case TSQueryErrorNodeType: return "node-type";
+  case TSQueryErrorField: return "field";
+  case TSQueryErrorCapture: return "capture";
+  case TSQueryErrorStructure: return "structure";
+  case TSQueryErrorLanguage: return "language";
+  default: return "unknown";
+  }
+}
+
+NodeList node_query(const Node &root_node, const std::string &pattern) {
+  uint32_t error_offset = 0;
+  TSQueryError error_type = TSQueryErrorNone;
+  TSQuery *query = ts_query_new(tree_sitter_json(), pattern.data(),
+                                static_cast<uint32_t>(pattern.size()),
+                                &error_offset, &error_type);
+  if (!query)
+    throw QueryError("query error at byte offset " + std::to_string(error_offset) +
+                     ": " + query_error_word(error_type));
+  TSQueryCursor *cursor = ts_query_cursor_new();
+  ts_query_cursor_exec(cursor, query, ts(root_node));
+  NodeList list;
+  TSQueryMatch match;
+  while (ts_query_cursor_next_match(cursor, &match)) {
+    for (uint16_t i = 0; i < match.capture_count; ++i) {
+      Node node;
+      node.owner = root_node.owner;
+      new (node.bytes) TSNode(match.captures[i].node);
+      list.items.push_back(node);
+    }
+  }
+  ts_query_cursor_delete(cursor);
+  ts_query_delete(query);
+  return list;
+}
+
 } // namespace lmbetter

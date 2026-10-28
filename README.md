@@ -39,18 +39,27 @@ lmbetter --notices
 lmbetter --dsl-schema [--json]
 lmbetter --dsl-signatures
 lmbetter parse FILE           # '-' reads stdin
+lmbetter query PATTERN FILE   # '-' reads stdin
 lmbetter --dsl FILE [FILE ...]
 ```
 
 `parse` prints the concrete syntax tree as a single-line s-expression, like
 `tree-sitter parse` does. Malformed input still prints its tree — broken
 regions appear as `(ERROR ...)` nodes — and still exits 0; tree-sitter always
-produces a tree. Exit codes: 0 ok, 2 usage error, 3 input/DSL error,
-4 stdout failure.
+produces a tree. `query` runs a tree-sitter S-expression pattern over the
+document and prints one line per captured node, `kind
+start_row:start_col-end_row:end_col` (0-based). Exit codes: 0 ok, 2 usage
+error, 3 input/DSL error (an invalid query pattern names its byte offset and
+reason), 4 stdout failure.
 
 ```
 $ echo '{"a": [1, null]}' | lmbetter parse -
 (document (object (pair key: (string (string_content)) value: (array (number) (null)))))
+$ lmbetter query '(pair key: (string (string_content) @key))' examples/data/sample.json
+string_content 1:3-1:7
+string_content 2:3-2:10
+string_content 3:3-3:5
+string_content 4:3-4:12
 ```
 
 The `--dsl` interface runs lmscript bytecode against the same engine with
@@ -86,7 +95,14 @@ per-run findings sink: `ts.report(node, message)` appends a finding
 {row, col, end_row, end_col, message} (0-based positions, capped at 65536 per
 run), read back with `ts.report_count()` and `ts.report_json()` (a JSON array
 string with stable key order) — the script decides the rendering, see
-`examples/report-json.lms`. See `examples/` for runnable scripts.
+`examples/report-json.lms`. Since v0.2.3, `ts.query(root, pattern)` runs a
+tree-sitter S-expression query over the subtree at `root` and returns every
+captured node as a `NodeList` (match/byte order; duplicates kept; a pattern
+with zero captures yields an empty list; an invalid pattern is a runtime
+error naming the byte offset and reason). Query predicates (`#eq?` and
+friends) are NOT evaluated — do text checks in lmcode, which is the
+user-redefinable part anyway; see `examples/query-json.lms`. See `examples/`
+for runnable scripts.
 
 ## Repository layout
 

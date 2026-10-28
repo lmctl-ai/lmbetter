@@ -37,7 +37,20 @@ the TODO in scripts/select-compiler.sh).
   with `n.kind()` and the walk calls every rule on every node — O(rules ×
   nodes). The stated future direction is a DSLB v6 rule entry table
   (annotation + interface per rule; the host walks once and dispatches by
-  node kind).
+  node kind). PARTIALLY LANDED in v0.2.3: `ts.query(root, pattern)` runs a
+  tree-sitter S-expression query (the esquery analog from
+  docs/rule-snippets.md) and returns every captured node as a `NodeList`, so
+  the pattern — not a per-node loop — does the structural selection
+  (`examples/query-json.lms`). Captures come back in cursor order (matches in
+  byte order, captures in pattern order within a match); duplicates across
+  captures/matches are kept; a zero-capture pattern is an empty list, not an
+  error; invalid patterns throw a runtime error naming the byte offset and a
+  reason word (syntax/node-type/field/capture/structure/language). Query
+  predicates (`#eq?` etc.) are NOT evaluated — the cursor carries them but
+  nothing applies them; text checks stay in lmcode, which is the
+  user-redefinable part anyway. Query NodeLists share the arena and the
+  65536-object cap with Tree.nodes() lists and Node handles, and their nodes
+  borrow the owning Tree (arena lifetime).
 - **Void rules can't count** (R35 forbids caller-local captures, and
   `implements Rule` fixes the signature to `(Node) -> void`), so
   `examples/lint-json.lms` needs int predicate helpers evaluated twice.
