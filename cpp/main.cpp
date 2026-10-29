@@ -559,7 +559,7 @@ std::vector<lmok::SarifRuleMeta> sarif_rules_of(const std::vector<lmok::LintRule
   std::vector<lmok::SarifRuleMeta> out;
   for (const auto &rule : rules) {
     const auto url = rule.metadata.strings.find("url");
-    out.push_back({rule.id, rule.message, url == rule.metadata.strings.end() ? "" : url->second});
+    out.push_back({rule.id, rule.message, url == rule.metadata.strings.end() ? "" : url->second, rule.metadata});
   }
   return out;
 }
@@ -1279,7 +1279,7 @@ static int run_cli(int argc, char **argv) {
         std::cout << lmok::metadata_suffix(f.metadata,host.include_metadata) << "}\n";
         if (sarif_path)
           sarif_results.push_back({f.rule, f.severity, f.message, target.path,
-                                   f.row, f.col, f.end_row, f.end_col});
+                                   f.row, f.col, f.end_row, f.end_col, f.metadata});
       }
       std::cout << printed << " findings in " << target.path << lmok::suppressed_suffix(suppression.suppressed) << "\n";
       if (db_path) {
@@ -1474,7 +1474,7 @@ static int run_cli(int argc, char **argv) {
     const auto collect_sarif = [&sarif_path, &sarif_results, &host](const std::string &uri) {
       if (!sarif_path) return;
       for (const auto &f : host.findings)
-        sarif_results.push_back({f.rule, f.severity, f.message, uri, f.row, f.col, f.end_row, f.end_col});
+        sarif_results.push_back({f.rule, f.severity, f.message, uri, f.row, f.col, f.end_row, f.end_col, f.metadata});
     };
     try {
       program.run(context, reg); // configuration/effects once, not once per node or file
@@ -1510,10 +1510,13 @@ static int run_cli(int argc, char **argv) {
       // results — lmcode rules carry no pack, and the example script derives
       // its catalog the same way.
       std::vector<lmok::SarifRuleMeta> sarif_rules;
-      std::set<std::string> seen_ids;
-      for (const auto &f : sarif_results)
-        if (!f.rule.empty() && seen_ids.insert(f.rule).second)
-          sarif_rules.push_back({f.rule, "rule " + f.rule, ""});
+      std::map<std::string,size_t> seen_ids;
+      for (const auto &f : sarif_results) if(!f.rule.empty()) {
+        const auto inserted=seen_ids.emplace(f.rule,sarif_rules.size());
+        if(inserted.second)sarif_rules.push_back({f.rule,"rule "+f.rule,"",f.metadata});
+        else if(sarif_rules[inserted.first->second].metadata.empty())
+          sarif_rules[inserted.first->second].metadata=f.metadata; // first declared metadata; each result retains its own
+      }
       if (const int rc = write_sarif_file(*sarif_path,
                                           lmok::sarif_log(LMOK_VERSION, sarif_rules, sarif_results, json_escape)))
         return rc;

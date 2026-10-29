@@ -29,3 +29,9 @@ trailing comments without accepting a marker in a macro string.
 OWASP values are explicitly versioned taxonomy hints, not a blanket security tag.
 The 2021 A03 mapped CWE list includes CWE-78/95, not CWE-120; unsafe buffer-copy
 rule LBC001 therefore carries CWE-120 without A03. Source: https://top10.owasp.org/2021/A03_2021-Injection/
+
+SARIF integration: c8cbab3 introduced the host writer; RuleMetadata now passes
+through SarifRuleMeta and SarifResult for lint, check and ci. Explicit --sarif
+always carries properties and helpUri even if JSON --metadata is absent. Entry
+catalogs retain first declared metadata, with metadata also kept per result.
+Do not rebuild SARIF by parsing default JSON, which deliberately omits these fields.

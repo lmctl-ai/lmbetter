@@ -20,8 +20,12 @@ std::string sarif_log(const std::string &tool_version,
     out << "{\"id\":\"" << escape(rule.id) << "\"";
     if (!rule.description.empty())
       out << ",\"shortDescription\":{\"text\":\"" << escape(rule.description) << "\"}";
-    if (!rule.help_uri.empty())
-      out << ",\"helpUri\":\"" << escape(rule.help_uri) << "\"";
+    std::string help_uri=rule.help_uri;
+    const auto url=rule.metadata.strings.find("url");
+    if(help_uri.empty()&&url!=rule.metadata.strings.end())help_uri=url->second;
+    if (!help_uri.empty())
+      out << ",\"helpUri\":\"" << escape(help_uri) << "\"";
+    if(!rule.metadata.empty())out<<",\"properties\":"<<rule.metadata.json();
     out << "}";
   }
   out << "]}},\"results\":[";
@@ -33,6 +37,7 @@ std::string sarif_log(const std::string &tool_version,
     const char *level = f.severity == "critical" ? "error" : f.severity == "minor" ? "note" : "warning";
     out << "{\"ruleId\":\"" << escape(f.rule) << "\",\"level\":\"" << level << "\""
         << ",\"message\":{\"text\":\"" << escape(f.message) << "\"}";
+    if(!f.metadata.empty())out<<",\"properties\":"<<f.metadata.json();
     if (!f.uri.empty())
       out << ",\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\""
           << escape(f.uri) << "\"},\"region\":{\"startLine\":" << f.row + 1

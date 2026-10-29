@@ -84,7 +84,7 @@ int run_project_ci(const ProjectConfig &config, const std::string &root,
     for (const auto &rule : rules) {
       const auto url = rule.metadata.strings.find("url");
       sarif->rules->push_back({rule.id, rule.message,
-                               url == rule.metadata.strings.end() ? "" : url->second});
+                               url == rule.metadata.strings.end() ? "" : url->second, rule.metadata});
     }
 
   size_t findings_count = 0;
@@ -119,7 +119,7 @@ int run_project_ci(const ProjectConfig &config, const std::string &root,
                 << "\",\"message\":\"" << json_escape(finding.message) << "\"" << metadata_suffix(finding.metadata,include_metadata) << "}\n";
       if (sarif && sarif->results)
         sarif->results->push_back({finding.rule, finding.severity, finding.message, path,
-                                   finding.row, finding.col, finding.end_row, finding.end_col});
+                                   finding.row, finding.col, finding.end_row, finding.end_col, finding.metadata});
       if (config.fail_on == "findings" && severity_rank(finding.severity) >= floor)
         threshold_hit = true;
     }

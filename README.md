@@ -688,3 +688,7 @@ runs add 1; nested function bodies are scored separately. These are documented
 syntax metrics, with ten hand-computed function values pinned for each language.
 See [scoring and limits](durable-memory/11-metrics.md) and run
 `bash examples/metrics.sh` after building and setting the compiler PATH.
+
+Native `--sarif FILE` includes declared metadata in rule/result `properties` and
+uses `url` as rule `helpUri`, including for lmcode entry rules. It does not require
+`--metadata`; that switch controls JSON findings only.

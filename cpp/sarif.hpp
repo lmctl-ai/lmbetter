@@ -9,6 +9,7 @@
 // mapping is the example's: critical -> error, minor -> note, everything
 // else (the free-form vocabulary is pack-owned) -> warning.
 
+#include "rule_metadata.hpp"
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -20,6 +21,7 @@ struct SarifRuleMeta {
   std::string id;
   std::string description; // empty = omitted (shortDescription.text)
   std::string help_uri;    // empty = omitted (helpUri)
+  RuleMetadata metadata{}; // Always included in explicit SARIF, independently of --metadata JSON.
 };
 
 struct SarifResult {
@@ -27,6 +29,7 @@ struct SarifResult {
   std::string uri; // path exactly as lint/check printed it; empty = unlocated
                    // (check "body" findings: no locations member is emitted)
   int64_t row = 0, col = 0, end_row = 0, end_col = 0; // 0-based
+  RuleMetadata metadata{};
 };
 
 // `escape` is the host JSON string escaper WITHOUT surrounding quotes (the
