@@ -99,6 +99,7 @@ add_executable(lmok
   cpp/db.cpp
   $<TARGET_OBJECTS:lmok_sqlite>
   cpp/facts.cpp
+  cpp/metrics.cpp
   ${TS_SOURCES}
   "${GENERATED_SCHEMA}"
   "${GENERATED_NOTICES}"

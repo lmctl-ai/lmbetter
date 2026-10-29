@@ -602,3 +602,19 @@ The initial packs cover exact Bash `` `date` `` / `` `pwd` `` substitutions and 
 are in `tests/check-autofix.py`, run by `./test.sh` on every platform. Fix metadata
 is available in current lint/check output; historical DB findings keep their
 existing position/message schema.
+
+## Local metrics and duplication
+
+`lmok metrics src/` prints JSON Lines with `file`, physical `lines`, `functions`
+and `max_nesting`. `lmok dup --tokens 20 src/` reports repeated within-file token
+windows: identifiers/literals normalize, keywords/operators remain distinct,
+comments are skipped. Both copy ranges are zero-based, end exclusive; adjacent
+windows are not merged. `--tokens` accepts a positive integer (default 20).
+Both verbs accept `--lang L` and use the existing file/directory expansion.
+
+The C/Python `rules/lmcode/*-function-cognitive-complexity.lms` packs report
+scores >15. Controls add 1 plus nesting, else/elif add 1, and boolean operator
+runs add 1; nested function bodies are scored separately. These are documented
+syntax metrics, with ten hand-computed function values pinned for each language.
+See [scoring and limits](durable-memory/11-metrics.md) and run
+`bash examples/metrics.sh` after building and setting the compiler PATH.

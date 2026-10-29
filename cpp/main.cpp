@@ -11,6 +11,7 @@
 #include "project_ci.hpp"
 #include "pattern.hpp"
 #include "facts.hpp"
+#include "metrics.hpp"
 #include "input.hpp"
 #include "db.hpp"
 #include "dslvm.hpp"
@@ -570,6 +571,8 @@ static int run_cli(int argc, char **argv) {
       "       lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress] [--fix|--diff]\n"
       "       lmok facts [--lang json|c|python|bash|java|go] FILE|DIR...\n"
       "       lmok check [--lang json|c|python|bash|java|go] RULES.dslb FILE|DIR... [--no-suppress]\n"
+      "       lmok metrics [--lang json|c|python|bash|java|go] FILE|DIR...\n"
+      "       lmok dup [--lang json|c|python|bash|java|go] [--tokens N] FILE|DIR...\n"
       "       lmok --dsl FILE [FILE ...]\n";
   if (argc>=2 && std::string(argv[1])=="rules") {
     if(argc<3){std::cerr<<"rules needs PACK...\n";return 2;}
@@ -1188,6 +1191,48 @@ static int run_cli(int argc, char **argv) {
         std::cerr << "lint: run not recorded in DB: " << e.what() << "\n";
       } catch (const std::exception &e) {
         std::cerr << "lint: run not recorded in DB: " << e.what() << "\n";
+      }
+    }
+    return std::cout ? 0 : 4;
+  }
+  if (argc >= 2 && (std::string(argv[1]) == "metrics" || std::string(argv[1]) == "dup")) {
+    const bool duplication = std::string(argv[1]) == "dup";
+    bool forced = false, tokens_seen = false;
+    lmok::Grammar forced_grammar = lmok::Grammar::Json;
+    int64_t min_tokens = 20;
+    std::vector<std::string> inputs;
+    for (int i = 2; i < argc; ++i) {
+      const std::string arg = argv[i];
+      if (arg == "--lang" && !forced && i + 1 < argc) {
+        if (!parse_lang(argv[++i], forced_grammar)) { std::cerr << usage; return 2; }
+        forced = true;
+      } else if (arg == "--tokens" && duplication && !tokens_seen && i + 1 < argc) {
+        const std::string value = argv[++i];
+        size_t used = 0;
+        try { min_tokens = std::stoll(value, &used); }
+        catch (const std::exception &) { std::cerr << usage; return 2; }
+        if (used != value.size() || min_tokens <= 0) { std::cerr << "--tokens must be a positive integer\n"; return 2; }
+        tokens_seen = true;
+      } else if (arg.rfind("--", 0) == 0) { std::cerr << usage; return 2; }
+      else inputs.push_back(arg);
+    }
+    if (inputs.empty()) { std::cerr << usage; return 2; }
+    std::vector<Target> targets;
+    if (const int rc = expand_targets(inputs, 0, targets, forced ? &forced_grammar : nullptr)) return rc;
+    for (const auto &target : targets) {
+      lmok::Grammar grammar = forced_grammar;
+      if ((!forced || target.from_dir) && !grammar_for_extension(std::filesystem::u8path(target.path).extension().u8string(), grammar)) {
+        std::cerr << "cannot infer the language of " << target.path << " from its extension (use --lang)\n"; return 2;
+      }
+      try {
+        const auto raw = read_file(target.path);
+        const auto tree = lmok::parse(grammar, raw);
+        if (duplication) {
+          for (const auto &duplicate : lmok::duplicate_windows(tree, min_tokens))
+            std::cout << lmok::duplicate_json(target.path, duplicate) << "\n";
+        } else std::cout << lmok::metrics_json(target.path, lmok::measure_file(tree, raw)) << "\n";
+      } catch (const std::exception &error) {
+        std::cerr << argv[1] << " " << target.path << ": " << error.what() << "\n"; return 3;
       }
     }
     return std::cout ? 0 : 4;

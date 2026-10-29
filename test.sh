@@ -1147,4 +1147,9 @@ ok "secrets packs, redaction, entropy and false positive controls"
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-autofix.py "$HOST" --prove-controls || fail "token-safe autofix native OS contracts"
 ok "token-safe autofix, previews, suppression, rollback and pinned bytes"
 
+LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-metrics.py "$HOST" || fail "metrics and cognitive complexity"
+ok "C/Python ten-function cognitive and nesting table"
+python3 tests/check-dup.py "$HOST" || fail "normalized token duplication"
+ok "token duplication ranges, normalization and controls"
+
 echo "PASS: $pass checks"

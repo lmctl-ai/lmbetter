@@ -141,3 +141,7 @@ the annotation to see a located missing/unexpected JSON diff and exit 1.
 
 `examples/report-metadata.lms` shows `ts.report_meta`; pass `--metadata` to the
 host to see classification fields while its default output stays byte-compatible.
+
+
+`bash examples/metrics.sh` prints local file metrics, repeated normalized token
+windows, then compiles/runs the C cognitive-complexity threshold pack.

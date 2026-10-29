@@ -1,0 +1,90 @@
+# Cognitive complexity, local CST profile. Threshold is 15; copy this pack to
+# tune it. Values and the exact scoring profile are pinned in check-metrics.py.
+p = _lmcode_ cli="lmok";
+
+fn structural(n: Node) -> bool {
+  let k = n.kind();
+  let hit = k == "if_statement" || k == "for_statement" || k == "while_statement" || k == "do_statement" || k == "switch_statement" || k == "conditional_expression";
+  if (k == "if_statement" && n.has_parent() && n.parent().kind() == "else_clause") { hit = false; }
+  return hit;
+}
+
+fn belongs(n: Node, root: Node) -> bool {
+  let cur = n;
+  let found = false;
+  let owned = false;
+  while (cur.has_parent() && !found) {
+    cur = cur.parent();
+    if (cur.kind() == "function_definition" || cur.kind() == "lambda") {
+      owned = cur.start_row() == root.start_row() && cur.start_col() == root.start_col();
+      found = true;
+    }
+  }
+  return owned;
+}
+
+fn nesting(n: Node) -> int {
+  let depth = 0;
+  let cur = n;
+  let done = false;
+  while (cur.has_parent() && !done) {
+    cur = cur.parent();
+    if (cur.kind() == "function_definition" || cur.kind() == "lambda") { done = true; }
+    else { if (structural(cur)) { depth = depth + 1; } }
+  }
+  return depth;
+}
+
+fn boolean_op(n: Node) -> string {
+  let result = "";
+  for (op in ts.query_c(n, "(binary_expression operator: [\"&&\" \"||\"] @op)")) {
+    let parent = op.parent();
+    if (parent.start_row() == n.start_row() && parent.start_col() == n.start_col() &&
+        parent.end_row() == n.end_row() && parent.end_col() == n.end_col()) { result = op.kind(); }
+  }
+  return result;
+}
+
+fn cognitive_score(root: Node) -> int {
+  let score = 0;
+  for (n in ts.query_c(root, "(_) @node")) {
+    let k = n.kind();
+    if (belongs(n, root)) {
+      if (structural(n)) {
+        let extra = nesting(n);
+        if (k == "if_statement" && n.has_parent() && n.parent().kind() == "else_clause") { extra = 0; }
+        score = score + 1 + extra;
+      }
+      if (k == "if_statement" && n.has_parent() && n.parent().kind() == "else_clause") { score = score + 1; }
+      if (k == "else_clause") {
+        let elif = false;
+        for (i in range(0, n.child_count())) { if (n.child(i).kind() == "if_statement") { elif = true; } }
+        if (!elif) { score = score + 1; }
+      }
+      if (k == "goto_statement") { score = score + 1; }
+    }
+  }
+  # One increment per run of identical boolean operators. Parentheses are
+  # transparent; changing and/or (or &&/||) starts another run.
+  for (op in ts.query_c(root, "(binary_expression operator: [\"&&\" \"||\"] @op)")) {
+    if (belongs(op, root)) {
+      let expr = op.parent();
+      let same_run = false;
+      if (expr.has_parent()) {
+        let parent = expr.parent();
+        while (parent.kind() == "parenthesized_expression" && parent.has_parent()) { parent = parent.parent(); }
+        if (parent.kind() == "binary_expression") { same_run = boolean_op(parent) == op.kind(); }
+      }
+      if (!same_run) { score = score + 1; }
+    }
+  }
+  return score;
+}
+
+@function_definition
+fn cognitive_complexity(n: Node) -> void implements Rule {
+  let score = cognitive_score(n);
+  if (score > 15) { ts.report(n, "cognitive complexity (" + str(score) + ")", "LBC103", "major"); }
+}
+end _lmcode_
+savedsl(p, "build/rules-lmcode/c-function-cognitive-complexity.dslb");
