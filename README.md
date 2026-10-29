@@ -122,11 +122,12 @@ lmok --version
 lmok --notices
 lmok --dsl-schema [--json]
 lmok --dsl-signatures
-lmok parse [--lang json|c|python|bash] FILE          # '-' reads stdin
-lmok query [--lang json|c|python|bash] [--pattern] PATTERN FILE  # '-' reads stdin; --pattern: code-shaped
-lmok lint RULES.json FILE... [--db PATH]
+lmok parse [--lang json|c|python|bash] FILE       # '-' reads stdin
+lmok query [--lang json|c|python|bash] [--pattern] PATTERN FILE  # '-' reads stdin
+lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress]
+lmok ci [--config FILE] [--no-suppress] [ROOT]
 lmok findings [--rule ID] [--file PATH] [--db PATH]
-lmok check [--lang json|c|python|bash] RULES.dslb FILE...
+lmok check [--lang json|c|python|bash] RULES.dslb FILE|DIR... [--no-suppress]
 lmok --dsl FILE [FILE ...]
 ```
 
@@ -164,7 +165,7 @@ $ lmok lint examples/rules/c-security.json examples/data/sample.c
 ```
 
 The `--dsl` interface runs the body of lmscript bytecode against the same engine
-with structured access to parsed trees. `check RULES.dslb FILE...` is the v6
+with structured access to parsed trees. `check RULES.dslb FILE|DIR... [--no-suppress]` is the v6
 entry path: it loads one DSLB file, indexes entries by annotation, runs its
 body once, then parses and walks each explicit input file once. It dispatches
 matching entries in source order, including anonymous tree-sitter kinds, and
@@ -306,6 +307,13 @@ unreadable/corrupt DBs exit 3, and stdout failures exit 4.
   directories are not. File and directory args mix freely. Rule ids must be
   unique within a pack (exit 2 otherwise).
 
+`lmok ci` reads `ROOT/.lmok/config.json` (or `--config FILE`), loads every
+configured pack, and emits JSONL findings followed by a nested summary. It
+honors `.lmokignore`, configured ignore globs, inline `lmok-disable` markers,
+and `--no-suppress`; a finding at or above `severity_floor` returns exit 1
+when `fail_on` is `findings`. See [project CI](durable-memory/09-project-ci.md)
+for the versioned config format and baseline hook.
+
 Packs live in `examples/rules/` (`c-security.json`, `json-config.json`) as
 small demos; the canonical rule library is `rules/` (see below).
 
@@ -420,7 +428,7 @@ strings (policy belongs to the script; the host validates nothing), emitted
 by `report_json()` only when present (key order row, col, end_row, end_col,
 rule, severity, message) — see [examples/rule-catalog.lms](examples/rule-catalog.lms) for per-severity
 summaries and a quality gate computed in lmcode, [examples/suppress-findings.lms](examples/suppress-findings.lms)
-for `// nosonar`-style suppression implemented entirely script-side, and
+for host-side `lmok-disable` suppression, and
 [examples/sarif-report.lms](examples/sarif-report.lms) for SARIF 2.1.0 emission (GitHub code scanning /
 VS Code interop) in pure lmcode. Since v0.2.3, `ts.query(root, pattern)` runs a
 tree-sitter S-expression query over the subtree at `root` and returns every

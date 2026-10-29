@@ -65,9 +65,10 @@ nonzero process exit status.
 - `rule-catalog.lms` — user-side policy: parse `ts.report_json()` back with
   the std json functions, summarize by severity, and apply a quality gate
   (`critical > 0` → `gate=FAIL`) as a plain script-side `if`
-- `suppress-findings.lms` — `// nosonar`-style suppression as pure lmcode
-  policy: rules report everything; a chunk-level post-filter drops findings
-  on rows whose comment contains "nosonar" (StrMap + `json_parse`/`to_json`)
+- `suppress-findings.lms` — host-side `lmok-disable` suppression. Put
+  `lmok-disable` or `lmok-disable: RULE1,RULE2` on the finding line or the
+  preceding line; use `--no-suppress` after the lint/check/ci verb when auditing
+  every finding.
 - `sarif-report.lms` — analyzer interop: emit a minimal valid SARIF 2.1.0
   document to `build/sarif-results.sarif` via string building; severity→level
   mapping, the 0-based→1-based region conversion, and the driver rule catalog

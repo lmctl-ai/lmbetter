@@ -96,20 +96,14 @@ the TODO in scripts/select-compiler.sh).
   into the host arena on every call (O(tree) time and memory per call; fine
   at this scale, cache it in a local if looping). Remaining reason for the v6
   entry table is dispatch cost/ergonomics, not reach.
-- **Suppression (`// nosonar`) is script-side policy** (v0.2.6, no host
-  change): SonarQube's `NoSonarFilter` is platform-side machinery that drops
-  issues on marker-comment lines after rules ran;
-  `examples/suppress-findings.lms` implements the same shape in ~15 lines of
-  user lmcode — rules report everything, then a chunk-level post-filter
-  builds a StrMap of `nosonar` comment rows (`ts.query_c(root, "(comment)
-  @c")`, keyed by `str(row)`) and re-emits `ts.report_json()` minus
-  suppressed rows via `json_parse` + `Json.to_json()` (which preserves key
-  order/bytes). Structural note: the original sketch had rules call
-  `maybe_report(n, msg, key, sev)` consulting a chunk-level map — impossible
-  under R35 (inlined fns see only params + schema names, no caller-local
-  captures), and a `Rule`-conforming signature `(Node) -> void` cannot take
-  the map as a parameter. The post-filter shape is the faithful lmcode
-  expression of the same design.
+- **Suppression is host-side policy**: place `lmok-disable` or
+  `lmok-disable: RULE1,RULE2` on a source line (or the line immediately
+  before it). The token is matched anywhere on the line, so comments and
+  strings both count. Lint, check, and ci remove matching findings before
+  output, report the suppressed count, and accept `--no-suppress` to show all.
+  Lint can diagnose ids absent from its pack; dynamic check rules can warn only
+  for ids that were not observed in that run. `examples/suppress-findings.lms`
+  demonstrates the marker without a script-side filtering map.
 - **SARIF 2.1.0 interop is script-side too** (v0.2.7, no host change):
   `examples/sarif-report.lms` turns the findings sink into a minimal valid
   SARIF document (`build/sarif-results.sarif`, validated structurally in

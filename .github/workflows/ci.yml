@@ -119,6 +119,10 @@ jobs:
         shell: bash
         run: ./test.sh
 
+      - name: lmok ci planted-finding gate
+        if: env.ONLY_OK == 'true'
+        run: python3 tests/check-ci-planted.py build/lmok
+
       - name: package artifact
         if: env.ONLY_OK == 'true'
         shell: bash

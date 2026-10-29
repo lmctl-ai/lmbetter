@@ -1,0 +1,1 @@
+{"lang":"c","rules":[{"id":"CI-PLANTED","on":"identifier","text_matches":"^lmok_planted_issue$","message":"intentional CI finding","severity":"critical"}]}

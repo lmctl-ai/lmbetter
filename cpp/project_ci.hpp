@@ -1,0 +1,151 @@
+#pragma once
+
+// Project-level CI runner.  This header deliberately keeps filesystem
+// expansion in main.cpp: the existing target walker owns .lmokignore,
+// hidden-directory and platform-path semantics.  The template callback lets
+// `ci` reuse that walker without introducing a second scanner.
+
+#include "lint.hpp"
+#include "project_config.hpp"
+#include "input.hpp"
+
+#include <cstddef>
+#include <functional>
+#include <filesystem>
+#include <iostream>
+#include <map>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace lmok {
+namespace project_ci_detail {
+
+inline std::string json_escape(const std::string &s) {
+  std::string out;
+  out.reserve(s.size() + 8);
+  for (const unsigned char c : s) {
+    switch (c) {
+    case '"': out += "\\\""; break;
+    case '\\': out += "\\\\"; break;
+    case '\n': out += "\\n"; break;
+    case '\r': out += "\\r"; break;
+    case '\t': out += "\\t"; break;
+    default:
+      if (c < 0x20) {
+        static constexpr char hex[] = "0123456789abcdef";
+        out += "\\u00";
+        out += hex[c >> 4];
+        out += hex[c & 15];
+      } else out.push_back(static_cast<char>(c));
+    }
+  }
+  return out;
+}
+
+inline const char *language_name(const Grammar grammar) {
+  return grammar_name(grammar);
+}
+
+} // namespace project_ci_detail
+
+// Target must expose `path` and `from_dir`.  Expand must have the shape:
+//   int expand(vector<string> roots, vector<Target>& out, vector<string> ignore)
+// and return the normal lmok CLI status (0, 2, or 3).  GrammarForExtension
+// has the shape bool(string extension, Grammar& out).  ReadFile returns the
+// source bytes and may throw dslvm::Error.
+template <class Target, class Expand, class GrammarForExtension, class ReadFile>
+int run_project_ci(const ProjectConfig &config, const std::string &root,
+                   bool no_suppress, Expand expand,
+                   GrammarForExtension grammar_for_extension, ReadFile read_file) {
+  if (config.baseline) {
+    // Item 3 owns baseline comparison.  Keep the field in the versioned
+    // format, but refuse it here so CI cannot silently claim a baseline was
+    // applied when it was not.
+    std::cerr << "project config baseline is reserved for baseline support (item 3)\n";
+    return 2;
+  }
+
+  std::vector<LintRule> rules;
+  std::set<std::string> ids;
+  for (const auto &language_packs : config.packs) {
+    Grammar configured;
+    bool known = false;
+    if (language_packs.first == "json") { configured = Grammar::Json; known = true; }
+    else if (language_packs.first == "c") { configured = Grammar::C; known = true; }
+    else if (language_packs.first == "python") { configured = Grammar::Python; known = true; }
+    else if (language_packs.first == "bash") { configured = Grammar::Bash; known = true; }
+    if (!known) {
+      std::cerr << "project config unknown pack language '" << language_packs.first << "'\n";
+      return 2;
+    }
+    for (const std::string &pack : language_packs.second) {
+      const std::string path = (std::filesystem::u8path(root) / std::filesystem::u8path(pack)).generic_u8string();
+      std::vector<LintRule> loaded;
+      try { loaded = load_rule_pack(path); }
+      catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 2; }
+      for (auto &rule : loaded) {
+        if (rule.grammar != configured) {
+          std::cerr << "project config pack '" << path << "' language does not match '"
+                    << language_packs.first << "'\n";
+          return 2;
+        }
+        if (!ids.insert(rule.id).second) {
+          std::cerr << "project config duplicate rule id '" << rule.id << "'\n";
+          return 2;
+        }
+        if (severity_rank(rule.severity) < 0) { std::cerr << "project config invalid rule severity: " << rule.severity << "\n"; return 2; }
+        rules.push_back(std::move(rule));
+      }
+    }
+  }
+
+  std::vector<Target> targets;
+  const int walk_status = expand(std::vector<std::string>{root}, targets, config.ignore);
+  if (walk_status != 0) return walk_status;
+
+  size_t findings_count = 0;
+  size_t suppressed_count = 0;
+  bool threshold_hit = false;
+  const int floor = severity_rank(config.severity_floor);
+  for (const Target &target : targets) {
+    Grammar file_grammar;
+    const std::string path = target.path;
+    const std::string ext = std::filesystem::u8path(path).extension().u8string();
+    if (!grammar_for_extension(ext, file_grammar)) continue;
+    std::vector<LintRule> file_rules;
+    for (const auto &rule : rules)
+      if (rule.grammar == file_grammar) file_rules.push_back(rule);
+    if (file_rules.empty()) continue;
+    std::string source;
+    try { source = read_file(path); }
+    catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
+    Suppression suppression(source);
+    std::vector<LintFinding> findings;
+    try { findings = lint_text(file_rules, source, &suppression, no_suppress); }
+    catch (const std::exception &e) { std::cerr << e.what() << "\n"; return 3; }
+    suppression.warn(path, ids);
+    suppressed_count += suppression.suppressed;
+    findings_count += findings.size();
+    for (const auto &finding : findings) {
+      std::cout << "{\"path\":\"" << project_ci_detail::json_escape(path)
+                << "\",\"row\":" << finding.row << ",\"col\":" << finding.col
+                << ",\"end_row\":" << finding.end_row << ",\"end_col\":" << finding.end_col
+                << ",\"rule\":\"" << project_ci_detail::json_escape(finding.rule)
+                << "\",\"severity\":\"" << project_ci_detail::json_escape(finding.severity)
+                << "\",\"message\":\"" << project_ci_detail::json_escape(finding.message) << "\"}\n";
+      if (config.fail_on == "findings" && severity_rank(finding.severity) >= floor)
+        threshold_hit = true;
+    }
+  }
+  std::cout << "{\"summary\":{\"findings\":" << findings_count
+            << ",\"suppressed\":" << suppressed_count
+            << ",\"severity_floor\":\"" << project_ci_detail::json_escape(config.severity_floor)
+            << "\",\"fail_on\":\"" << project_ci_detail::json_escape(config.fail_on)
+            << "\"}}\n";
+  if (!std::cout) return 4;
+  return threshold_hit ? 1 : 0;
+}
+
+} // namespace lmok

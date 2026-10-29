@@ -1085,4 +1085,10 @@ set +e; out="$(cd "$DBFIX" && "$HOST_ABS" symbols --lang rust --db "$WORK/test.d
 [ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust'"* ]] || fail "symbols unknown --lang (exit $code): $out"
 ok "index: edges resolve (include hits ./util.h, import os external); missing DB refused (exit 2)"
 
+LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-project.py "$HOST" || fail "project CI and suppression"
+ok "project CI, ignores and host suppression"
+
+python3 tests/check-ci-planted.py "$HOST" || fail "planted CI finding"
+ok "lmok ci planted-finding gate"
+
 echo "PASS: $pass checks"

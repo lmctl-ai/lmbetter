@@ -51,13 +51,14 @@ std::string expand_message(const std::string &message, const std::string &text) 
   }
 }
 
-void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding> &findings) {
+void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding> &findings, Suppression *suppression, bool no_suppress) {
   const std::string text = node_text(node);
   try {
     if (!rule.text_matches.empty() && !regex_search_bounded(text, rule.text_regex)) return;
   } catch (const RegexLimit &e) {
     throw QueryError("rule " + rule.id + ": " + e.what());
   }
+  if(suppression && suppression->drop(static_cast<size_t>(node_start_row(node)),rule.id,no_suppress))return;
   findings.push_back({node_start_row(node), node_start_col(node),
                       node_end_row(node), node_end_col(node),
                       rule.id, rule.severity, expand_message(rule.message, text)});
@@ -191,7 +192,7 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
   return rules;
 }
 
-std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std::string &text) {
+std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std::string &text, Suppression *suppression, bool no_suppress) {
   std::vector<LintFinding> findings;
   for (const Grammar grammar : {Grammar::Json, Grammar::C, Grammar::Python, Grammar::Bash}) {
     std::vector<const LintRule *> here;
@@ -211,7 +212,7 @@ std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std
       for (const Node &node : all.items) {
         const auto it = by_kind.find(node_kind(node));
         if (it == by_kind.end()) continue;
-        for (const LintRule *rule : it->second) maybe_emit(*rule, node, findings);
+        for (const LintRule *rule : it->second) maybe_emit(*rule, node, findings, suppression, no_suppress);
       }
     }
 
@@ -246,7 +247,7 @@ std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std
       for (const Node &node : nodes.items) {
         if (!rule->pattern_inside.empty() && !ancestor_matches(node, rule->compiled_inside)) continue;
         if (!rule->pattern_not_inside.empty() && ancestor_matches(node, rule->compiled_not_inside)) continue;
-        maybe_emit(*rule, node, findings);
+        maybe_emit(*rule, node, findings, suppression, no_suppress);
       }
     }
 
@@ -259,7 +260,7 @@ std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std
       } catch (const QueryError &e) {
         throw QueryError("rule " + rule->id + ": " + e.what());
       }
-      for (const Node &node : captures.items) maybe_emit(*rule, node, findings);
+      for (const Node &node : captures.items) maybe_emit(*rule, node, findings, suppression, no_suppress);
     }
   }
   std::stable_sort(findings.begin(), findings.end(), [](const LintFinding &a, const LintFinding &b) {

@@ -3,6 +3,9 @@
 // subcommand (JSON grammar).
 #include "host.hpp"
 #include "lint.hpp"
+#include "ignore.hpp"
+#include "project_config.hpp"
+#include "project_ci.hpp"
 #include "pattern.hpp"
 #include "facts.hpp"
 #include "input.hpp"
@@ -82,6 +85,10 @@ struct Host {
   std::map<std::string, lmok::CompiledPattern> compiled_patterns; // "<grammar>\n<pattern>" -> compiled (ts.match_*)
   // Findings collected via ts.report; reset per --dsl file (see the run loop).
   std::vector<Finding> findings;
+  bool no_suppress=false;
+  std::map<const lmok::Tree *, lmok::Suppression> suppressions;
+  size_t suppressed_count() const {size_t n=0;for(const auto &s:suppressions)n+=s.second.suppressed;return n;}
+  void suppression_warnings(const std::string &path) {for(auto &s:suppressions)s.second.warn(path,{},true);}
   template <class T>
   Value hold(std::vector<std::unique_ptr<T>> &arena, const char *type, T value) {
     if (arena.size() >= kHandleCap)
@@ -105,6 +112,7 @@ struct Host {
     parent_of.clear();
     node_lists.clear();
     findings.clear();
+    suppressions.clear();
   }
 };
 
@@ -221,12 +229,14 @@ void register_host(dslvm::Registry &reg, Host &host) {
   // The findings sink: rules are void fns, so they report into the host and
   // the chunk body reads the collection back (count / JSON array string).
   const auto report_impl = [&host](void *, Args &args) {
-    if (host.findings.size() >= 65536)
-      throw dslvm::Error("report limit exceeded (65536)");
     const lmok::Node *n = node_of(args[0].obj, "report");
     Finding f{lmok::node_start_row(*n), lmok::node_start_col(*n),
               lmok::node_end_row(*n), lmok::node_end_col(*n), args[1].s, "", ""};
     if (args.size() == 4) { f.rule = args[2].s; f.severity = args[3].s; }
+    auto &suppression=host.suppressions.try_emplace(n->owner,n->owner->source()).first->second;
+    if(suppression.drop(static_cast<size_t>(f.row),f.rule,host.no_suppress))return Value::none();
+    if (host.findings.size() >= 65536)
+      throw dslvm::Error("report limit exceeded (65536)");
     host.findings.push_back(std::move(f));
     return Value::none();
   };
@@ -404,12 +414,15 @@ bool grammar_for_extension(const std::string &ext, lmok::Grammar &grammar) {
 // 3 I/O) after printing the diagnostic. With `only` set, directory expansion
 // keeps that grammar's extensions alone (explicit files are kept regardless).
 int expand_targets(const std::vector<std::string> &args, size_t first, std::vector<Target> &targets,
-                   const lmok::Grammar *only = nullptr) {
+                   const lmok::Grammar *only = nullptr, const std::vector<std::string> &extra_ignore = {}) {
   namespace fs = std::filesystem;
   for (size_t i = first; i < args.size(); ++i) {
     std::error_code ec;
     const fs::path root = fs::u8path(args[i]);
     if (fs::is_directory(root, ec)) {
+      std::optional<lmok::IgnoreRules> ignore;
+      try {ignore.emplace(root,extra_ignore);}catch(const std::exception &e){std::cerr<<"ignore: "<<e.what()<<"\n";return 2;}
+      bool eligible=false;
       std::vector<std::string> found;
       const fs::recursive_directory_iterator end;
       // Iterator errors (an unreadable subdirectory, a vanished entry) must
@@ -432,13 +445,15 @@ int expand_targets(const std::vector<std::string> &args, size_t first, std::vect
         lmok::Grammar grammar;
         if (!grammar_for_extension(p.extension().u8string(), grammar)) continue;
         if (only && grammar != *only) continue;
+        eligible=true;
+        if(ignore->ignored(fs::absolute(p)))continue;
         found.push_back(canonical_path(p.u8string()));
       }
       if (ec) {
         std::cerr << "cannot read " << canonical_path(failed_at.u8string()) << ": " << ec.message() << "\n";
         return 3;
       }
-      if (found.empty()) {
+      if (found.empty() && !eligible) {
         std::cerr << "no lintable files in " << canonical_path(args[i]) << " (want .c/.h/.json/.py/.sh/.bash)\n";
         return 2;
       }
@@ -524,10 +539,33 @@ static int run_cli(int argc, char **argv) {
       "       lmok findings [--rule ID] [--file PATH] [--db PATH]\n"
       "       lmok parse [--lang json|c|python|bash] FILE\n"
       "       lmok query [--lang json|c|python|bash] [--pattern] PATTERN FILE\n"
-      "       lmok lint RULES.json FILE... [--db PATH]\n"
+      "       lmok ci [--config FILE] [--no-suppress] [ROOT]\n"
+      "       lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress]\n"
       "       lmok facts [--lang json|c|python|bash] FILE|DIR...\n"
-      "       lmok check [--lang json|c|python|bash] RULES.dslb FILE...\n"
+      "       lmok check [--lang json|c|python|bash] RULES.dslb FILE|DIR... [--no-suppress]\n"
       "       lmok --dsl FILE [FILE ...]\n";
+  if (argc >= 2 && std::string(argv[1]) == "ci") {
+    std::string root = ".", config_path;
+    bool root_seen = false, no_suppress = false;
+    for (int i = 2; i < argc; ++i) {
+      const std::string arg = argv[i];
+      if (arg == "--no-suppress") no_suppress = true;
+      else if (arg == "--config" && i + 1 < argc && config_path.empty()) config_path = argv[++i];
+      else if (arg.rfind("--", 0) == 0 || root_seen) { std::cerr << usage; return 2; }
+      else { root = arg; root_seen = true; }
+    }
+    if (!std::filesystem::is_directory(std::filesystem::u8path(root))) {
+      std::cerr << "ci root must be a directory: " << root << "\n"; return 2;
+    }
+    if (config_path.empty()) config_path = (std::filesystem::u8path(root) / ".lmok" / "config.json").generic_u8string();
+    try {
+      const auto config = lmok::load_project_config(config_path);
+      return lmok::run_project_ci<Target>(config, root, no_suppress,
+        [](const std::vector<std::string> &roots, std::vector<Target> &out, const std::vector<std::string> &ignore) {
+          return expand_targets(roots, 0, out, nullptr, ignore);
+        }, grammar_for_extension, read_file);
+    } catch (const std::exception &e) { std::cerr << e.what() << "\n"; return 2; }
+  }
   if (argc >= 2 && std::string(argv[1]) == "status") {
     std::optional<std::string> path;
     bool init = false;
@@ -955,10 +993,11 @@ static int run_cli(int argc, char **argv) {
     }
     // `--db PATH` may appear anywhere after the pack; the rest are targets.
     std::optional<std::string> db_path;
+    bool no_suppress=false;
     std::vector<std::string> target_args;
     for (int i = 3; i < argc; ++i) {
       const std::string arg = argv[i];
-      if (arg == "--db") {
+      if (arg == "--no-suppress") {no_suppress=true;} else if (arg == "--db") {
         if (db_path || i + 1 >= argc || std::string(argv[i + 1]).rfind("--", 0) == 0) {
           std::cerr << usage;
           return 2;
@@ -1006,9 +1045,10 @@ static int run_cli(int argc, char **argv) {
       std::string raw;
       try { raw = read_file(target.path); }
       catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
+      lmok::Suppression suppression(raw);
       std::vector<lmok::LintFinding> findings;
       try {
-        findings = lmok::lint_text(*active, raw);
+        findings = lmok::lint_text(*active, raw, &suppression, no_suppress);
       } catch (const lmok::QueryError &e) {
         std::cerr << e.what() << "\n";
         return 3;
@@ -1016,13 +1056,15 @@ static int run_cli(int argc, char **argv) {
         std::cerr << "lint " << target.path << ": " << e.what() << "\n";
         return 3;
       }
+      std::set<std::string> known_ids;for(const auto &rule:rules)known_ids.insert(rule.id);
+      suppression.warn(target.path,known_ids);
       for (const auto &f : findings)
         std::cout << "{\"row\":" << f.row << ",\"col\":" << f.col
                   << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col
                   << ",\"rule\":\"" << json_escape(f.rule)
                   << "\",\"severity\":\"" << json_escape(f.severity)
                   << "\",\"message\":\"" << json_escape(f.message) << "\"}\n";
-      std::cout << findings.size() << " findings in " << target.path << "\n";
+      std::cout << findings.size() << " findings in " << target.path << lmok::suppressed_suffix(suppression.suppressed) << "\n";
       if (db_path) {
         lmok::LintFileRecord record;
         record.path = target.path;
@@ -1109,15 +1151,14 @@ static int run_cli(int argc, char **argv) {
     return std::cout ? 0 : 4;
   }
   if (argc >= 2 && std::string(argv[1]) == "check") {
+    std::vector<char *> check_argv;
+    for(int i=0;i<argc;++i){if(i>=2 && std::string(argv[i])=="--no-suppress")host.no_suppress=true;else check_argv.push_back(argv[i]);}
+    argc=static_cast<int>(check_argv.size());argv=check_argv.data();
     int argi = 2;
     lmok::Grammar grammar = lmok::Grammar::Json;
     if (argi + 1 < argc && std::string(argv[argi]) == "--lang") {
       const std::string lang = argv[argi + 1];
-      if (lang == "json") grammar = lmok::Grammar::Json;
-      else if (lang == "c") grammar = lmok::Grammar::C;
-      else if (lang == "python") grammar = lmok::Grammar::Python;
-      else if (lang == "bash") grammar = lmok::Grammar::Bash;
-      else { std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash)\n"; return 2; }
+      if (!parse_lang(lang, grammar)) { std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash)\n"; return 2; }
       argi += 2;
     }
     if (argi + 1 >= argc) { std::cerr << usage; return 2; }
@@ -1128,6 +1169,8 @@ static int run_cli(int argc, char **argv) {
     dslvm::Program program;
     try { program = dslvm::Program::load(read_bytecode(argv[argi++]), schema, reg); }
     catch (const dslvm::Error &error) { return dslvm::report_error("load", error); }
+    std::vector<Target> check_targets;
+    if(const int rc=expand_targets(std::vector<std::string>(argv+argi,argv+argc),0,check_targets,&grammar))return rc;
     std::map<std::string, std::vector<size_t>> by_kind;
     for (size_t i = 0; i < program.entries().size(); ++i) {
       const auto &entry = program.entries()[i];
@@ -1147,16 +1190,18 @@ static int run_cli(int argc, char **argv) {
     // group, printed only when the body reported something (WP14 F2). When an entry fails mid-walk the group
     // collected so far is printed before the located error record and the run stops with exit 3 (WP14 F5/F6).
     const auto print_group = [&](const std::string &where) {
-      std::cout << findings_json(host.findings) << "\n" << host.findings.size() << " findings in " << where << "\n";
+      host.suppression_warnings(where);
+      std::cout << findings_json(host.findings) << "\n" << host.findings.size() << " findings in " << where << lmok::suppressed_suffix(host.suppressed_count()) << "\n";
     };
     const char *where = "body";
     try {
       program.run(context, reg); // configuration/effects once, not once per node or file
-      if (!host.findings.empty()) print_group("body");
-      for (; argi < argc; ++argi) {
+      if (!host.findings.empty() || host.suppressed_count()) print_group("body");
+      for (const auto &target : check_targets) {
         host.reset(); // transient body/file objects and findings do not escape an input
-        where = argv[argi];
-        const lmok::Tree tree = lmok::parse(grammar, read_file(argv[argi]));
+        where = target.path.c_str();
+        const lmok::Tree tree = lmok::parse(grammar, read_file(target.path));
+        host.suppressions.try_emplace(&tree, tree.source());
         lmok::walk_nodes(tree, [&](const lmok::Node &node, const std::vector<lmok::Node> &ancestors) {
           const auto found = by_kind.find(lmok::node_kind(node));
           if (found == by_kind.end()) return;
@@ -1171,10 +1216,10 @@ static int run_cli(int argc, char **argv) {
         if (!std::cout) return 4;
       }
     } catch (const dslvm::Error &error) {
-      if (where != std::string("body") || !host.findings.empty()) print_group(where);
+      if (where != std::string("body") || !host.findings.empty() || host.suppressed_count()) print_group(where);
       return dslvm::report_error("run", error);
     } catch (const std::exception &error) {
-      if (where != std::string("body") || !host.findings.empty()) print_group(where);
+      if (where != std::string("body") || !host.findings.empty() || host.suppressed_count()) print_group(where);
       return dslvm::report_error("run", dslvm::Error("RUN_HOST", error.what()));
     }
     return 0;

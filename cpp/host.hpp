@@ -37,6 +37,7 @@ std::string annotation_problem(Grammar grammar, const std::string &kind);
 class Tree {
 public:
   Tree() = default;
+  const std::string &source() const { return source_; }
   ~Tree();
   Tree(const Tree &) = delete;
   Tree &operator=(const Tree &) = delete;
