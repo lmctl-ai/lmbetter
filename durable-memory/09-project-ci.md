@@ -40,7 +40,8 @@ child. An all-ignored root succeeds with an empty summary.
 
 Inline suppression is host-side. The token `lmok-disable` may occur anywhere
 on its line or the immediately preceding source line; `lmok-disable: ID1,ID2`
-limits suppression to those rule ids. Token boundaries prevent accidental
+limits suppression to those rule ids (letters, digits, UTF-8 bytes, and
+namespace punctuation `_`, `-`, `.`, `:`, `/`). Token boundaries prevent accidental
 matches, but strings count just like comments. Lint knows its pack ids and
 warns for typos; check can warn only for ids not observed dynamically. The
 Printed paths in lint/check use forward slashes on Windows as well. The

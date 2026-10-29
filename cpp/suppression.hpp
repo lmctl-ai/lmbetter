@@ -13,7 +13,8 @@ class Suppression {
   std::map<size_t, Directive> lines_;
   std::set<std::string> observed_;
   bool warned_=false;
-  static bool id_char(unsigned char c) { return std::isalnum(c)||c=='_'||c=='-'||c=='.'; }
+  static bool word_char(unsigned char c) { return std::isalnum(c)||c>=128||c=='_'||c=='-'||c=='.'; }
+  static bool id_char(unsigned char c) { return word_char(c)||c==':'||c=='/'; }
 public:
   size_t suppressed=0;
   explicit Suppression(const std::string &source) {
@@ -24,7 +25,7 @@ public:
       size_t at=0;
       while((at=line.find("lmok-disable",at))!=std::string::npos) {
         size_t after=at+12;
-        if((at&&id_char(static_cast<unsigned char>(line[at-1])))||(after<line.size()&&id_char(static_cast<unsigned char>(line[after])))){at=after;continue;}
+        if((at&&word_char(static_cast<unsigned char>(line[at-1])))||(after<line.size()&&word_char(static_cast<unsigned char>(line[after])))){at=after;continue;}
         auto &d=lines_[row];size_t p=after;
         while(p<line.size()&&(line[p]==' '||line[p]=='\t'))++p;
         if(p==line.size()||line[p]!=':')d.all=true;

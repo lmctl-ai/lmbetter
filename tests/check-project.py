@@ -40,6 +40,12 @@ class ProjectTests(unittest.TestCase):
         r=self.run_host('lint',self.pack,p);found=self.findings(r)
         self.assertEqual([(f['row'],f['rule']) for f in found],[(0,'B'),(1,'B'),(4,'A'),(4,'B')]);self.assertIn(b'(4 suppressed)',r.stdout)
         all_=self.findings(self.run_host('lint',self.pack,p,'--no-suppress'));self.assertEqual(len(all_),8)
+    def test_utf8_namespaced_ids_and_comment_boundaries(self):
+        self.pack.write_text(json.dumps({'lang':'c','rules':[{'id':'régle:team/R','on':'identifier','message':'id','severity':'major'}]}),encoding='utf8')
+        p=self.source('x.c','int x; /*lmok-disable: régle:team/R*/\n')
+        r=self.run_host('lint',self.pack,p);self.assertEqual(self.findings(r),[]);self.assertEqual(r.stderr,b'')
+        self.assertIn(b'(1 suppressed)',r.stdout)
+        self.assertEqual(len(self.findings(self.run_host('lint',self.pack,p,'--no-suppress'))),1)
     def test_token_and_typo_warning(self):
         p=self.source('x.c','int a; // notlmok-disable\nint b; // lmok-disable: TYPO\n')
         r=self.run_host('lint',self.pack,p);self.assertEqual(len(self.findings(r)),4);self.assertIn(b"unknown rule id 'TYPO'",r.stderr)
