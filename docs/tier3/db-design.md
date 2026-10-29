@@ -128,6 +128,17 @@ CREATE TABLE runs (
   command    TEXT NOT NULL           -- e.g. "lint rules/c-tier1.json src/"
 );
 
+-- Every file visited by a recorded lint run, including clean files. Scope is
+-- the rule-pack path, so a scan with a different pack cannot reuse findings.
+CREATE TABLE run_files (
+  run_id  INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+  file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  scope   TEXT NOT NULL,
+  PRIMARY KEY (run_id, file_id, scope)
+);
+
+CREATE INDEX idx_run_files_scope ON run_files(file_id, scope, run_id);
+
 CREATE TABLE findings (
   id         INTEGER PRIMARY KEY,
   run_id     INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
@@ -315,3 +326,9 @@ scope paths via the existing parent() walk.
 indexing (re-index on demand is the whole contract); no cross-language
 resolution beyond name join; no SARIF-from-DB until someone asks; no schema
 migrations in 0.x (delete + re-index).
+
+Completed lint scans also record `run_files` observations keyed by file and absolute
+rule-pack path, including clean files. This additive schema-v2 table is created
+on writable opens. DBs without observations conservatively contribute no baseline
+allowances; record a fresh scan to establish one. Historical clean scans from
+older binaries cannot be reconstructed.

@@ -6,29 +6,36 @@
   deliberately excluded, so edits above a finding do not resurrect it. The
   snippet is the matched node's source text with whitespace collapsed
   (`normalize_snippet` in lint.cpp); it is stored in the new
-  `findings.snippet` column but NEVER printed in lint output (the byte
-  contract holds).
+  `findings.snippet` column. Ordinary snippets are never printed; credential
+  snippets are SHA-256 identities and are exported in JSON-lines baselines.
 - **Multiset semantics**: each baseline entry is consumed once. A file with
   two identical `goto used` findings against a baseline holding one reports
   the second as new. Within one (rule, file, message) group, an unconsumed
   snippet-exact entry is preferred over a snippet-less one.
 - **Fallback**: rows recorded before the snippet column (NULL) and
-  `--baseline FILE` entries (lint JSON-lines carry no snippet) match on
+  ordinary `--baseline FILE` entries without snippets match on
   (rule, file, message) alone. A `--baseline` file's finding lines attach to
   the file named by their FOLLOWING `N findings in PATH` line; lines missing
   the key fields never match (their findings report as new — the safe
-  direction for a gate).
+  direction for a gate). Redacted current findings never match snippet-less
+  fallback entries. Suppression-bearing and ambiguous filename groups carry
+  escaped JSON `file` keys; legacy suppression footer suffixes are stripped.
 - `--new-since RUN`: RUN = `last` (max started_at, then id) or a `runs` id;
-  every finding row (live or superseded) with `run_id <= RUN` is baseline.
+  latest completed observation at or before RUN for each file/absolute-pack
+  scope supplies its occurrence multiset. `run_files` includes clean scans,
+  so repeated observations do not accumulate and clean scans clear allowances.
+  Unvisited files retain their observations. Legacy DBs without observation
+  history supply no allowances until a fresh scan establishes a baseline.
   No release tags are recorded in the schema, so there is no tag selector.
   The baseline loads BEFORE the run; with `--db` in the same command the
   current run is recorded only at the end, so it never sees its own rows.
   Comparison DB opens ReadOnly — a missing DB is exit 2, not "all new".
-- `--changed[=REV]`: `git diff --name-only REV` (bare = HEAD: working tree vs
+- `--changed[=REV]`: `git diff --name-only -z REV` (bare = HEAD: working tree vs
   HEAD) via popen (`git -c core.quotepath=false`, revision characters
   whitelisted to [A-Za-z0-9._/~^-] because the same command line must be safe
   under both sh and cmd.exe). Repo root from `git rev-parse --show-toplevel`;
   target comparison is on absolute, lexically normal, forward-slash paths.
+  NUL separators preserve raw names without Git's human quoting or CR trimming.
   Outside a git repo / unknown rev / bad rev chars: exit 2.
 - `--fail-on-new` requires a baseline flag; exit 4 when new findings exist
   (4 is shared with stdout failure — documented). Without baseline flags the

@@ -270,11 +270,15 @@ lmok lint rules/c-tier1.json . --changed=HEAD~3
 
 - `--new-since RUN` reads the findings DB (`--db PATH` when given, else the
   standard resolution chain, opened read-only): RUN is a `runs` id (see `lmok
-  status`) or `last` for the latest recorded run. Every finding row — live or
-  superseded — with `run_id <= RUN` is baseline. Runs are not tagged; pick the
-  run by id or `last`. A missing DB, an unknown run or a bad selector is exit
-  2. Rows recorded before the `findings.snippet` column existed match on
-  (rule, file, message) alone — the documented fallback.
+  status`) or `last` for the latest recorded run. The latest completed scan
+  at or before RUN for each file and absolute rule-pack path supplies its
+  baseline occurrences. A clean scan clears that file's prior occurrences;
+  partial scans preserve observations for unvisited files. Repeated scans
+  do not accumulate allowances. Runs are not tagged; pick the run by id or `last`. A missing DB, an unknown run or a bad selector is exit
+  2. Within databases that have scan observations, rows recorded before the
+  `findings.snippet` column existed match on (rule, file, message) alone.
+  Databases without scan observations conservatively supply no allowances;
+  record a fresh scan to establish a baseline.
 - `--baseline FILE` uses a previous lint JSON-lines output file instead of the
   DB (finding lines attach to the file named by their following `N findings
   in PATH` line). Credential findings include a safe `snippet: "sha256:..."`
@@ -282,7 +286,9 @@ lmok lint rules/c-tier1.json . --changed=HEAD~3
   lines use the (rule, file, message) fallback. Credential findings never use
   snippet-less fallback entries; regenerate old credential baselines. An unreadable file is exit 3; lines that lack the key
   fields simply never match, so their findings report as new. `--baseline`
-  and `--new-since` are mutually exclusive (exit 2).
+  and `--new-since` are mutually exclusive (exit 2). Suppression-bearing
+  groups and ambiguous filenames carry a JSON `file` key so the human footer
+  cannot corrupt their durable path; old suppression footers remain readable.
 - `--changed[=REV]` restricts the targets to the files `git diff --name-only
   REV` reports for the repository containing the working directory (bare
   `--changed` = `HEAD`, i.e. working tree vs HEAD, staged or not; untracked

@@ -94,5 +94,5 @@ watch mode/daemon/server, schema migrations in 0.x (delete + re-index).
 1. Spike approved as scoped above? (Estimate from the survey: 15–25
    engineer-days for the full storage/search foundation; the spike slice is
    roughly the first week of that.)
-2. Binary/product rename `lmbetter` → `lmok`: do it now (touches releases,
-   test.sh, CI artifact names) or keep the binary name?
+The binary/product rename to `lmok` is complete; release assets, `test.sh`
+and CI artifact names use `lmok`.

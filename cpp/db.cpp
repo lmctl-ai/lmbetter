@@ -64,6 +64,17 @@ CREATE TABLE runs (
   command    TEXT NOT NULL           -- e.g. "lint rules/c-tier1.json src/"
 );
 
+-- Every file visited by a recorded lint run, including clean files. Scope is
+-- the rule-pack path, so a scan with a different pack cannot reuse findings.
+CREATE TABLE run_files (
+  run_id  INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+  file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  scope   TEXT NOT NULL,
+  PRIMARY KEY (run_id, file_id, scope)
+);
+
+CREATE INDEX idx_run_files_scope ON run_files(file_id, scope, run_id);
+
 CREATE TABLE findings (
   id         INTEGER PRIMARY KEY,
   run_id     INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
@@ -238,6 +249,8 @@ Database::Database(const std::filesystem::path &path, Mode mode) {
       // (the baseline falls back to keying on rule/file/message for them).
       if (!db_has_column(*this, "findings", "snippet"))
         exec("ALTER TABLE findings ADD COLUMN snippet TEXT");
+      exec("CREATE TABLE IF NOT EXISTS run_files (run_id INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE, file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE, scope TEXT NOT NULL, PRIMARY KEY (run_id,file_id,scope))");
+      exec("CREATE INDEX IF NOT EXISTS idx_run_files_scope ON run_files(file_id, scope, run_id)");
       transaction.commit();
       exec("PRAGMA journal_mode=WAL");
     } else {

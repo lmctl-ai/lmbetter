@@ -1245,5 +1245,7 @@ ok "baseline: --new-since/--baseline/--changed/--fail-on-new keying (moved findi
 
 python3 tests/check-review-security.py "$HOST" || fail "review credential boundaries"
 ok "review credential previews, Java storage, safe baseline rotation and diff flags"
+python3 tests/check-review-baseline.py "$HOST" || fail "review baseline snapshots and Git filenames"
+ok "review baseline snapshots and Git filenames"
 
 echo "PASS: $pass checks"

@@ -90,7 +90,8 @@ struct LintFileRecord {
 // visible (a failed/interrupted scan must never look like a clean result).
 // Throws DbError.
 void record_lint_run(Database &db, int64_t started_at, const std::string &command,
-                     const std::vector<LintFileRecord> &files);
+                     const std::vector<LintFileRecord> &files,
+                     const std::string &scope = ""); // rule-pack scope; explicit when recording
 
 // Whitespace-collapsed source text: every run of ASCII whitespace becomes
 // one space, ends trimmed. This is the position-independent part of the

@@ -53,11 +53,13 @@ public:
 // runs.id. Throws BaselineError when the selector names no recorded run.
 int64_t resolve_baseline_run(Database &db, const std::string &selector);
 
-// Every finding row (live or superseded) with run_id <= run_id, keyed by
-// (rule, path-as-recorded, message, snippet). Callers must pass has_snippet =
-// db_has_column(db, "findings", "snippet"): a DB recorded before the column
-// existed falls back to (rule, file, message) for ALL its rows.
-Baseline load_baseline_db(Database &db, int64_t run_id, bool has_snippet);
+// Findings from the latest recorded observation for each file and rule-pack
+// scope at or before run_id, keyed by (rule, path-as-recorded, message,
+// snippet). Clean observations contribute no baseline entries. Callers must
+// pass has_snippet = db_has_column(db, "findings", "snippet"): a DB recorded
+// before the column existed falls back to (rule, file, message) for its rows.
+Baseline load_baseline_db(Database &db, int64_t run_id, bool has_snippet,
+                          const std::string &scope = "");
 
 // A previous lint JSON-lines output: finding lines carry no path, so they
 // attach to the file named by the next `N findings in PATH` line (and to ""

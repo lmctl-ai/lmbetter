@@ -327,7 +327,7 @@ std::string normalize_snippet(const std::string &text) {
 }
 
 void record_lint_run(Database &db, int64_t started_at, const std::string &command,
-                     const std::vector<LintFileRecord> &files) {
+                     const std::vector<LintFileRecord> &files, const std::string &requested_scope) {
   Transaction transaction(db); // rolls back on any DbError: no partial runs
   auto run = db.prepare("INSERT INTO runs(started_at,command) VALUES (?,?)");
   run.bind(1, started_at);
@@ -337,11 +337,15 @@ void record_lint_run(Database &db, int64_t started_at, const std::string &comman
   run_id_query.step();
   const int64_t run_id = run_id_query.integer(0);
   const int64_t now = std::time(nullptr);
+  // The caller supplies the pack path explicitly. Never parse the flattened
+  // command string: paths may contain spaces or quoting characters.
+  const std::string &scope = requested_scope;
 
   auto file_id_query = db.prepare("SELECT id FROM files WHERE path = ?");
   auto file_insert = db.prepare("INSERT OR IGNORE INTO files(path,lang,sha256,mtime,size,indexed_at)"
                                 " VALUES (?,?,?,?,?,?)");
   auto supersede = db.prepare("UPDATE findings SET superseded = 1 WHERE file_id = ? AND superseded = 0");
+  auto observe = db.prepare("INSERT OR REPLACE INTO run_files(run_id,file_id,scope) VALUES (?,?,?)");
   auto finding_insert = db.prepare(
       "INSERT INTO findings(run_id,file_id,rule,severity,message,start_row,start_col,end_row,end_col,superseded,snippet)"
       " VALUES (?,?,?,?,?,?,?,?,?,0,?)");
@@ -358,6 +362,8 @@ void record_lint_run(Database &db, int64_t started_at, const std::string &comman
     if (!file_id_query.step()) throw DbError(3, "record lint run: no files row for " + file.path);
     const int64_t file_id = file_id_query.integer(0);
     file_id_query.reset();
+    observe.bind(1, run_id); observe.bind(2, file_id); observe.bind(3, scope);
+    observe.step(); observe.reset();
     supersede.bind(1, file_id);
     supersede.step();
     supersede.reset();

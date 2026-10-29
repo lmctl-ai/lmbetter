@@ -1161,6 +1161,9 @@ static int run_cli(int argc, char **argv) {
       if (i > 1) command += ' ';
       command += argv[i];
     }
+    // Pack paths are stable scan scopes, including paths containing spaces.
+    const std::string baseline_scope = std::filesystem::absolute(
+        std::filesystem::u8path(argv[2])).lexically_normal().generic_u8string();
     // The baseline (when asked for) loads BEFORE the run: with --new-since
     // the current run is recorded only at the end, so run_id <= RUN never
     // sees this run's own rows.
@@ -1177,7 +1180,7 @@ static int run_cli(int argc, char **argv) {
         const auto resolved = lmok::resolve_db_path(db_path, false);
         lmok::Database db(resolved, lmok::Database::Mode::ReadOnly);
         const int64_t run_id = lmok::resolve_baseline_run(db, *new_since);
-        baseline = lmok::load_baseline_db(db, run_id, lmok::db_has_column(db, "findings", "snippet"));
+        baseline = lmok::load_baseline_db(db, run_id, lmok::db_has_column(db, "findings", "snippet"), baseline_scope);
       } catch (const lmok::DbError &e) {
         std::cerr << e.what() << "\n";
         return e.exit_code;
@@ -1281,6 +1284,11 @@ static int run_cli(int argc, char **argv) {
       std::set<std::string> known_ids;for(const auto &rule:rules)known_ids.insert(rule.id);
       suppression.warn(target.path,known_ids);
       int64_t printed = 0;
+      // Preserve ordinary JSON bytes, but carry an escaped durable file key
+      // when a human footer contains suppression metadata or ambiguous paths.
+      const bool explicit_file = suppression.suppressed > 0 ||
+          target.path.find_first_of("\r\n") != std::string::npos ||
+          (target.path.size() >= 12 && target.path.compare(target.path.size() - 12, 12, " suppressed)") == 0);
       for (const auto &f : findings) {
         // Suppressed findings never reach this loop, so they can never become
         // "new". Under --new-since/--baseline only NEW findings print (the
@@ -1296,6 +1304,7 @@ static int run_cli(int argc, char **argv) {
                   << ",\"rule\":\"" << json_escape(f.rule)
                   << "\",\"severity\":\"" << json_escape(f.severity)
                   << "\",\"message\":\"" << json_escape(f.message) << "\"";
+        if (explicit_file) std::cout << ",\"file\":\"" << json_escape(target.path) << "\"";
         // Only safe digests cross the JSON-lines baseline boundary. Ordinary
         // findings retain their established byte format and legacy fallback.
         if (f.redacted)
@@ -1335,7 +1344,7 @@ static int run_cli(int argc, char **argv) {
         // be created (explicit paths still require an existing parent).
         const auto resolved = lmok::resolve_db_path(db_path, /*write=*/true);
         lmok::Database db(resolved, lmok::Database::Mode::Create);
-        lmok::record_lint_run(db, started_at, command, records);
+        lmok::record_lint_run(db, started_at, command, records, baseline_scope);
       } catch (const lmok::DbError &e) {
         // Recording is a side channel: the lint already succeeded and its
         // stdout/exit-code contract is unchanged; the DB problem is a note.
