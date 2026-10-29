@@ -24,7 +24,8 @@ inline RuleTestResult test_rule_file(const std::vector<LintRule> &rules,Grammar 
     while(std::getline(list,id,',')){
       const auto first=id.find_first_not_of(" \t\r");const auto last=id.find_last_not_of(" \t\r");
       id=first==std::string::npos?"":id.substr(first,last-first+1);
-      if(id.empty()||id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-")!=std::string::npos)
+      // Pack IDs are strings: retain UTF-8 and namespaces; only whitespace/comma delimit tokens.
+      if(id.empty()||std::any_of(id.begin(),id.end(),[](unsigned char c){return c<=32;}))
         throw dslvm::Error(path+":"+std::to_string(row)+": invalid lmok-expect rule list");
       expected.insert({row,id});any=true;
     }

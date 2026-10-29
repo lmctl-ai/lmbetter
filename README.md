@@ -533,7 +533,8 @@ works; markers in strings do not. An annotation describes its own one-based
 line, never the following line. Unannotated reported lines fail. Suppressions,
 ignores and baselines do not hide mismatches. JSON stdout has `ok`, `expected`,
 `actual`, and a `diff` array; stderr gives `file:line: missing|unexpected RULE`.
-Exit 0 passes, 1 means mismatch, 2 means malformed input/annotations. Repeated
+Exit 0 passes, 1 means mismatch, 2 means malformed input/annotations.
+Rule ID tokens preserve UTF-8 and namespaces; spaces and commas delimit IDs. Repeated
 findings for the same rule on one line count once.
 ## Java
 

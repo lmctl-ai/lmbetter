@@ -13,7 +13,7 @@ class Contracts(unittest.TestCase):
         self.write_pack()
     def tearDown(self): self.tmp.cleanup()
     def write_pack(self): self.pack.write_text(json.dumps(dict(lang='c',rules=[self.rule])),encoding='utf8')
-    def run_host(self,*args): return subprocess.run([str(HOST),*map(str,args)],capture_output=True,text=True,timeout=30)
+    def run_host(self,*args): return subprocess.run([str(HOST),*map(str,args)],capture_output=True,text=True,encoding="utf8",timeout=30)
     def file(self,text,name='fixture é.c'):
         p=self.work/name;p.write_bytes(text.encode());return p
     def test_metadata_opt_in_and_catalog(self):
@@ -51,6 +51,12 @@ class Contracts(unittest.TestCase):
         self.assertEqual([d['kind'] for d in json.loads(r.stdout)['diff']],['unexpected'])
         src=self.file('// lmok-expect: R\nint f(){return foo();}\n')
         r=self.run_host('test',self.pack,src);self.assertEqual(r.returncode,1,r.stderr);self.assertEqual(len(json.loads(r.stdout)['diff']),2)
+    def test_utf8_namespaced_rule_id_is_one_token(self):
+        self.rule['id']='régle:R';self.write_pack()
+        src=self.file('int f(){foo();} // lmok-expect: régle:R\n')
+        r=self.run_host('test',self.pack,src);self.assertEqual(r.returncode,0,r.stderr)
+        self.assertTrue(json.loads(r.stdout)['ok'])
+        listing=self.run_host('rules',self.pack);self.assertEqual(json.loads(listing.stdout)['id'],'régle:R')
     def test_multiple_ids_and_clean_files(self):
         self.rule['id']='A';other=dict(self.rule,id='B');self.pack.write_text(json.dumps(dict(lang='c',rules=[self.rule,other])))
         src=self.file('int f(){foo();} // lmok-expect: A,B\n')
@@ -68,7 +74,7 @@ class Contracts(unittest.TestCase):
         src.write_text('p = _lmcode_ schema='+schema+';\n@call_expression fn call(n: Node) -> void implements Rule { ts.report_meta(n,"entry","ENTRY","minor",'+meta+'); }\nend _lmcode_\nsavedsl(p, ARGV[0]);\n',encoding='utf8')
         compiler=os.environ.get('LMSCRIPT_BIN','lmscript')
         if os.name=='nt' and not compiler.endswith(('.cmd','.exe','.bat')): compiler=shutil.which('lmscript.cmd') or compiler+'.cmd'
-        r=subprocess.run([compiler,str(src),str(binary)],capture_output=True,text=True);self.assertEqual(r.returncode,0,r.stderr)
+        r=subprocess.run([compiler,str(src),str(binary)],capture_output=True,text=True,encoding="utf8");self.assertEqual(r.returncode,0,r.stderr)
         target=self.file('int f(){foo();}\n')
         plain=self.run_host('check','--lang','c',binary,target);self.assertEqual(plain.returncode,0,plain.stderr);self.assertNotIn('metadata',json.loads(plain.stdout.splitlines()[0])[0])
         r=self.run_host('check','--lang','c',binary,target,'--metadata');self.assertEqual(r.returncode,0,r.stderr);self.assertEqual(json.loads(r.stdout.splitlines()[0])[0]['metadata']['tags'],['entry'])
