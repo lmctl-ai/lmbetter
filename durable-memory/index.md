@@ -1,7 +1,7 @@
 # lmok durable memory
 
 Technical documentation and operational notes for `lmok`.
-`lmok` embeds tree-sitter 0.27.1 with JSON, C, Python, Bash and Go grammars as a standalone CLI host for lmscript.
+`lmok` embeds tree-sitter 0.27.1 with JSON, C, Python, Bash, Java, Go and JavaScript grammars as a standalone CLI host for lmscript.
 Repository: https://github.com/lmctl-ai/lmok.
 
 ## Document map

@@ -70,6 +70,24 @@ class NativeOS(unittest.TestCase):
         self.assertEqual((lint.returncode, lint.stderr), (0, b''), lint)
         found = json.loads(lint.stdout.splitlines()[0])
         self.assertEqual((found['rule'], found['message']), ('GO', 'go'))
+    def test_javascript_cli_and_extension_dispatch(self):
+        source = self.work / 'javascript input.js'
+        source.write_bytes(b'function caf\xc3\xa9(value) { return Math.abs(value); }\n')
+        parsed = self.run_host('parse', '--lang', 'javascript', source)
+        self.assertEqual(parsed.returncode, 0, parsed.stderr)
+        self.assertTrue(parsed.stdout.startswith(b'(program (function_declaration'), parsed.stdout)
+        self.exact(self.run_host('query', '--lang', 'javascript', '(function_declaration name: (identifier) @name)', source),
+                   b'identifier 0:9-0:14\n')
+        facts = self.run_host('facts', source)
+        self.assertEqual((facts.returncode, facts.stderr), (0, b''), facts)
+        rows = [json.loads(line) for line in facts.stdout.splitlines()]
+        self.assertIn('def.function', {row['kind'] for row in rows})
+        self.assertIn('ref.call', {row['kind'] for row in rows})
+        pack = self.work / 'javascript.json'
+        pack.write_text(json.dumps({'lang': 'javascript', 'rules': [{'id': 'JS', 'on': 'call_expression', 'message': 'call'}]}), encoding='utf-8')
+        lint = self.run_host('lint', pack, source)
+        self.assertEqual((lint.returncode, lint.stderr), (0, b''), lint)
+        self.assertEqual(json.loads(lint.stdout.splitlines()[0])['rule'], 'JS')
     def test_paths(self):
         folder = self.work / 'space 雪 café'
         folder.mkdir()

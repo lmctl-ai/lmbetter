@@ -1,0 +1,43 @@
+{
+  "lang": "javascript",
+  "rules": [
+    {
+      "id": "JS001",
+      "query": "((call_expression function: (identifier) @callee) (#eq? @callee \"eval\"))",
+      "severity": "critical",
+      "message": "eval executes a dynamically supplied string",
+      "tags": ["javascript", "security"],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
+    },
+    {
+      "id": "JS002",
+      "query": "((new_expression constructor: (identifier) @callee) (#eq? @callee \"Function\"))",
+      "severity": "critical",
+      "message": "Function constructor compiles a dynamically supplied string",
+      "tags": ["javascript", "security"],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
+    },
+    {
+      "id": "JS003",
+      "query": "(import_statement source: (string) @source)\n(call_expression function: (identifier) @callee arguments: (arguments (string) @source) (#eq? @callee \"require\"))",
+      "text_matches": "^[\"']child_process(?:/.*)?[\"']$",
+      "severity": "major",
+      "message": "child_process import exposes process execution APIs",
+      "tags": ["javascript", "security"],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
+    },
+    {
+      "id": "JS004",
+      "query": "(assignment_expression left: (member_expression property: (property_identifier) @property))",
+      "text_matches": "^innerHTML$",
+      "severity": "major",
+      "message": "innerHTML assignment can create a DOM injection sink",
+      "tags": ["javascript", "security"],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
+    }
+  ]
+}

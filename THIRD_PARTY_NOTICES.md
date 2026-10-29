@@ -46,6 +46,17 @@ The Go grammar compiled into the executable (`third_party/tree-sitter-go`).
 - Full license text: the upstream `LICENSE` file, vendored at
   `third_party/tree-sitter-go/LICENSE` after running `scripts/sync-deps.sh`
 
+## tree-sitter-javascript
+
+The JavaScript grammar compiled into the executable (`third_party/tree-sitter-javascript`).
+
+- Upstream: https://github.com/tree-sitter/tree-sitter-javascript
+- Version: 0.25.0, pinned in `deps.lock`
+- License: **MIT License**
+- Copyright (c) 2014 Max Brunsfeld
+- Full license text: the upstream `LICENSE` file, vendored at
+  `third_party/tree-sitter-javascript/LICENSE` after running `scripts/sync-deps.sh`
+
 ## lmcode-cpp SDK
 
 `cpp/dslvm.hpp`, the `cpp/stdlib/*.hpp` headers, and

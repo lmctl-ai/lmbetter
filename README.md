@@ -9,7 +9,8 @@ with the [tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json),
 [tree-sitter-python](https://github.com/tree-sitter/tree-sitter-python),
 [tree-sitter-bash](https://github.com/tree-sitter/tree-sitter-bash),
 [tree-sitter-java](https://github.com/tree-sitter/tree-sitter-java), and
-[tree-sitter-go](https://github.com/tree-sitter/tree-sitter-go) grammars in one dependency-free executable that can be driven from the command
+[tree-sitter-go](https://github.com/tree-sitter/tree-sitter-go),
+[tree-sitter-javascript](https://github.com/tree-sitter/tree-sitter-javascript) grammars in one dependency-free executable that can be driven from the command
 line or scripted with [lmscript](https://github.com/lmctl-ai). Feed it source text
 and it prints the concrete syntax tree; from lmscript you get a typed `Tree`
 object to inspect.
@@ -124,15 +125,15 @@ lmok --version
 lmok --notices
 lmok --dsl-schema [--json]
 lmok --dsl-signatures
-lmok parse [--lang json|c|python|bash|java|go] FILE       # '-' reads stdin
-lmok query [--lang json|c|python|bash|java|go] [--pattern] PATTERN FILE  # '-' reads stdin
+lmok parse [--lang json|c|python|bash|java|go|javascript] FILE       # '-' reads stdin
+lmok query [--lang json|c|python|bash|java|go|javascript] [--pattern] PATTERN FILE  # '-' reads stdin
 lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress] [--sarif FILE]
         [--new-since RUN|--baseline FILE] [--fail-on-new] [--changed[=REV]]
 lmok ci [--config FILE] [--no-suppress] [--sarif FILE] [ROOT]
 lmok rules PACK... | test PACK FIXTURE...
 lmok findings [--rule ID] [--file PATH] [--db PATH]
-lmok facts [--lang json|c|python|bash|java|go] FILE|DIR...
-lmok check [--lang json|c|python|bash|java|go] RULES.dslb FILE|DIR... [--no-suppress] [--sarif FILE]
+lmok facts [--lang json|c|python|bash|java|go|javascript] FILE|DIR...
+lmok check [--lang json|c|python|bash|java|go|javascript] RULES.dslb FILE|DIR... [--no-suppress] [--sarif FILE]
 lmok --dsl FILE [FILE ...]
 ```
 
@@ -142,7 +143,7 @@ regions appear as `(ERROR ...)` nodes — and still exits 0; tree-sitter always
 produces a tree. `query` runs a tree-sitter S-expression pattern over the
 document and prints one line per captured node, `kind
 start_row:start_col-end_row:end_col` (0-based). Both default to the JSON
-grammar; `--lang c|python|bash|java|go` switches grammars (an unknown language exits
+grammar; `--lang c|python|bash|java|go|javascript` switches grammars (an unknown language exits
 2 with the known-languages list). `query --pattern` takes a code-shaped
 (semgrep-style) pattern instead of an S-expression — `strcpy($DST, $SRC)`, `$F(...)`, `if ($C) { return $V; }` —
 compiles it with the same grammar (first slice: c and python), prints the generated query on a `query:` line and
@@ -408,10 +409,12 @@ credential keys, placeholders, nulls, key naming, numbers-as-strings, exact
 password key, sensitive credential keys, HTTP URLs, unpinned versions, empty
 containers, long strings), `python-tier1.json` (9 rules: os shell-out,
 shell=True, eval/exec, assert, FIXME/TODO, wildcard imports, bare except,
-print(), mutable default args) and `bash-tier1.json` (6 rules: rm -rf,
+print(), mutable default args), `bash-tier1.json` (6 rules: rm -rf,
 FIXME/TODO, backticks, unguarded cd, chmod 777, eval) and `go-tier1.json`
 (6 gosec-flavored rules: variable `exec.Command`, unsafe/weak-crypto imports,
-0777 file modes, blank assignment results, and `InsecureSkipVerify`) — plus lmcode-native rules in `rules/lmcode/` for
+0777 file modes, blank assignment results, and `InsecureSkipVerify`), and
+`javascript-tier1.json` (4 syntax heuristics: eval, new Function, child_process
+imports and innerHTML writes) — plus lmcode-native rules in `rules/lmcode/` for
 checks that need logic (function metrics, switch/if style, duplicate JSON
 keys and sibling string values, object size, nesting depth via `Node.has_parent()`/`parent()`, scanf width via
 query predicates, same-file symbol rules via set algebra, unquoted bash
@@ -433,7 +436,7 @@ lmok lint rules/c-tier1.json examples/data/sample.c
 ## Facts (knowledge tree, tier 3 / E6)
 
 ```sh
-lmok facts [--lang json|c|python|bash|java|go] FILE|DIR...
+lmok facts [--lang json|c|python|bash|java|go|javascript] FILE|DIR...
 ```
 
 Prints one JSON Lines record per definition, reference or edge found in each
@@ -538,9 +541,15 @@ both pinned in `deps.lock` — these are the first grammars with an external
 scanner (`src/scanner.c`), wired into the CMake source list. Go (tree-sitter-go v0.25.0) is the sixth CLI grammar: use
 `--lang go` for parse/query/check and `.go` files for lint/facts extension
 inference. The lmscript `ts.parse_*` DSL surface remains unchanged. Example:
-`build/lmok lint rules/go-tier1.json tests/fixtures/go-tier1-violations.go`. The
-`ts.match_*` code-pattern APIs work for C/Python; see
+`build/lmok lint rules/go-tier1.json tests/fixtures/go-tier1-violations.go`.
+The `ts.match_*` code-pattern APIs work for C/Python; see
 [examples/pattern-rules.lms](examples/pattern-rules.lms). See `examples/` for runnable scripts.
+
+JavaScript (tree-sitter-javascript v0.25.0) is available as `--lang javascript`
+and inferred for `.js` files. Its CLI facts include declarations, imports and
+calls; the lmscript `ts.parse_*` DSL surface remains unchanged. The heuristic
+`rules/javascript-tier1.json` pack flags dynamic code, child_process imports,
+and innerHTML assignments.
 
 ## Repository layout
 

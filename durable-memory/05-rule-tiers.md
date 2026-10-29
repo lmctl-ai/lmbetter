@@ -132,6 +132,14 @@ assignments are only obvious ignored-result candidates, and command variables
 are not proved attacker-controlled. Violations and clean fixtures are pinned
 in `tests/fixtures/go-tier1-*` and run in `test.sh` plus the native-OS oracles.
 
+## JavaScript grammar and tier-1 pack (Wave 2, 2026-10-29)
+
+tree-sitter-javascript v0.25.0 is pinned in `deps.lock`; `--lang javascript`
+selects it for parse/query/check and `.js` files select it for lint/facts.
+The CLI facts capture functions, methods, classes, variables, imports and calls.
+`rules/javascript-tier1.json` flags `eval`, `new Function`, child_process and
+direct innerHTML writes. These syntax-only rules do not perform taint analysis.
+
 Dropped candidates (and why): none — everything on the shortlist was
 query-expressible once node-types.json was checked (`except_clause` block
 inclusion and the two-capture filter trick were the only surprises).

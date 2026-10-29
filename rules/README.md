@@ -8,7 +8,8 @@ Three delivery forms, by how much logic a rule needs:
   for the framework and [Rule packs](../README.md#rule-packs) for the format.
   Shipped: `c-tier1.json` (11 rules), `json-tier1.json` (11 rules:
   LBJ001–LBJ010 and LBJ104), `python-tier1.json` (9 rules),
-  `bash-tier1.json` (6 rules), and `go-tier1.json` (6 rules, GOS001–GOS006). The opt-in `bash-autofix.json` and
+  `bash-tier1.json` (6 rules), `go-tier1.json` (6 rules, GOS001–GOS006), and
+  `javascript-tier1.json` (4 rules, JS001–JS004). The opt-in `bash-autofix.json` and
   `c-autofix.json` packs demonstrate four token-safe plain replacements. A
   pack `fix` is a literal replacement for the reported node; it does not
   perform metavariable substitution.
@@ -53,6 +54,11 @@ Three delivery forms, by how much logic a rule needs:
     spot; without type information it cannot prove that the result is an error.
   - GOS006 catches the literal `InsecureSkipVerify: true`; computed values are
     outside a data-only rule pack's scope.
+
+  javascript-tier1 heuristic notes:
+  - JS001/JS002 flag `eval` and `new Function`; they do not prove input control.
+  - JS003 recognizes direct child_process imports and literal `require()` calls.
+  - JS004 flags direct `innerHTML` assignments; it does not track the assigned value.
 
 - **lmcode rules** (`rules/lmcode/*.lms`) — rules that need LOGIC beyond
   selector+regex: arithmetic (`end_row - start_row`), counting children,
