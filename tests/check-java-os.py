@@ -42,6 +42,14 @@ class JavaOS(unittest.TestCase):
   counts=collections.Counter(r['rule'] for r in rows)
   self.assertEqual(counts,{**{'LJV%03d'%i:1 for i in range(1,10)},'LJV008':2})
   self.assertEqual(self.run_host('lint',pack,ROOT/'tests/fixtures/java-tier1-clean.java'),b'0 findings in '+(ROOT/'tests/fixtures/java-tier1-clean.java').as_posix().encode()+b'\n')
+ def test_typed_java_host_methods(self):
+  compiler=os.environ.get('LMSCRIPT_BIN','lmscript')
+  if os.name=='nt' and not compiler.lower().endswith(('.cmd','.exe','.bat')):compiler=shutil.which(compiler+'.cmd') or compiler+'.cmd'
+  source=self.work/'api.lms';binary=self.work/'api.dslb'
+  body='let t = ts.parse_java("class A {}"); println(t.root().kind()); for (n in ts.query_java(t.root(), "(identifier) @id")) { println(n.text()); } let next = ts.reparse_java(t, "class A {}"); println(next.root().kind());'
+  source.write_text('p = _lmcode_ schema='+json.dumps(str(ROOT/'schema/lmok.host.json'))+';\n'+body+'\nend _lmcode_\nsavedsl(p, ARGV[0]);\n',encoding='utf-8')
+  r=subprocess.run([compiler,str(source),str(binary)],capture_output=True,cwd=ROOT,timeout=30);self.assertEqual(r.returncode,0,r.stderr)
+  self.assertEqual(self.run_host('--dsl',binary),b'program\nA\nprogram\n{"ok": true, "result": null}\n')
  def test_rule_omission_controls(self):
   pack=json.loads((ROOT/'rules/java-tier1.json').read_text(encoding='utf-8'))
   expected=collections.Counter({**{'LJV%03d'%i:1 for i in range(1,10)},'LJV008':2})
