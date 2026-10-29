@@ -370,7 +370,8 @@ prints duplicate ranges; the default minimum window is 20 tokens.
   or string would otherwise overflow the stack. The same bound applies to
   query `#match?`.
 - Language: `rule.lang` overrides the pack-level `lang`; a rule with neither
-  is a pack error. Known languages: `json`, `c`, `python`, `bash`.
+  is a pack error. Known languages: `json`, `c`, `python`, `bash`, `java`,
+  `go`, `javascript`, `typescript`, `tsx`.
 - Dispatch: per file, parse once per grammar used. `on` rules share ONE
   pre-order walk over the named nodes with a kind→rules index; `query` rules
   run one query cursor each over the root (merging them into the walk is a
@@ -381,7 +382,8 @@ prints duplicate ranges; the default minimum window is 20 tokens.
 - **Directories**: a FILE argument that is a directory expands recursively to
   its regular files — hidden files/dirs BELOW the argument skipped (the
   argument itself may live under a dot-path), only `.c`/`.h` (c), `.json`
-  (json), `.py` (python) and `.sh`/`.bash` (bash) are lintable, paths sorted
+  (json), `.py` (python), `.sh`/`.bash` (bash), `.java` (java), `.go` (go),
+  `.js` (javascript), `.ts` (typescript) and `.tsx` (tsx) are lintable, paths sorted
   for byte-stable output, a file whose
   language has no rules in the pack is skipped silently, and a directory
   with no lintable files is a usage error (exit 2). A directory the walk
@@ -572,8 +574,10 @@ tier-1 packs.
 ## License and company
 
 lmok-authored code is MIT licensed (see `LICENSE`). It builds against
-tree-sitter, tree-sitter-json, and tree-sitter-c, all MIT licensed (`THIRD_PARTY_NOTICES.md`;
-also embedded in the binary, see `lmok --notices`). Made by
+tree-sitter and the JSON, C, Python, Bash, Java, Go, JavaScript, TypeScript and
+TSX grammars, all MIT licensed, plus SQLite (public domain). Complete license
+texts are in `THIRD_PARTY_NOTICES.md`, also embedded in the binary (see
+`lmok --notices`). Made by
 **Lattice Systems LLC**.
 
 ## Native OS regression checks

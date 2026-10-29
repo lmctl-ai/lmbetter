@@ -10,6 +10,7 @@ BUILD_SCRIPTS = {'scripts/sync-deps.sh', 'scripts/sync-sdk.sh', 'scripts/next-ve
 
 def binary_input(path):
     return (path.startswith(('cpp/', 'rules/', 'schema/', 'cmake/')) or
+            path.startswith('queries/') and path.endswith('/facts.scm') or
             path in {'CMakeLists.txt', 'deps.lock', 'sdk.lock', 'THIRD_PARTY_NOTICES.md'} or
             path in BUILD_SCRIPTS)
 

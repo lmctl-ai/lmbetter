@@ -41,9 +41,33 @@ class ReleaseTests(unittest.TestCase):
             for path in ['README.md', 'tests/new.py', 'test.sh', 'scripts/release-needed.py', '.github/workflows/ci.yml']:
                 commit(path); check(False)
             check(True, 'refs/tags/v1.0.0')
-            for i, path in enumerate(['cpp/main.cpp', 'rules/a.json', 'schema/a.json', 'CMakeLists.txt', 'cmake/a.cmake', 'deps.lock', 'sdk.lock', 'scripts/sync-deps.sh', 'scripts/sync-sdk.sh', 'scripts/next-version.sh', 'THIRD_PARTY_NOTICES.md'], 1):
+            for i, path in enumerate(['cpp/main.cpp', 'rules/a.json', 'schema/a.json', 'CMakeLists.txt', 'cmake/a.cmake', 'queries/go/facts.scm', 'deps.lock', 'sdk.lock', 'scripts/sync-deps.sh', 'scripts/sync-sdk.sh', 'scripts/next-version.sh', 'THIRD_PARTY_NOTICES.md'], 1):
                 commit(path); check(True); git('tag', 'v1.0.' + str(i)); check(False)
             git('rm', 'cpp/main.cpp'); git('commit', '-qm', 'delete binary input'); check(True)
+
+    def test_notices_contain_vendored_license_text(self):
+        notices = (ROOT / 'THIRD_PARTY_NOTICES.md').read_text()
+        lock = (ROOT / 'deps.lock').read_text().splitlines()
+        names = [line.split('.', 1)[0].replace('_', '-') for line in lock
+                 if line.startswith('tree_sitter') and '.sha256=' in line]
+        # Every tree-sitter archive in deps.lock has a vendored license and
+        # its exact license text must be present in the embedded notices.
+        names = sorted(set(names))
+        for name in names:
+            path = ROOT / 'third_party' / name / 'LICENSE'
+            self.assertTrue(path.exists(), name)
+            self.assertIn(path.read_text().strip(), notices, name)
+
+    def test_notices_cover_non_grammar_dependencies(self):
+        notices = (ROOT / 'THIRD_PARTY_NOTICES.md').read_text()
+        sdk = (ROOT / 'sdk.lock').read_text()
+        self.assertTrue(sdk.strip(), 'sdk.lock must identify the embedded SDK')
+        self.assertIn('lmcode-cpp SDK', notices)
+        self.assertIn('SQLite', notices)
+        cmake = (ROOT / 'CMakeLists.txt').read_text()
+        for grammar in ('tree-sitter-python', 'tree-sitter-bash', 'tree-sitter-java',
+                        'tree-sitter-go', 'tree-sitter-javascript', 'tree-sitter-typescript'):
+            self.assertIn(grammar, cmake, grammar)
 
 if __name__ == '__main__':
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(ReleaseTests)
