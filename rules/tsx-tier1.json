@@ -1,0 +1,34 @@
+{
+  "lang": "tsx",
+  "rules": [
+    {
+      "id": "TX001",
+      "query": "((call_expression function: (identifier) @callee) (#eq? @callee \"eval\"))",
+      "severity": "critical",
+      "message": "eval executes a dynamically supplied string",
+      "tags": ["tsx", "security"],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
+    },
+    {
+      "id": "TX002",
+      "query": "(import_statement source: (string) @source)",
+      "text_matches": "^[\"']child_process(?:/.*)?[\"']$",
+      "severity": "major",
+      "message": "child_process import exposes process execution APIs",
+      "tags": ["tsx", "security"],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
+    },
+    {
+      "id": "TX003",
+      "query": "(assignment_expression left: (member_expression property: (property_identifier) @property))",
+      "text_matches": "^innerHTML$",
+      "severity": "major",
+      "message": "innerHTML assignment can create a DOM injection sink",
+      "tags": ["tsx", "security"],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
+    }
+  ]
+}

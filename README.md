@@ -126,15 +126,15 @@ lmok --version
 lmok --notices
 lmok --dsl-schema [--json]
 lmok --dsl-signatures
-lmok parse [--lang json|c|python|bash|java|go|javascript|typescript] FILE       # '-' reads stdin
-lmok query [--lang json|c|python|bash|java|go|javascript|typescript] [--pattern] PATTERN FILE  # '-' reads stdin
+lmok parse [--lang json|c|python|bash|java|go|javascript|typescript|tsx] FILE       # '-' reads stdin
+lmok query [--lang json|c|python|bash|java|go|javascript|typescript|tsx] [--pattern] PATTERN FILE  # '-' reads stdin
 lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress] [--sarif FILE]
         [--new-since RUN|--baseline FILE] [--fail-on-new] [--changed[=REV]]
 lmok ci [--config FILE] [--no-suppress] [--sarif FILE] [ROOT]
 lmok rules PACK... | test PACK FIXTURE...
 lmok findings [--rule ID] [--file PATH] [--db PATH]
-lmok facts [--lang json|c|python|bash|java|go|javascript|typescript] FILE|DIR...
-lmok check [--lang json|c|python|bash|java|go|javascript|typescript] RULES.dslb FILE|DIR... [--no-suppress] [--sarif FILE]
+lmok facts [--lang json|c|python|bash|java|go|javascript|typescript|tsx] FILE|DIR...
+lmok check [--lang json|c|python|bash|java|go|javascript|typescript|tsx] RULES.dslb FILE|DIR... [--no-suppress] [--sarif FILE]
 lmok --dsl FILE [FILE ...]
 ```
 
@@ -144,7 +144,7 @@ regions appear as `(ERROR ...)` nodes — and still exits 0; tree-sitter always
 produces a tree. `query` runs a tree-sitter S-expression pattern over the
 document and prints one line per captured node, `kind
 start_row:start_col-end_row:end_col` (0-based). Both default to the JSON
-grammar; `--lang c|python|bash|java|go|javascript|typescript` switches grammars (an unknown language exits
+grammar; `--lang c|python|bash|java|go|javascript|typescript|tsx` switches grammars (an unknown language exits
 2 with the known-languages list). `query --pattern` takes a code-shaped
 (semgrep-style) pattern instead of an S-expression — `strcpy($DST, $SRC)`, `$F(...)`, `if ($C) { return $V; }` —
 compiles it with the same grammar (first slice: c and python), prints the generated query on a `query:` line and
@@ -415,8 +415,10 @@ FIXME/TODO, backticks, unguarded cd, chmod 777, eval) and `go-tier1.json`
 (6 gosec-flavored rules: variable `exec.Command`, unsafe/weak-crypto imports,
 0777 file modes, blank assignment results, and `InsecureSkipVerify`), and
 `javascript-tier1.json` (4 syntax heuristics: eval, new Function, child_process
-imports and innerHTML writes) — plus lmcode-native rules in `rules/lmcode/` for
-checks that need logic (function metrics, switch/if style, duplicate JSON
+imports and innerHTML writes), plus
+`typescript-tier1.json` and `tsx-tier1.json` provide three comparable checks for
+typed and JSX sources using independent parser registrations. lmcode-native
+rules in `rules/lmcode/` cover checks that need logic (function metrics, switch/if style, duplicate JSON
 keys and sibling string values, object size, nesting depth via `Node.has_parent()`/`parent()`, scanf width via
 query predicates, same-file symbol rules via set algebra, unquoted bash
 variables via the parent chain). Since v0.4.0,
@@ -437,7 +439,7 @@ lmok lint rules/c-tier1.json examples/data/sample.c
 ## Facts (knowledge tree, tier 3 / E6)
 
 ```sh
-lmok facts [--lang json|c|python|bash|java|go|javascript|typescript] FILE|DIR...
+lmok facts [--lang json|c|python|bash|java|go|javascript|typescript|tsx] FILE|DIR...
 ```
 
 Prints one JSON Lines record per definition, reference or edge found in each
@@ -551,8 +553,9 @@ and inferred for `.js` files. Its CLI facts include declarations, imports and
 calls; the lmscript `ts.parse_*` DSL surface remains unchanged. The heuristic
 `rules/javascript-tier1.json` pack flags dynamic code, child_process imports,
 and innerHTML assignments. TypeScript (tree-sitter-typescript v0.23.2) is a
-separate `--lang typescript` grammar for `.ts` files; its fact extraction and
-`typescript-tier1.json` remain separate from JavaScript.
+separate `--lang typescript` grammar for `.ts` files. The distinct TSX grammar
+is selected by `--lang tsx` and `.tsx`; both keep independent fact queries and
+tier-1 packs.
 
 ## Repository layout
 

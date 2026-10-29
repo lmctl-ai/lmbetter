@@ -24,13 +24,13 @@ not a fixed version pin. Compilation is offline once the local host and
 compiler are available. Raw URL invocation and its working-directory
 requirements are covered in the [README](../README.md#published-host-and-raw-urls).
 
-Run all 16 examples (12 bytecode demos and four outer-script CLI demos):
+Run all 17 examples (12 bytecode demos and five outer-script CLI demos):
 
 ```sh
 for source in examples/*.lms; do
   lmscript "$source" || exit 1
   case "$source" in
-    examples/lint-repo.lms|examples/lint-go.lms|examples/lint-javascript.lms|examples/lint-typescript.lms) ;; # drives the CLI directly
+    examples/lint-repo.lms|examples/lint-go.lms|examples/lint-javascript.lms|examples/lint-typescript.lms|examples/lint-tsx.lms) ;; # drives the CLI directly
     *) build/lmok --dsl "build/$(basename "$source" .lms).dslb" || exit 1 ;;
   esac
 done
@@ -46,6 +46,8 @@ parser/query example used by the CLI docs.
 `lint-typescript.lms` runs the TypeScript tier-1 pack on
 `tests/fixtures/typescript-tier1-violations.ts` and prints `typescript-tier1: 3 findings`;
 `examples/data/sample.ts` is the small typed-language parser example.
+`lint-tsx.lms` runs the TSX tier-1 pack on `tests/fixtures/tsx-tier1-violations.tsx`
+and prints `tsx-tier1: 3 findings`; `examples/data/sample.tsx` shows JSX parsing.
 `sarif-report.lms` also writes `build/sarif-results.sarif` (four results).
 Findings and the catalog demo's `gate=FAIL` are demonstration output, not a
 nonzero process exit status.

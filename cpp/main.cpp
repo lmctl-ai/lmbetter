@@ -432,6 +432,7 @@ bool grammar_for_extension(const std::string &ext, lmok::Grammar &grammar) {
   if (ext == ".go") { grammar = lmok::Grammar::Go; return true; }
   if (ext == ".js") { grammar = lmok::Grammar::Javascript; return true; }
   if (ext == ".ts") { grammar = lmok::Grammar::Typescript; return true; }
+  if (ext == ".tsx") { grammar = lmok::Grammar::Tsx; return true; }
   return false;
 }
 
@@ -500,6 +501,7 @@ bool parse_lang(const std::string &lang, lmok::Grammar &grammar) {
   else if (lang == "go") grammar = lmok::Grammar::Go;
   else if (lang == "javascript") grammar = lmok::Grammar::Javascript;
   else if (lang == "typescript") grammar = lmok::Grammar::Typescript;
+  else if (lang == "tsx") grammar = lmok::Grammar::Tsx;
   else return false;
   return true;
 }
@@ -593,16 +595,16 @@ static int run_cli(int argc, char **argv) {
       "       lmok symbols [PATTERN] [--lang L] [--kind K] [--db PATH]\n"
       "       lmok refs NAME [--db PATH]\n"
       "       lmok findings [--rule ID] [--file PATH] [--db PATH]\n"
-      "       lmok parse [--lang json|c|python|bash|java|go|javascript|typescript] FILE\n"
-      "       lmok query [--lang json|c|python|bash|java|go|javascript|typescript] [--pattern] PATTERN FILE\n"
+      "       lmok parse [--lang json|c|python|bash|java|go|javascript|typescript|tsx] FILE\n"
+      "       lmok query [--lang json|c|python|bash|java|go|javascript|typescript|tsx] [--pattern] PATTERN FILE\n"
       "       lmok ci [--config FILE] [--no-suppress] [--sarif FILE] [ROOT]\n"
       "       lmok rules PACK... | test PACK FIXTURE...\n"
       "       lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress] [--sarif FILE] [--fix|--diff]\n"
       "               [--new-since RUN|--baseline FILE] [--fail-on-new] [--changed[=REV]]\n"
-      "       lmok facts [--lang json|c|python|bash|java|go|javascript|typescript] FILE|DIR...\n"
-      "       lmok check [--lang json|c|python|bash|java|go|javascript|typescript] RULES.dslb FILE|DIR... [--no-suppress] [--sarif FILE]\n"
-      "       lmok metrics [--lang json|c|python|bash|java|go|javascript|typescript] FILE|DIR...\n"
-      "       lmok dup [--lang json|c|python|bash|java|go|javascript|typescript] [--tokens N] FILE|DIR...\n"
+      "       lmok facts [--lang json|c|python|bash|java|go|javascript|typescript|tsx] FILE|DIR...\n"
+      "       lmok check [--lang json|c|python|bash|java|go|javascript|typescript|tsx] RULES.dslb FILE|DIR... [--no-suppress] [--sarif FILE]\n"
+      "       lmok metrics [--lang json|c|python|bash|java|go|javascript|typescript|tsx] FILE|DIR...\n"
+      "       lmok dup [--lang json|c|python|bash|java|go|javascript|typescript|tsx] [--tokens N] FILE|DIR...\n"
       "       lmok --dsl FILE [FILE ...]\n";
   if (argc>=2 && std::string(argv[1])=="rules") {
     if(argc<3){std::cerr<<"rules needs PACK...\n";return 2;}
@@ -919,7 +921,7 @@ static int run_cli(int argc, char **argv) {
     if (lang) {
       lmok::Grammar g;
       if (!parse_lang(*lang, g)) {
-        std::cerr << "unknown language '" << *lang << "' (known: json, c, python, bash, java, go, javascript, typescript)\n";
+        std::cerr << "unknown language '" << *lang << "' (known: json, c, python, bash, java, go, javascript, typescript, tsx)\n";
         return 2;
       }
     }
@@ -996,8 +998,9 @@ static int run_cli(int argc, char **argv) {
       else if (lang == "go") grammar = lmok::Grammar::Go;
       else if (lang == "javascript") grammar = lmok::Grammar::Javascript;
       else if (lang == "typescript") grammar = lmok::Grammar::Typescript;
+      else if (lang == "tsx") grammar = lmok::Grammar::Tsx;
       else {
-        std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash, java, go, javascript, typescript)\n" << usage;
+        std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash, java, go, javascript, typescript, tsx)\n" << usage;
         return 2;
       }
       argi += 2;
@@ -1186,7 +1189,7 @@ static int run_cli(int argc, char **argv) {
       catch (const lmok::BaselineError &e) { std::cerr << e.what() << "\n"; return 2; }
     }
     // Per-grammar rule lists for extension-based filtering.
-    std::vector<lmok::LintRule> c_rules, json_rules, python_rules, bash_rules, java_rules, go_rules, javascript_rules, typescript_rules;
+    std::vector<lmok::LintRule> c_rules, json_rules, python_rules, bash_rules, java_rules, go_rules, javascript_rules, typescript_rules, tsx_rules;
     for (const auto &rule : rules) {
       if (rule.grammar == lmok::Grammar::C) c_rules.push_back(rule);
       else if (rule.grammar == lmok::Grammar::Python) python_rules.push_back(rule);
@@ -1195,6 +1198,7 @@ static int run_cli(int argc, char **argv) {
       else if (rule.grammar == lmok::Grammar::Go) go_rules.push_back(rule);
       else if (rule.grammar == lmok::Grammar::Javascript) javascript_rules.push_back(rule);
       else if (rule.grammar == lmok::Grammar::Typescript) typescript_rules.push_back(rule);
+      else if (rule.grammar == lmok::Grammar::Tsx) tsx_rules.push_back(rule);
       else json_rules.push_back(rule);
     }
     namespace fs = std::filesystem;
@@ -1225,6 +1229,7 @@ static int run_cli(int argc, char **argv) {
       else if (ext == ".go") active = &go_rules;
       else if (ext == ".js") active = &javascript_rules;
       else if (ext == ".ts") active = &typescript_rules;
+      else if (ext == ".tsx") active = &tsx_rules;
       // A file whose language has no rules in the pack: skipped silently when
       // it came from a directory; an explicitly named file still reports.
       if (active->empty() && target.from_dir) continue;
@@ -1385,9 +1390,9 @@ static int run_cli(int argc, char **argv) {
     bool forced = false;
     lmok::Grammar forced_grammar = lmok::Grammar::Json;
     if (argi < argc && std::string(argv[argi]) == "--lang") {
-      if (argi + 1 >= argc) { std::cerr << "--lang needs a value (json|c|python|bash|java|go|javascript|typescript)\n" << usage; return 2; }
+      if (argi + 1 >= argc) { std::cerr << "--lang needs a value (json|c|python|bash|java|go|javascript|typescript|tsx)\n" << usage; return 2; }
       if (!parse_lang(argv[argi + 1], forced_grammar)) {
-        std::cerr << "unknown language '" << argv[argi + 1] << "' (known: json, c, python, bash, java, go, javascript, typescript)\n" << usage;
+        std::cerr << "unknown language '" << argv[argi + 1] << "' (known: json, c, python, bash, java, go, javascript, typescript, tsx)\n" << usage;
         return 2;
       }
       forced = true;
@@ -1433,7 +1438,7 @@ static int run_cli(int argc, char **argv) {
     lmok::Grammar grammar = lmok::Grammar::Json;
     if (argi + 1 < argc && std::string(argv[argi]) == "--lang") {
       const std::string lang = argv[argi + 1];
-      if (!parse_lang(lang, grammar)) { std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash, java, go, javascript, typescript)\n"; return 2; }
+      if (!parse_lang(lang, grammar)) { std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash, java, go, javascript, typescript, tsx)\n"; return 2; }
       argi += 2;
     }
     if (argi + 1 >= argc) { std::cerr << usage; return 2; }

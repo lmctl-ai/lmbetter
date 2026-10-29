@@ -59,7 +59,7 @@ The JavaScript grammar compiled into the executable (`third_party/tree-sitter-ja
 
 ## tree-sitter-typescript
 
-The TypeScript grammar compiled into the executable (`third_party/tree-sitter-typescript/typescript`).
+The TypeScript and TSX grammars compiled into the executable (`third_party/tree-sitter-typescript/typescript` and `third_party/tree-sitter-typescript/tsx`).
 
 - Upstream: https://github.com/tree-sitter/tree-sitter-typescript
 - Version: 0.23.2, pinned in `deps.lock`

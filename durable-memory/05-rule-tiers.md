@@ -147,6 +147,13 @@ registered as `--lang typescript` for `.ts` files. `rules/typescript-tier1.json`
 reuses the dynamic-code, child_process and innerHTML checks for typed source
 syntax; it does not perform type-aware dataflow.
 
+## TSX grammar and tier-1 pack (Wave 2, 2026-10-29)
+
+The TSX parser is a separate `tsx` entry from the same tree-sitter-typescript
+v0.23.2 package, selected by `--lang tsx` and `.tsx` files. Its facts and
+`tsx-tier1.json` use a separate grammar selection so JSX syntax is parsed
+without weakening TypeScript checks.
+
 Dropped candidates (and why): none — everything on the shortlist was
 query-expressible once node-types.json was checked (`except_clause` block
 inclusion and the two-capture filter trick were the only surprises).

@@ -45,6 +45,8 @@ set(TS_SOURCES
   "${TSJS_ROOT}/src/scanner.c"
   "${TSTS_ROOT}/typescript/src/parser.c"
   "${TSTS_ROOT}/typescript/src/scanner.c"
+  "${TSTS_ROOT}/tsx/src/parser.c"
+  "${TSTS_ROOT}/tsx/src/scanner.c"
 )
 
 # ---- embedded DSL schema and notices ---------------------------------------
@@ -78,7 +80,7 @@ add_custom_command(
 )
 # ---- embedded facts.scm query files (E6, cpp/facts.cpp) ---------------------
 set(GENERATED_FACTS)
-foreach(lang c python bash json java go javascript typescript)
+foreach(lang c python bash json java go javascript typescript tsx)
   set(_facts_out "${GENERATED_DIR}/facts_${lang}_embedded.hpp")
   add_custom_command(
     OUTPUT "${_facts_out}"
@@ -121,6 +123,7 @@ target_include_directories(lmok PRIVATE
   "${TS_ROOT}/lib/include"
   "${TS_ROOT}/lib/src"
   "${TSTS_ROOT}/typescript/src"
+  "${TSTS_ROOT}/tsx/src"
   "${GENERATED_DIR}"
 )
 # Same feature-test defines as the upstream tree-sitter Makefile.

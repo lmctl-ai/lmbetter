@@ -99,6 +99,17 @@ class NativeOS(unittest.TestCase):
         facts = self.run_host('facts', source)
         self.assertEqual((facts.returncode, facts.stderr), (0, b''), facts)
         self.assertIn(b'"kind":"def.function","name":"greet"', facts.stdout)
+    def test_tsx_cli_and_extension_dispatch(self):
+        source = self.work / 'tsx input.tsx'
+        source.write_bytes(b'export function Greeting(name: string) { return <div>{name}</div>; }\n')
+        parsed = self.run_host('parse', '--lang', 'tsx', source)
+        self.assertEqual(parsed.returncode, 0, parsed.stderr)
+        self.assertTrue(parsed.stdout.startswith(b'(program (export_statement declaration: (function_declaration'), parsed.stdout)
+        self.exact(self.run_host('query', '--lang', 'tsx', '(function_declaration name: (identifier) @name)', source),
+                   b'identifier 0:16-0:24\n')
+        facts = self.run_host('facts', source)
+        self.assertEqual((facts.returncode, facts.stderr), (0, b''), facts)
+        self.assertIn(b'"kind":"def.function","name":"Greeting"', facts.stdout)
     def test_paths(self):
         folder = self.work / 'space 雪 café'
         folder.mkdir()

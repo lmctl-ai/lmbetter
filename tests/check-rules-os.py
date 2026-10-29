@@ -110,9 +110,9 @@ class RulePacksOS(unittest.TestCase):
         # Columns are byte offsets on every platform; a UTF-16-code-unit host
         # would compute different end columns for non-ASCII identifiers.
         binary = self.compile('@identifier fn name(n: Node) -> void implements Rule { ts.report(n, n.text(), "U", "minor"); }')
-        for lang, text in [('python', 'def héllo_雪():\n    return 1\n'), ('c', 'int café_水;\n'), ('go', 'package main\nfunc café_水() {}\n'), ('javascript', 'function café_水() {}\n'), ('typescript', 'function café_水(): string { return "ok"; }\n')]:
+        for lang, text in [('python', 'def héllo_雪():\n    return 1\n'), ('c', 'int café_水;\n'), ('go', 'package main\nfunc café_水() {}\n'), ('javascript', 'function café_水() {}\n'), ('typescript', 'function café_水(): string { return "ok"; }\n'), ('tsx', 'function café_水(): string { return "ok"; }\n')]:
             with self.subTest(lang=lang):
-                source = self.work / ('unicode.' + {'python':'py','c':'c','go':'go','javascript':'js','typescript':'ts'}[lang])
+                source = self.work / ('unicode.' + {'python':'py','c':'c','go':'go','javascript':'js','typescript':'ts','tsx':'tsx'}[lang])
                 source.write_bytes(text.encode('utf-8'))
                 result = self.run_host('check', '--lang', lang, binary, source)
                 self.assertEqual((result.returncode, result.stderr), (0, b''), result)
@@ -136,6 +136,7 @@ class RulePacksOS(unittest.TestCase):
             ('go', '@return', b'package p\nfunc f() { return }\n', 1, 'return'),
             ('javascript', '@return_statement', b'function f() { return 1; }\n', 1, 'return 1;'),
             ('typescript', '@return_statement', b'function f(): number { return 1; }\n', 1, 'return 1;'),
+            ('tsx', '@return_statement', b'function f(): number { return <div />; }\n', 1, 'return <div />;'),
         ]
         for lang, annotation, data, want_count, want_text in cases:
             with self.subTest(lang=lang):

@@ -10,7 +10,7 @@ Three delivery forms, by how much logic a rule needs:
   LBJ001–LBJ010 and LBJ104), `python-tier1.json` (9 rules),
   `bash-tier1.json` (6 rules), `go-tier1.json` (6 rules, GOS001–GOS006), and
   `javascript-tier1.json` (4 rules, JS001–JS004), and
-  `typescript-tier1.json` (3 rules, TS001–TS003). The opt-in `bash-autofix.json` and
+  `typescript-tier1.json` (3 rules, TS001–TS003), and `tsx-tier1.json` (3 rules, TX001–TX003). The opt-in `bash-autofix.json` and
   `c-autofix.json` packs demonstrate four token-safe plain replacements. A
   pack `fix` is a literal replacement for the reported node; it does not
   perform metavariable substitution.

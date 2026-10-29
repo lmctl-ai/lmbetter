@@ -28,10 +28,10 @@ selectors); since v0.2.4 the C grammar via `ts.parse_c` / `ts.query_c` and
 `ts.parse_python` / `ts.query_python` / `ts.parse_bash` / `ts.query_bash`
 (plus `reparse_python` / `reparse_bash`) and `--lang python|bash` landed
 after v0.4.0. Go (v0.25.0), JavaScript (v0.25.0), and TypeScript (v0.23.2) are
-CLI grammars for `--lang go` / `--lang javascript` / `--lang typescript`, `.go`
-/ `.js` / `.ts` lint/facts inference, and their tier-1 packs. They do not add
+CLI grammars for `--lang go` / `--lang javascript` / `--lang typescript` /
+`--lang tsx`, `.go` / `.js` / `.ts` / `.tsx` lint/facts inference, and their tier-1 packs. They do not add
 `ts.parse_go`/`ts.query_go`, `ts.parse_javascript`/`ts.query_javascript`, or
-`ts.parse_typescript`/`ts.query_typescript`;
+`ts.parse_typescript`/`ts.query_typescript` or `ts.parse_tsx`/`ts.query_tsx`;
 the existing explicit DSL surface stays unchanged for this slice. No cursor API yet.
 
 The lmcode-cpp SDK pin (`sdk.lock`) must match the implicit std set of the
