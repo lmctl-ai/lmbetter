@@ -12,6 +12,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 HOST = str(Path(sys.argv.pop(1)).resolve()) if len(sys.argv) > 1 else str(ROOT / 'build/lmok')
+# Printed file paths use forward slashes on every OS (canonical_path in cpp/main.cpp, same as lint), so expect .as_posix().
 COMPILER = os.environ.get('LMSCRIPT_BIN', 'lmscript')
 
 def compiler_argv():
@@ -138,7 +139,7 @@ class EntryChecks(unittest.TestCase):
         r = self.run_host(binary, self.source, other)
         self.arrays(r)
         counts = [line for line in r.stdout.splitlines() if ' findings in ' in line]
-        self.assertEqual(counts, ['2 findings in ' + str(self.source), '1 findings in ' + str(other)])
+        self.assertEqual(counts, ['2 findings in ' + self.source.as_posix(), '1 findings in ' + other.as_posix()])
     def test_body_findings_are_their_own_group(self):
         # WP14 F2: findings reported by the body were silently discarded by the per-file reset.
         binary = self.compile("""ts.report(ts.parse("{}").root(), "from the body", "BODY", "major");
@@ -146,7 +147,7 @@ class EntryChecks(unittest.TestCase):
         r = self.run_host(binary)
         arrays = self.arrays(r)
         self.assertEqual([[f['rule'] for f in a] for a in arrays], [['BODY'], ['P', 'P']])
-        self.assertEqual([line for line in r.stdout.splitlines() if ' findings in ' in line], ['1 findings in body', '2 findings in ' + str(self.source)])
+        self.assertEqual([line for line in r.stdout.splitlines() if ' findings in ' in line], ['1 findings in body', '2 findings in ' + self.source.as_posix()])
     def test_entry_failure_prints_the_partial_group_first(self):
         # WP14 F5: the findings collected before a failing entry are printed, then the located error, exit 3.
         binary = self.compile("""@pair fn first(n: Node) -> void implements Rule { ts.report(n, "before", "F1", "minor"); }
@@ -155,7 +156,7 @@ class EntryChecks(unittest.TestCase):
         self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
         lines = r.stdout.splitlines()
         self.assertEqual([f['rule'] for f in json.loads(lines[0])], ['F1', 'F1'])
-        self.assertEqual(lines[1], '2 findings in ' + str(self.source))
+        self.assertEqual(lines[1], '2 findings in ' + self.source.as_posix())
         error = json.loads(lines[2]); self.assertEqual(error['phase'], 'run'); self.assertIn('out of range', error['message'])
         self.assertEqual(len(lines), 3, 'the second input is not processed after an error')
     def test_missing_input_and_bad_usage(self):
