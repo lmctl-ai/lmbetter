@@ -28,7 +28,7 @@ scripts/sync-deps.sh --verify >/dev/null || fail "deps pin mismatch"
 ok "third_party/ tree-sitter, tree-sitter-json, tree-sitter-c, tree-sitter-python and tree-sitter-bash match deps.lock"
 
 # release versioning (CI stamps this into the build; see scripts/next-version.sh)
-nv() { LMOK_TAGS="$1" scripts/next-version.sh; }
+nv() { LMOK_TAGS="$1" GITHUB_REF_TYPE= GITHUB_REF_NAME= scripts/next-version.sh; }
 [ "$(nv 'v7.0.0')" = 7.0.1 ] || fail "next-version bumps the patch of the latest tag"
 [ "$(nv 'v7.0.9
 v7.0.10')" = 7.0.11 ] || fail "next-version sorts versions numerically"
