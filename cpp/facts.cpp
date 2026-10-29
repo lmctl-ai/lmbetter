@@ -4,6 +4,7 @@
 #include "facts_python_embedded.hpp"
 #include "facts_bash_embedded.hpp"
 #include "facts_json_embedded.hpp"
+#include "facts_java_embedded.hpp"
 
 #include <algorithm>
 #include <sstream>
@@ -16,11 +17,13 @@ const std::string &facts_query(Grammar grammar) {
   static const std::string python(reinterpret_cast<const char *>(embedded_facts_python), embedded_facts_python_size);
   static const std::string bash(reinterpret_cast<const char *>(embedded_facts_bash), embedded_facts_bash_size);
   static const std::string json(reinterpret_cast<const char *>(embedded_facts_json), embedded_facts_json_size);
+  static const std::string java(reinterpret_cast<const char *>(embedded_facts_java), embedded_facts_java_size);
   switch (grammar) {
   case Grammar::C: return c;
   case Grammar::Python: return python;
   case Grammar::Bash: return bash;
   case Grammar::Json: return json;
+  case Grammar::Java: return java;
   }
   return json;
 }
@@ -32,7 +35,7 @@ bool starts_with(const std::string &s, const char *prefix) { return s.rfind(pref
 // Definitions that open a scope for the facts nested inside them.
 bool is_scope_kind(const std::string &kind) {
   return kind == "def.function" || kind == "def.method" || kind == "def.prototype" ||
-         kind == "def.class" || kind == "def.struct" || kind == "def.union" || kind == "def.enum" ||
+         kind == "def.class" || kind == "def.interface" || kind == "def.struct" || kind == "def.union" || kind == "def.enum" ||
          kind == "def.key";
 }
 

@@ -1,0 +1,68 @@
+{
+  "lang": "java",
+  "rules": [
+    {
+      "id": "LJV001",
+      "text_matches": "^\\{\\s*\\}$",
+      "message": "empty catch block",
+      "severity": "major",
+      "query": "(catch_clause body: (block) @body)"
+    },
+    {
+      "id": "LJV002",
+      "text_matches": "System\\s*\\.\\s*out\\s*\\.\\s*println\\s*\\(",
+      "message": "System.out.println in application code (use a logger)",
+      "severity": "minor",
+      "query": "((method_declaration name: (identifier) @method) @site (#not-eq? @method \"main\"))"
+    },
+    {
+      "id": "LJV003",
+      "on": "binary_expression",
+      "text_matches": "==[\\s\\S]*\\\"|\\\"[\\s\\S]*==",
+      "message": "== used with a string literal (use equals)",
+      "severity": "major"
+    },
+    {
+      "id": "LJV004",
+      "on": "method_invocation",
+      "text_matches": "printStackTrace\\s*\\(",
+      "message": "printStackTrace leaks diagnostics",
+      "severity": "major"
+    },
+    {
+      "id": "LJV005",
+      "text_matches": "=\\s*\"[^\"\\r\\n]+\"",
+      "message": "credential-looking field initialized in source",
+      "severity": "critical",
+      "query": "((field_declaration declarator: (variable_declarator name: (identifier) @name value: (string_literal))) @field (#match? @name \"(password|PASSWORD|passwd|PASSWD|secret|SECRET|apiKey|API_KEY|token|TOKEN)\"))"
+    },
+    {
+      "id": "LJV006",
+      "text_matches": "^Runtime\\s*\\.",
+      "message": "Runtime.exec with a variable command",
+      "severity": "critical",
+      "query": "((method_invocation object: (method_invocation object: (identifier) @rt name: (identifier) @get) name: (identifier) @exec arguments: (argument_list (identifier))) @call (#eq? @rt \"Runtime\") (#eq? @get \"getRuntime\") (#eq? @exec \"exec\"))"
+    },
+    {
+      "id": "LJV007",
+      "on": "method_invocation",
+      "text_matches": "MessageDigest\\.getInstance\\s*\\(\\s*\\\"(?:MD5|SHA-?1)\\\"",
+      "message": "weak MD5/SHA-1 digest",
+      "severity": "major"
+    },
+    {
+      "id": "LJV008",
+      "on": "catch_clause",
+      "text_matches": "catch\\s*\\(\\s*(?:Exception|Throwable)(?:\\s|\\))",
+      "message": "generic Exception/Throwable catch",
+      "severity": "major"
+    },
+    {
+      "id": "LJV009",
+      "text_matches": "TODO|FIXME|todo|fixme",
+      "message": "unresolved TODO/FIXME comment",
+      "severity": "minor",
+      "query": "(line_comment) @comment\n(block_comment) @comment"
+    }
+  ]
+}

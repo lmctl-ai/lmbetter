@@ -519,3 +519,12 @@ ignores and baselines do not hide mismatches. JSON stdout has `ok`, `expected`,
 `actual`, and a `diff` array; stderr gives `file:line: missing|unexpected RULE`.
 Exit 0 passes, 1 means mismatch, 2 means malformed input/annotations. Repeated
 findings for the same rule on one line count once.
+## Java
+
+Java source is supported by --lang java and .java directory targets, using the pinned tree-sitter-java v0.23.5 grammar.
+
+    lmok parse --lang java examples/java-sample.java
+    lmok lint rules/java-tier1.json examples/java-sample.java
+    lmok facts examples/java-sample.java
+
+The nine Java tier-1 rules cover empty catches, println outside methods named main, string-literal reference comparisons, stack traces, credential-looking literal fields, variable Runtime.exec, weak digests, generic catches and TODO/FIXME comments. These are syntax heuristics, not type resolution. Java facts describe classes, interfaces, methods, fields, imports and candidate calls; ts.parse_java/query_java/reparse_java are available in lmcode. See [Java behavior and limits](durable-memory/java.md).

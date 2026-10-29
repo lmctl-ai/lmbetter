@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Java grammar, rules and facts oracles, executed on every native CI platform."""
+import collections
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+ROOT=Path(__file__).resolve().parents[1]
+HOST=Path(sys.argv.pop(1)).resolve() if len(sys.argv)>1 and not sys.argv[1].startswith('--') else ROOT/'build'/('lmok.exe' if os.name=='nt' else 'lmok')
+PROVE='--prove-controls' in sys.argv
+if PROVE:sys.argv.remove('--prove-controls')
+CORRUPT=False
+class JavaOS(unittest.TestCase):
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory(prefix='java space ',dir=ROOT/'build');self.work=Path(self.tmp.name)
+ def tearDown(self):self.tmp.cleanup()
+ def run_host(self,*args):
+  r=subprocess.run([str(HOST),*map(str,args)],capture_output=True,cwd=ROOT,timeout=30)
+  if CORRUPT:r.stdout+=b'\r'
+  self.assertEqual(r.returncode,0,r.stderr.decode('utf-8','replace'));self.assertEqual(r.stderr,b'');self.assertNotIn(b'\r',r.stdout)
+  return r.stdout
+ def test_parse_query_utf8_crlf(self):
+  for newline in [b'\n',b'\r\n']:
+   source=self.work/'Café 雪.java';source.write_bytes(b'class Demo {'+newline+b'  int value;'+newline+b'}'+newline)
+   tree=self.run_host('parse','--lang','java',source);self.assertTrue(tree.startswith(b'(program '),tree);self.assertNotIn(b'ERROR',tree)
+   self.assertEqual(self.run_host('query','--lang','java','(identifier) @name',source),b'identifier 0:6-0:10\nidentifier 1:6-1:11\n')
+ def test_facts_and_extension_walk(self):
+  source=self.work/'Symbols.java';source.write_text('import java.util.List;\ninterface Face { void work(); }\nclass Demo { int field; void run() { work(); } }\n',encoding='utf-8')
+  rows=[json.loads(line) for line in self.run_host('facts',self.work).splitlines()]
+  actual={(r['kind'],r['name'],r['scope']) for r in rows}
+  expected={('def.interface','Face',''),('def.method','work','Face'),('def.class','Demo',''),('def.field','field','Demo'),('def.method','run','Demo'),('ref.call','work','Demo.run'),('ref.import','java.util.List','')}
+  self.assertTrue(expected<=actual,actual)
+  self.assertTrue(all(r['lang']=='java' for r in rows));self.assertTrue(all(r['confidence']=='candidate' for r in rows if r['kind']=='ref.call'))
+ def test_tier1_positive_and_clean(self):
+  pack=ROOT/'rules/java-tier1.json'
+  output=self.run_host('lint',pack,ROOT/'tests/fixtures/java-tier1-violations.java').splitlines()
+  rows=[json.loads(line) for line in output[:-1]]
+  counts=collections.Counter(r['rule'] for r in rows)
+  self.assertEqual(counts,{**{'LJV%03d'%i:1 for i in range(1,10)},'LJV008':2})
+  self.assertEqual(self.run_host('lint',pack,ROOT/'tests/fixtures/java-tier1-clean.java'),b'0 findings in '+(ROOT/'tests/fixtures/java-tier1-clean.java').as_posix().encode()+b'\n')
+ def test_check_java_annotation(self):
+  compiler=os.environ.get('LMSCRIPT_BIN','lmscript')
+  if os.name=='nt' and not compiler.lower().endswith(('.cmd','.exe','.bat')):compiler=shutil.which(compiler+'.cmd') or compiler+'.cmd'
+  source=self.work/'rule.lms';binary=self.work/'rule.dslb'
+  source.write_text('p = _lmcode_ schema='+json.dumps(str(ROOT/'schema/lmok.host.json'))+';\n@method_declaration fn methods(n: Node) -> void implements Rule { ts.report(n, "method", "JAVA", "minor"); }\nend _lmcode_\nsavedsl(p, ARGV[0]);\n',encoding='utf-8')
+  result=subprocess.run([compiler,str(source),str(binary)],capture_output=True,cwd=ROOT,timeout=30);self.assertEqual(result.returncode,0,result.stderr)
+  code=self.work/'Input.java';code.write_text('class Demo { void run() {} }',encoding='utf-8')
+  output=self.run_host('check','--lang','java',binary,code).splitlines();self.assertEqual(json.loads(output[0])[0]['rule'],'JAVA');self.assertTrue(output[1].startswith(b'1 findings in '))
+if __name__=='__main__':
+ if PROVE:
+  suite=unittest.defaultTestLoader.loadTestsFromTestCase(JavaOS)
+  CORRUPT=True
+  result=unittest.TestResult();suite.run(result)
+  if len(result.failures)+len(result.errors)!=result.testsRun:raise SystemExit('output-corruption control survived')
+  print('CAUGHT Java output corruption in '+str(result.testsRun)+' native oracles');CORRUPT=False
+ unittest.main()

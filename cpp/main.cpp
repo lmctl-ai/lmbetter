@@ -228,6 +228,7 @@ void register_host(dslvm::Registry &reg, Host &host) {
   parse_method("parse", lmok::Grammar::Json);
   parse_method("parse_c", lmok::Grammar::C);
   parse_method("parse_python", lmok::Grammar::Python);
+  parse_method("parse_java", lmok::Grammar::Java);
   parse_method("parse_bash", lmok::Grammar::Bash);
   // The findings sink: rules are void fns, so they report into the host and
   // the chunk body reads the collection back (count / JSON array string).
@@ -266,6 +267,7 @@ void register_host(dslvm::Registry &reg, Host &host) {
   query_method("query", lmok::Grammar::Json);
   query_method("query_c", lmok::Grammar::C);
   query_method("query_python", lmok::Grammar::Python);
+  query_method("query_java", lmok::Grammar::Java);
   query_method("query_bash", lmok::Grammar::Bash);
   // ts.match_c / ts.match_python: code-shaped patterns (pattern.hpp), compiled once per distinct
   // pattern text per run and cached, so a rule calling match in a loop pays the parse once.
@@ -302,6 +304,7 @@ void register_host(dslvm::Registry &reg, Host &host) {
   reparse_method("reparse", lmok::Grammar::Json);
   reparse_method("reparse_c", lmok::Grammar::C);
   reparse_method("reparse_python", lmok::Grammar::Python);
+  reparse_method("reparse_java", lmok::Grammar::Java);
   reparse_method("reparse_bash", lmok::Grammar::Bash);
   reg.method("Ts", "changed_ranges", {"Tree", "Tree"}, "string", [](void *, Args &args) {
     return Value::string(lmok::changed_ranges_json(*tree_of(args[0].obj, "changed_ranges"),
@@ -410,6 +413,7 @@ std::string canonical_path(const std::string &path) {
 bool grammar_for_extension(const std::string &ext, lmok::Grammar &grammar) {
   if (ext == ".c" || ext == ".h") { grammar = lmok::Grammar::C; return true; }
   if (ext == ".json") { grammar = lmok::Grammar::Json; return true; }
+  if (ext == ".java") { grammar = lmok::Grammar::Java; return true; }
   if (ext == ".py") { grammar = lmok::Grammar::Python; return true; }
   if (ext == ".sh" || ext == ".bash") { grammar = lmok::Grammar::Bash; return true; }
   return false;
@@ -459,7 +463,7 @@ int expand_targets(const std::vector<std::string> &args, size_t first, std::vect
         return 3;
       }
       if (found.empty() && !eligible) {
-        std::cerr << "no lintable files in " << canonical_path(args[i]) << " (want .c/.h/.json/.py/.sh/.bash)\n";
+        std::cerr << "no lintable files in " << canonical_path(args[i]) << " (want .c/.h/.json/.py/.sh/.bash/.java)\n";
         return 2;
       }
       std::sort(found.begin(), found.end());
@@ -476,6 +480,7 @@ bool parse_lang(const std::string &lang, lmok::Grammar &grammar) {
   else if (lang == "c") grammar = lmok::Grammar::C;
   else if (lang == "python") grammar = lmok::Grammar::Python;
   else if (lang == "bash") grammar = lmok::Grammar::Bash;
+  else if (lang == "java") grammar = lmok::Grammar::Java;
   else return false;
   return true;
 }
@@ -546,13 +551,13 @@ static int run_cli(int argc, char **argv) {
       "       lmok symbols [PATTERN] [--lang L] [--kind K] [--db PATH]\n"
       "       lmok refs NAME [--db PATH]\n"
       "       lmok findings [--rule ID] [--file PATH] [--db PATH]\n"
-      "       lmok parse [--lang json|c|python|bash] FILE\n"
-      "       lmok query [--lang json|c|python|bash] [--pattern] PATTERN FILE\n"
+      "       lmok parse [--lang json|c|python|bash|java] FILE\n"
+      "       lmok query [--lang json|c|python|bash|java] [--pattern] PATTERN FILE\n"
       "       lmok ci [--config FILE] [--no-suppress] [ROOT]\n"
       "       lmok rules PACK... | test PACK FIXTURE...\n"
       "       lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress]\n"
-      "       lmok facts [--lang json|c|python|bash] FILE|DIR...\n"
-      "       lmok check [--lang json|c|python|bash] RULES.dslb FILE|DIR... [--no-suppress]\n"
+      "       lmok facts [--lang json|c|python|bash|java] FILE|DIR...\n"
+      "       lmok check [--lang json|c|python|bash|java] RULES.dslb FILE|DIR... [--no-suppress]\n"
       "       lmok --dsl FILE [FILE ...]\n";
   if (argc>=2 && std::string(argv[1])=="rules") {
     if(argc<3){std::cerr<<"rules needs PACK...\n";return 2;}
@@ -854,7 +859,7 @@ static int run_cli(int argc, char **argv) {
     if (lang) {
       lmok::Grammar g;
       if (!parse_lang(*lang, g)) {
-        std::cerr << "unknown language '" << *lang << "' (known: json, c, python, bash)\n";
+        std::cerr << "unknown language '" << *lang << "' (known: json, c, python, bash, java)\n";
         return 2;
       }
     }
@@ -927,8 +932,9 @@ static int run_cli(int argc, char **argv) {
       else if (lang == "c") grammar = lmok::Grammar::C;
       else if (lang == "python") grammar = lmok::Grammar::Python;
       else if (lang == "bash") grammar = lmok::Grammar::Bash;
+      else if (lang == "java") grammar = lmok::Grammar::Java;
       else {
-        std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash)\n" << usage;
+        std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash, java)\n" << usage;
         return 2;
       }
       argi += 2;
@@ -1057,11 +1063,12 @@ static int run_cli(int argc, char **argv) {
       command += argv[i];
     }
     // Per-grammar rule lists for extension-based filtering.
-    std::vector<lmok::LintRule> c_rules, json_rules, python_rules, bash_rules;
+    std::vector<lmok::LintRule> c_rules, json_rules, python_rules, bash_rules, java_rules;
     for (const auto &rule : rules) {
       if (rule.grammar == lmok::Grammar::C) c_rules.push_back(rule);
       else if (rule.grammar == lmok::Grammar::Python) python_rules.push_back(rule);
       else if (rule.grammar == lmok::Grammar::Bash) bash_rules.push_back(rule);
+      else if (rule.grammar == lmok::Grammar::Java) java_rules.push_back(rule);
       else json_rules.push_back(rule);
     }
     namespace fs = std::filesystem;
@@ -1079,6 +1086,7 @@ static int run_cli(int argc, char **argv) {
       const std::string ext = fs::u8path(target.path).extension().u8string();
       if (ext == ".c" || ext == ".h") active = &c_rules;
       else if (ext == ".json") active = &json_rules;
+      else if (ext == ".java") active = &java_rules;
       else if (ext == ".py") active = &python_rules;
       else if (ext == ".sh" || ext == ".bash") active = &bash_rules;
       // A file whose language has no rules in the pack: skipped silently when
@@ -1152,9 +1160,9 @@ static int run_cli(int argc, char **argv) {
     bool forced = false;
     lmok::Grammar forced_grammar = lmok::Grammar::Json;
     if (argi < argc && std::string(argv[argi]) == "--lang") {
-      if (argi + 1 >= argc) { std::cerr << "--lang needs a value (json|c|python|bash)\n" << usage; return 2; }
+      if (argi + 1 >= argc) { std::cerr << "--lang needs a value (json|c|python|bash|java)\n" << usage; return 2; }
       if (!parse_lang(argv[argi + 1], forced_grammar)) {
-        std::cerr << "unknown language '" << argv[argi + 1] << "' (known: json, c, python, bash)\n" << usage;
+        std::cerr << "unknown language '" << argv[argi + 1] << "' (known: json, c, python, bash, java)\n" << usage;
         return 2;
       }
       forced = true;
@@ -1200,7 +1208,7 @@ static int run_cli(int argc, char **argv) {
     lmok::Grammar grammar = lmok::Grammar::Json;
     if (argi + 1 < argc && std::string(argv[argi]) == "--lang") {
       const std::string lang = argv[argi + 1];
-      if (!parse_lang(lang, grammar)) { std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash)\n"; return 2; }
+      if (!parse_lang(lang, grammar)) { std::cerr << "unknown language '" << lang << "' (known: json, c, python, bash, java)\n"; return 2; }
       argi += 2;
     }
     if (argi + 1 >= argc) { std::cerr << usage; return 2; }

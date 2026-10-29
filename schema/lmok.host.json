@@ -176,6 +176,32 @@
             ],
             "returns": "void"
           }
+        ],
+        "parse_java": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
+        "query_java": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "NodeList"
+          }
+        ],
+        "reparse_java": [
+          {
+            "params": [
+              "Tree",
+              "string"
+            ],
+            "returns": "Tree"
+          }
         ]
       }
     },

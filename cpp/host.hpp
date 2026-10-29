@@ -22,7 +22,7 @@ struct Node;
 // (ts.parse / ts.parse_c / ts.parse_python / ts.parse_bash, same for query and
 // reparse); a fifth grammar should trigger generalizing this to a language
 // parameter.
-enum class Grammar { Json, C, Python, Bash };
+enum class Grammar { Json, C, Python, Bash, Java };
 const char *grammar_name(Grammar grammar); // "json", "c", "python", "bash"
 // Empty when `kind` is a kind the walk can visit in this grammar (a named node, an anonymous token or ERROR);
 // otherwise the reason it can never match: unknown spelling, a supertype (abstract; annotate its concrete

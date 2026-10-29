@@ -50,3 +50,13 @@ The SQLite 3.54.1 amalgamation is compiled into the executable with FTS5.
 - Source: https://www.sqlite.org/2026/sqlite-amalgamation-3540100.zip
 - License: public domain (https://www.sqlite.org/copyright.html)
 - Archive SHA-256 pinned in `deps.lock`; source at `third_party/sqlite/`.
+
+## tree-sitter-java
+
+The Java grammar compiled into the executable.
+
+- Upstream: https://github.com/tree-sitter/tree-sitter-java
+- Version: v0.23.5, archive SHA-256 pinned in deps.lock
+- License: MIT License
+- Copyright (c) 2017 Ayman Nadeem
+- Full license text: third_party/tree-sitter-java/LICENSE after scripts/sync-deps.sh

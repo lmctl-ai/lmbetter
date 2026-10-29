@@ -70,6 +70,7 @@ if [[ "${1:-}" == "--verify" ]]; then
     'tree_sitter_c tree-sitter-c-b780e47.tar.gz tree-sitter-c' \
     'tree_sitter_python tree-sitter-python-0.23.6.tar.gz tree-sitter-python' \
     'tree_sitter_bash tree-sitter-bash-0.25.1.tar.gz tree-sitter-bash' \
+    'tree_sitter_java tree-sitter-java-0.23.5.tar.gz tree-sitter-java' \
     'sqlite sqlite-amalgamation-3540100.zip sqlite'; do
     read -r name archive dir <<<"$spec"
     [[ -f "$DEST/$dir/.lmok-archive-sha256" && -f "$DEST/$dir/.lmok-tree-sha256" ]] || { echo "$name missing or synced by an older script; run scripts/sync-deps.sh" >&2; exit 1; }
@@ -85,5 +86,6 @@ fetch_one tree_sitter_json "$(get tree_sitter_json url)" "$(get tree_sitter_json
 fetch_one tree_sitter_c "$(get tree_sitter_c url)" "$(get tree_sitter_c sha256)" tree-sitter-c-b780e47.tar.gz tree-sitter-c
 fetch_one tree_sitter_python "$(get tree_sitter_python url)" "$(get tree_sitter_python sha256)" tree-sitter-python-0.23.6.tar.gz tree-sitter-python
 fetch_one tree_sitter_bash "$(get tree_sitter_bash url)" "$(get tree_sitter_bash sha256)" tree-sitter-bash-0.25.1.tar.gz tree-sitter-bash
+fetch_one tree_sitter_java "$(get tree_sitter_java url)" "$(get tree_sitter_java sha256)" tree-sitter-java-0.23.5.tar.gz tree-sitter-java
 fetch_one sqlite "$(get sqlite url)" "$(get sqlite sha256)" sqlite-amalgamation-3540100.zip sqlite
 echo "synced pinned lmok dependencies"

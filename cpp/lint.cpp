@@ -36,6 +36,7 @@ bool grammar_of(const std::string &name, Grammar &grammar) {
   if (name == "json") { grammar = Grammar::Json; return true; }
   if (name == "c") { grammar = Grammar::C; return true; }
   if (name == "python") { grammar = Grammar::Python; return true; }
+  if (name == "java") { grammar = Grammar::Java; return true; }
   if (name == "bash") { grammar = Grammar::Bash; return true; }
   return false;
 }
@@ -86,7 +87,7 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
   if (const JsonNode *lang = member(root, "lang")) {
     if (lang->kind != JsonNode::Kind::String || !grammar_of(lang->text, pack_grammar))
       throw dslvm::Error(pack_error(path, "unknown lang '" +
-        (lang->kind == JsonNode::Kind::String ? lang->text : "?") + "' (known: json, c, python, bash)"));
+        (lang->kind == JsonNode::Kind::String ? lang->text : "?") + "' (known: json, c, python, bash, java)"));
     pack_has_lang = true;
   }
   const JsonNode *rules_node = member(root, "rules");
@@ -156,7 +157,7 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
     if (const JsonNode *lang = member(entry, "lang")) {
       if (lang->kind != JsonNode::Kind::String || !grammar_of(lang->text, rule.grammar))
         fail("unknown lang '" + (lang->kind == JsonNode::Kind::String ? lang->text : "?") +
-             "' (known: json, c, python, bash)");
+             "' (known: json, c, python, bash, java)");
     } else {
       if (!pack_has_lang) fail("no language (set 'lang' at pack or rule level)");
       rule.grammar = pack_grammar;
@@ -195,7 +196,7 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
 
 std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std::string &text, Suppression *suppression, bool no_suppress) {
   std::vector<LintFinding> findings;
-  for (const Grammar grammar : {Grammar::Json, Grammar::C, Grammar::Python, Grammar::Bash}) {
+  for (const Grammar grammar : {Grammar::Json, Grammar::C, Grammar::Python, Grammar::Bash, Grammar::Java}) {
     std::vector<const LintRule *> here;
     for (const auto &rule : rules)
       if (rule.grammar == grammar) here.push_back(&rule);

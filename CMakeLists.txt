@@ -26,7 +26,10 @@ set(TSC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-c")
 set(TSPY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-python")
 set(TSBASH_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-bash")
 
+set(TSJAVA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-java")
+
 set(TS_SOURCES
+  "${TSJAVA_ROOT}/src/parser.c"
   "${TS_ROOT}/lib/src/lib.c"
   "${TSJSON_ROOT}/src/parser.c"
   "${TSC_ROOT}/src/parser.c"
@@ -67,7 +70,7 @@ add_custom_command(
 )
 # ---- embedded facts.scm query files (E6, cpp/facts.cpp) ---------------------
 set(GENERATED_FACTS)
-foreach(lang c python bash json)
+foreach(lang c python bash json java)
   set(_facts_out "${GENERATED_DIR}/facts_${lang}_embedded.hpp")
   add_custom_command(
     OUTPUT "${_facts_out}"
