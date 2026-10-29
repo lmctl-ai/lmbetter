@@ -45,8 +45,9 @@ class NativeOS(unittest.TestCase):
         self.assertEqual((result.returncode, result.stdout, result.stderr), (code, output, error))
     def test_go_cli_and_extension_dispatch(self):
         source = self.work / 'go input.go'
-        # Pin the byte oracle: native Windows text writes translate LF to CRLF.
-        source.write_bytes('package main\nfunc café_水() {}\n'.encode('utf-8'))
+        # Pin both newline forms; native text writes would translate LF to CRLF.
+        text = 'package main\nfunc café_水() {}\n'
+        source.write_bytes(text.encode('utf-8'))
         parsed = self.run_host('parse', '--lang', 'go', source)
         self.assertEqual(parsed.returncode, 0, parsed.stderr)
         self.assertTrue(parsed.stdout.startswith(b'(source_file (package_clause'), parsed.stdout)
@@ -58,6 +59,11 @@ class NativeOS(unittest.TestCase):
         self.assertIn({'file': source.as_posix(), 'lang': 'go', 'kind': 'def.function', 'name': 'café_水',
                        'scope': '', 'confidence': 'exact', 'row': 1, 'col': 0, 'end_row': 1,
                        'end_col': 19, 'start_byte': 13, 'end_byte': 32, 'name_row': 1, 'name_col': 5}, rows)
+        source.write_bytes(text.replace('\n', '\r\n').encode('utf-8'))
+        crlf = self.run_host('facts', source)
+        self.assertEqual((crlf.returncode, crlf.stderr), (0, b''), crlf)
+        function = next(r for r in map(json.loads, crlf.stdout.splitlines()) if r['kind'] == 'def.function')
+        self.assertEqual((function['start_byte'], function['end_byte']), (14, 33))
         pack = self.work / 'go.json'
         pack.write_text(json.dumps({'lang': 'go', 'rules': [{'id': 'GO', 'on': 'function_declaration', 'message': 'go'}]}), encoding='utf-8')
         lint = self.run_host('lint', pack, source)  # .go extension selects the pack language.
