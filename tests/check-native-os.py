@@ -45,7 +45,8 @@ class NativeOS(unittest.TestCase):
         self.assertEqual((result.returncode, result.stdout, result.stderr), (code, output, error))
     def test_go_cli_and_extension_dispatch(self):
         source = self.work / 'go input.go'
-        source.write_text('package main\nfunc café_水() {}\n', encoding='utf-8')
+        # Pin the byte oracle: native Windows text writes translate LF to CRLF.
+        source.write_bytes('package main\nfunc café_水() {}\n'.encode('utf-8'))
         parsed = self.run_host('parse', '--lang', 'go', source)
         self.assertEqual(parsed.returncode, 0, parsed.stderr)
         self.assertTrue(parsed.stdout.startswith(b'(source_file (package_clause'), parsed.stdout)
