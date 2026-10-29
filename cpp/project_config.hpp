@@ -44,10 +44,6 @@ inline const JsonNode *member(const JsonNode &object, const std::string &key) {
   return nullptr;
 }
 
-inline bool allowed_pack_language(const std::string &language) {
-  return language == "json" || language == "c" || language == "python" || language == "bash";
-}
-
 [[noreturn]] inline void fail(const std::string &path, const std::string &what) {
   throw dslvm::Error("project config " + path + ": " + what);
 }
@@ -98,8 +94,9 @@ inline ProjectConfig load_project_config(const std::string &path) {
   if (!packs || packs->kind != JsonNode::Kind::Object || packs->object.empty())
     fail(path, "missing 'packs' nonempty object");
   for (const auto &entry : packs->object) {
-    if (!allowed_pack_language(entry.key))
-      fail(path, "unknown pack language '" + entry.key + "' (known: json, c, python, bash)");
+    // The runner validates names through the host language registry. New
+    // grammars must not require a second configuration allowlist.
+    if (entry.key.empty()) fail(path, "pack language must not be empty");
     std::vector<std::string> files;
     require_string_array(*entry.value, "'packs." + entry.key + "'", files, true);
     config.packs.emplace(entry.key, std::move(files));

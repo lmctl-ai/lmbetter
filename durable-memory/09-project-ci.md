@@ -15,8 +15,8 @@ lint entry point. The default root is `.`, and the default configuration is
 }
 ```
 
-`packs` names languages and their JSON rule packs. Supported language names
-are json, c, python, and bash. `ignore` extends the root `.lmokignore`
+`packs` names languages and their JSON rule packs. Language names use the same registry as the host parse/check verbs
+(including newly registered grammars). `ignore` extends the root `.lmokignore`
 rules for this invocation. The severity floor is one of info, minor, major,
 or critical; findings below it remain in output but do not fail the gate.
 CI refuses rules with other severity names, even though standalone lint

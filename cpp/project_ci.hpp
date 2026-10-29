@@ -25,10 +25,10 @@ namespace lmok {
 // and return the normal lmok CLI status (0, 2, or 3).  GrammarForExtension
 // has the shape bool(string extension, Grammar& out).  ReadFile returns the
 // source bytes and may throw dslvm::Error.
-template <class Target, class Expand, class GrammarForExtension, class ReadFile, class Escape>
+template <class Target, class Expand, class GrammarForExtension, class ReadFile, class Escape, class ParseLanguage>
 int run_project_ci(const ProjectConfig &config, const std::string &root,
                    bool no_suppress, Expand expand,
-                   GrammarForExtension grammar_for_extension, ReadFile read_file, Escape json_escape) {
+                   GrammarForExtension grammar_for_extension, ReadFile read_file, Escape json_escape, ParseLanguage parse_language) {
   if (config.baseline) {
     // Item 3 owns baseline comparison.  Keep the field in the versioned
     // format, but refuse it here so CI cannot silently claim a baseline was
@@ -41,12 +41,7 @@ int run_project_ci(const ProjectConfig &config, const std::string &root,
   std::set<std::string> ids;
   for (const auto &language_packs : config.packs) {
     Grammar configured;
-    bool known = false;
-    if (language_packs.first == "json") { configured = Grammar::Json; known = true; }
-    else if (language_packs.first == "c") { configured = Grammar::C; known = true; }
-    else if (language_packs.first == "python") { configured = Grammar::Python; known = true; }
-    else if (language_packs.first == "bash") { configured = Grammar::Bash; known = true; }
-    if (!known) {
+    if (!parse_language(language_packs.first, configured)) {
       std::cerr << "project config unknown pack language '" << language_packs.first << "'\n";
       return 2;
     }

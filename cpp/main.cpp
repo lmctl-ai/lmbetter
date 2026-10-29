@@ -610,7 +610,7 @@ static int run_cli(int argc, char **argv) {
       return lmok::run_project_ci<Target>(config, root, no_suppress,
         [](const std::vector<std::string> &roots, std::vector<Target> &out, const std::vector<std::string> &ignore) {
           return expand_targets(roots, 0, out, nullptr, ignore);
-        }, grammar_for_extension, read_file, json_escape);
+        }, grammar_for_extension, read_file, json_escape, parse_lang);
     } catch (const std::exception &e) { std::cerr << e.what() << "\n"; return 2; }
   }
   if (argc >= 2 && std::string(argv[1]) == "status") {

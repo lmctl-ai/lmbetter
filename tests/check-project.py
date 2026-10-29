@@ -91,6 +91,12 @@ class ProjectTests(unittest.TestCase):
         self.source('.lmokignore','a/b\n')
         r=self.run_host('lint',self.pack,'.');self.assertEqual(len(self.findings(r)),2)
         self.assertIn(b'nested/a/b/child.c',r.stdout)
+    def test_ci_uses_host_language_registry(self):
+        self.source('java.json',json.dumps({'lang':'java','rules':[{'id':'J','on':'identifier','message':'java','severity':'major'}]}))
+        self.config(packs={'java':['java.json']});self.source('Example.java','class Example {}\n')
+        r=self.run_host('ci');self.assertEqual(r.returncode,1,r.stderr)
+        rows=[json.loads(line) for line in r.stdout.splitlines()]
+        self.assertEqual([v['rule'] for v in rows if 'rule' in v],['J'])
     def test_multiple_packs_languages_and_config_path(self):
         self.source('second.json',json.dumps({'lang':'python','rules':[{'id':'P','on':'identifier','message':'python','severity':'critical'}]}))
         self.config(packs={'c':['pack.json'],'python':['second.json']})
