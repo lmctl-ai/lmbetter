@@ -164,6 +164,18 @@
             ],
             "returns": "string"
           }
+        ],
+        "report_meta": [
+          {
+            "params": [
+              "Node",
+              "string",
+              "string",
+              "string",
+              "string"
+            ],
+            "returns": "void"
+          }
         ]
       }
     },

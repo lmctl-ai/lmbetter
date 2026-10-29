@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Native-OS metadata and annotation harness controls (no shell or live tools)."""
+import json, os, shutil, subprocess, sys, tempfile, unittest
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[1]
+HOST = Path(sys.argv.pop(1)).resolve()
+class Contracts(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix='rule contracts ', dir=ROOT/'build')
+        self.work = Path(self.tmp.name)
+        self.pack = self.work/'pack.json'
+        self.rule = dict(id='R',on='call_expression',message='call',severity='major',tags=['z','a','a'],cwe=['CWE-78'],owasp='A03:2021',url='https://example.org/rule',confidence='high')
+        self.write_pack()
+    def tearDown(self): self.tmp.cleanup()
+    def write_pack(self): self.pack.write_text(json.dumps(dict(lang='c',rules=[self.rule])),encoding='utf8')
+    def run_host(self,*args): return subprocess.run([str(HOST),*map(str,args)],capture_output=True,text=True,timeout=30)
+    def file(self,text,name='fixture é.c'):
+        p=self.work/name;p.write_bytes(text.encode());return p
+    def test_metadata_opt_in_and_catalog(self):
+        src=self.file('int f(){ return foo(); }\n')
+        plain=self.run_host('lint',self.pack,src);self.assertEqual(plain.returncode,0,plain.stderr)
+        base=json.loads(plain.stdout.splitlines()[0]);self.assertNotIn('metadata',base)
+        result=self.run_host('lint',self.pack,src,'--metadata');self.assertEqual(result.returncode,0,result.stderr)
+        meta=json.loads(result.stdout.splitlines()[0]).pop('metadata');self.assertEqual(meta['tags'],['a','z']);self.assertEqual(meta['owasp'],['A03:2021']);self.assertEqual(meta['confidence'],'high')
+        listing=self.run_host('rules',self.pack);self.assertEqual(listing.returncode,0,listing.stderr)
+        rows=[json.loads(line) for line in listing.stdout.splitlines()];self.assertEqual(rows[0]['id'],'R');self.assertEqual(rows[0]['severity'],'major');self.assertEqual(rows[0]['metadata'],meta)
+        self.assertEqual(listing.stdout,self.run_host('rules',self.pack).stdout)
+    def test_invalid_metadata_is_located(self):
+        for key,value in [('tags',[42]),('cwe',False),('url',4),('confidence','certain')]:
+            self.rule[key]=value;self.write_pack();r=self.run_host('rules',self.pack)
+            self.assertEqual(r.returncode,2,r.stdout);self.assertIn('rule R',r.stderr);self.assertIn(key,r.stderr)
+            self.rule.pop(key)
+    def test_annotation_pass_fail_and_located_diff(self):
+        src=self.file('int f(){\r\n foo(); /* lmok-expect: R */\r\n}\r\n')
+        r=self.run_host('test',self.pack,src);self.assertEqual(r.returncode,0,r.stderr);self.assertTrue(json.loads(r.stdout)['ok'])
+        src=self.file('int f(){\n foo(); // lmok-expect: WRONG\n}\n')
+        r=self.run_host('test',self.pack,src);self.assertEqual(r.returncode,1,r.stderr)
+        row=json.loads(r.stdout);self.assertFalse(row['ok']);self.assertEqual({d['kind'] for d in row['diff']},{'missing','unexpected'})
+        self.assertIn(':2:',r.stderr)
+        # The suite's own checker rejects a deliberately wrong expected result.
+        with self.assertRaises(AssertionError): self.assertTrue(row['ok'])
+    def test_comment_tokens_not_strings_or_next_line(self):
+        src=self.file('char *s="lmok-expect: R";\nint f(){return foo();}\n')
+        r=self.run_host('test',self.pack,src);self.assertEqual(r.returncode,1,r.stderr)
+        self.assertEqual([d['kind'] for d in json.loads(r.stdout)['diff']],['unexpected'])
+        src=self.file('// lmok-expect: R\nint f(){return foo();}\n')
+        r=self.run_host('test',self.pack,src);self.assertEqual(r.returncode,1,r.stderr);self.assertEqual(len(json.loads(r.stdout)['diff']),2)
+    def test_multiple_ids_and_clean_files(self):
+        self.rule['id']='A';other=dict(self.rule,id='B');self.pack.write_text(json.dumps(dict(lang='c',rules=[self.rule,other])))
+        src=self.file('int f(){foo();} // lmok-expect: A,B\n')
+        clean=self.file('int f(){return 0;}\n','clean.c')
+        r=self.run_host('test',self.pack,src,clean);self.assertEqual(r.returncode,0,r.stderr);self.assertEqual(json.loads(r.stdout)['expected'],2)
+    def test_report_meta_entry(self):
+        schema=json.dumps(str(ROOT/'schema/lmok.host.json'))
+        meta=json.dumps(json.dumps({'tags':['entry'],'confidence':'medium'}))
+        src=self.work/'entry.lms';binary=self.work/'entry.dslb'
+        src.write_text('p = _lmcode_ schema='+schema+';\n@call_expression fn call(n: Node) -> void implements Rule { ts.report_meta(n,"entry","ENTRY","minor",'+meta+'); }\nend _lmcode_\nsavedsl(p, ARGV[0]);\n',encoding='utf8')
+        compiler=os.environ.get('LMSCRIPT_BIN','lmscript')
+        if os.name=='nt' and not compiler.endswith(('.cmd','.exe','.bat')): compiler=shutil.which('lmscript.cmd') or compiler+'.cmd'
+        r=subprocess.run([compiler,str(src),str(binary)],capture_output=True,text=True);self.assertEqual(r.returncode,0,r.stderr)
+        target=self.file('int f(){foo();}\n')
+        plain=self.run_host('check','--lang','c',binary,target);self.assertEqual(plain.returncode,0,plain.stderr);self.assertNotIn('metadata',json.loads(plain.stdout.splitlines()[0])[0])
+        r=self.run_host('check','--lang','c',binary,target,'--metadata');self.assertEqual(r.returncode,0,r.stderr);self.assertEqual(json.loads(r.stdout.splitlines()[0])[0]['metadata']['tags'],['entry'])
+if __name__=='__main__': unittest.main()

@@ -1,0 +1,19 @@
+# Rule metadata and pack author tests
+
+Optional pack fields cwe/owasp/tags/url/confidence are parsed in
+cpp/rule_metadata.hpp and carried by LintRule/LintFinding and entry Finding.
+The five-argument ts.report_meta takes metadata as a JSON string. Strictly
+validate types; sort/deduplicate list values; never enrich default JSON bytes.
+Only --metadata opts lint/check/--dsl/report_json into the additional field.
+SARIF integration seam: use the structured RuleMetadata fields for rule
+properties/helpUri instead of parsing finding prose.
+
+cpp/rule_test.hpp implements lmok test PACK FIXTURE... using actual CST comment
+tokens and exact one-based line/rule sets, with no ignore/suppression/baseline.
+It emits machine-readable differences plus located stderr. A string containing
+the marker is not an annotation. Node report rows are zero-based internally.
+
+Native-OS controls: tests/check-rule-contracts.py, wired into test.sh. Initial
+control on the original host failed all six cases (missing verbs/flag/method).
+Tests cover unchanged default shape, deterministic metadata, invalid fields,
+CRLF/UTF-8 paths, strings vs comments, off-by-one, missing/extra rules and entries.

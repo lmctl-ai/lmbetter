@@ -1091,4 +1091,7 @@ ok "project CI, ignores and host suppression"
 python3 tests/check-ci-planted.py "$HOST" || fail "planted CI finding"
 ok "lmok ci planted-finding gate"
 
+LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-rule-contracts.py "$HOST" || fail "rule metadata and annotated pack harness"
+ok "rule metadata and annotated pack harness"
+
 echo "PASS: $pass checks"

@@ -8,6 +8,7 @@
 
 #include "host.hpp"
 #include "pattern.hpp"
+#include "rule_metadata.hpp"
 #include "suppression.hpp"
 
 #include <regex>
@@ -18,6 +19,7 @@ namespace lmok {
 
 struct LintRule {
   std::string id;
+  RuleMetadata metadata; // SARIF: rule properties and helpUri; JSON only under --metadata
   Grammar grammar = Grammar::Json;
   std::string on;          // CST node kind; empty = not set
   std::string query;       // S-expression pattern; empty = not set
@@ -35,6 +37,7 @@ struct LintRule {
 struct LintFinding {
   int64_t row = 0, col = 0, end_row = 0, end_col = 0; // 0-based
   std::string rule, severity, message;
+  RuleMetadata metadata;
 };
 
 // Parse and validate a rule pack file. Throws dslvm::Error (plain message,

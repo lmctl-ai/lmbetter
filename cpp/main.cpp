@@ -3,6 +3,7 @@
 // subcommand (JSON grammar).
 #include "host.hpp"
 #include "lint.hpp"
+#include "rule_test.hpp"
 #include "ignore.hpp"
 #include "project_config.hpp"
 #include "project_ci.hpp"
@@ -51,6 +52,7 @@ struct Finding {
   // Optional rule metadata (4-arg ts.report overload). Free-form strings —
   // severity policy belongs to the script, the host validates nothing.
   std::string rule, severity;
+  lmok::RuleMetadata metadata; // SARIF rule properties/helpUri: use structured metadata, not message parsing.
 };
 
 // Every arena is append-only for one program run and cleared by reset()
@@ -85,6 +87,7 @@ struct Host {
   std::map<std::string, lmok::CompiledPattern> compiled_patterns; // "<grammar>\n<pattern>" -> compiled (ts.match_*)
   // Findings collected via ts.report; reset per --dsl file (see the run loop).
   std::vector<Finding> findings;
+  bool include_metadata = false;
   bool no_suppress=false;
   std::map<const lmok::Tree *, lmok::Suppression> suppressions;
   size_t suppressed_count() const {size_t n=0;for(const auto &s:suppressions)n+=s.second.suppressed;return n;}
@@ -185,7 +188,7 @@ std::string json_escape(const std::string &s) {
 
 // One JSON representation for script reports and host-dispatched findings.
 // IDs/severity come from ts.report, never from the entry's dispatch name.
-std::string findings_json(const std::vector<Finding> &findings) {
+std::string findings_json(const std::vector<Finding> &findings, bool include_metadata = false) {
     std::ostringstream out;
     out << "[";
     bool first = true;
@@ -196,7 +199,7 @@ std::string findings_json(const std::vector<Finding> &findings) {
           << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col;
       if (!f.rule.empty()) out << ",\"rule\":\"" << json_escape(f.rule) << "\"";
       if (!f.severity.empty()) out << ",\"severity\":\"" << json_escape(f.severity) << "\"";
-      out << ",\"message\":\"" << json_escape(f.message) << "\"}";
+      out << ",\"message\":\"" << json_escape(f.message) << "\"" << lmok::metadata_suffix(f.metadata,include_metadata) << "}";
     }
     out << "]";
     return out.str();
@@ -231,8 +234,9 @@ void register_host(dslvm::Registry &reg, Host &host) {
   const auto report_impl = [&host](void *, Args &args) {
     const lmok::Node *n = node_of(args[0].obj, "report");
     Finding f{lmok::node_start_row(*n), lmok::node_start_col(*n),
-              lmok::node_end_row(*n), lmok::node_end_col(*n), args[1].s, "", ""};
-    if (args.size() == 4) { f.rule = args[2].s; f.severity = args[3].s; }
+              lmok::node_end_row(*n), lmok::node_end_col(*n), args[1].s, "", "", {}};
+    if (args.size() >= 4) { f.rule = args[2].s; f.severity = args[3].s; }
+    if(args.size()==5) f.metadata=lmok::parse_rule_metadata(args[4].s);
     auto &suppression=host.suppressions.try_emplace(n->owner,n->owner->source()).first->second;
     if(suppression.drop(static_cast<size_t>(f.row),f.rule,host.no_suppress))return Value::none();
     if (host.findings.size() >= 65536)
@@ -242,11 +246,12 @@ void register_host(dslvm::Registry &reg, Host &host) {
   };
   reg.method("Ts", "report", {"Node", "string"}, "void", report_impl);
   reg.method("Ts", "report", {"Node", "string", "string", "string"}, "void", report_impl);
+  reg.method("Ts", "report_meta", {"Node", "string", "string", "string", "string"}, "void", report_impl);
   reg.method("Ts", "report_count", {}, "int", [&host](void *, Args &) {
     return Value::integer(static_cast<int64_t>(host.findings.size()));
   });
   reg.method("Ts", "report_json", {}, "string", [&host](void *, Args &) {
-    return Value::string(findings_json(host.findings));
+    return Value::string(findings_json(host.findings,host.include_metadata));
   });
   const auto query_method = [&reg, &host](const char *name, lmok::Grammar grammar) {
     reg.method("Ts", name, {"Node", "string"}, "NodeList", [&host, grammar](void *, Args &args) {
@@ -528,6 +533,10 @@ static int run_cli(int argc, char **argv) {
   _setmode(_fileno(stderr), _O_BINARY);
 #endif
   Host host;
+  std::vector<char *> metadata_argv;
+  const bool metadata_verb=argc>=2&&(std::string(argv[1])=="lint"||std::string(argv[1])=="check"||std::string(argv[1])=="--dsl");
+  for(int i=0;i<argc;++i){if(metadata_verb&&i>=2&&std::string(argv[i])=="--metadata")host.include_metadata=true;else metadata_argv.push_back(argv[i]);}
+  argc=static_cast<int>(metadata_argv.size());argv=metadata_argv.data();
   dslvm::Registry reg;
   register_host(reg, host);
   const std::string usage =
@@ -540,10 +549,43 @@ static int run_cli(int argc, char **argv) {
       "       lmok parse [--lang json|c|python|bash] FILE\n"
       "       lmok query [--lang json|c|python|bash] [--pattern] PATTERN FILE\n"
       "       lmok ci [--config FILE] [--no-suppress] [ROOT]\n"
+      "       lmok rules PACK... | test PACK FIXTURE...\n"
       "       lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress]\n"
       "       lmok facts [--lang json|c|python|bash] FILE|DIR...\n"
       "       lmok check [--lang json|c|python|bash] RULES.dslb FILE|DIR... [--no-suppress]\n"
       "       lmok --dsl FILE [FILE ...]\n";
+  if (argc>=2 && std::string(argv[1])=="rules") {
+    if(argc<3){std::cerr<<"rules needs PACK...\n";return 2;}
+    try {
+      std::map<std::string,lmok::LintRule> catalog;
+      for(int i=2;i<argc;++i)for(const auto &rule:lmok::load_rule_pack(argv[i])){
+        const auto key=std::string(lmok::grammar_name(rule.grammar))+"/"+rule.id;
+        auto found=catalog.find(key);
+        if(found!=catalog.end())throw dslvm::Error("duplicate catalog rule "+key);
+        catalog.emplace(key,rule);
+      }
+      for(const auto &item:catalog){const auto &r=item.second;std::cout<<"{\"id\":"<<lmok::meta_quote(r.id)<<",\"lang\":"<<lmok::meta_quote(lmok::grammar_name(r.grammar))<<",\"severity\":"<<lmok::meta_quote(r.severity)<<",\"metadata\":"<<r.metadata.json()<<"}\n";}
+      return std::cout?0:4;
+    }catch(const std::exception &e){std::cerr<<e.what()<<"\n";return 2;}
+  }
+  if(argc>=2 && std::string(argv[1])=="test"){
+    if(argc<4){std::cerr<<"test needs PACK FIXTURE...\n";return 2;}
+    try {
+      const auto rules=lmok::load_rule_pack(argv[2]);
+      if(rules.empty())throw dslvm::Error("test needs a non-empty pack");
+      lmok::RuleTestResult total;
+      for(int i=3;i<argc;++i){
+        lmok::Grammar grammar=rules.front().grammar;
+        grammar_for_extension(std::filesystem::u8path(argv[i]).extension().u8string(),grammar);
+        std::vector<lmok::LintRule> active;for(const auto &r:rules)if(r.grammar==grammar)active.push_back(r);
+        if(active.empty())throw dslvm::Error("test fixture has no rules for its language: "+std::string(argv[i]));
+        const auto result=lmok::test_rule_file(active,grammar,argv[i],read_file(argv[i]));
+        total.expected+=result.expected;total.actual+=result.actual;total.diff.insert(total.diff.end(),result.diff.begin(),result.diff.end());
+      }
+      for(const auto &d:total.diff)std::cerr<<d.file<<":"<<d.line<<": "<<d.kind<<" "<<d.rule<<"\n";
+      std::cout<<lmok::rule_test_json(total)<<"\n";return std::cout?(total.diff.empty()?0:1):4;
+    }catch(const std::exception &e){std::cerr<<e.what()<<"\n";return 2;}
+  }
   if (argc >= 2 && std::string(argv[1]) == "ci") {
     std::string root = ".", config_path;
     bool root_seen = false, no_suppress = false;
@@ -1063,7 +1105,7 @@ static int run_cli(int argc, char **argv) {
                   << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col
                   << ",\"rule\":\"" << json_escape(f.rule)
                   << "\",\"severity\":\"" << json_escape(f.severity)
-                  << "\",\"message\":\"" << json_escape(f.message) << "\"}\n";
+                  << "\",\"message\":\"" << json_escape(f.message) << "\"" << lmok::metadata_suffix(f.metadata,host.include_metadata) << "}\n";
       std::cout << findings.size() << " findings in " << target.path << lmok::suppressed_suffix(suppression.suppressed) << "\n";
       if (db_path) {
         lmok::LintFileRecord record;
@@ -1191,7 +1233,7 @@ static int run_cli(int argc, char **argv) {
     // collected so far is printed before the located error record and the run stops with exit 3 (WP14 F5/F6).
     const auto print_group = [&](const std::string &where) {
       host.suppression_warnings(where);
-      std::cout << findings_json(host.findings) << "\n" << host.findings.size() << " findings in " << where << lmok::suppressed_suffix(host.suppressed_count()) << "\n";
+      std::cout << findings_json(host.findings,host.include_metadata) << "\n" << host.findings.size() << " findings in " << where << lmok::suppressed_suffix(host.suppressed_count()) << "\n";
     };
     const char *where = "body";
     try {

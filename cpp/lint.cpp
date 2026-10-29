@@ -61,7 +61,7 @@ void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding>
   if(suppression && suppression->drop(static_cast<size_t>(node_start_row(node)),rule.id,no_suppress))return;
   findings.push_back({node_start_row(node), node_start_col(node),
                       node_end_row(node), node_end_col(node),
-                      rule.id, rule.severity, expand_message(rule.message, text)});
+                      rule.id, rule.severity, expand_message(rule.message, text), rule.metadata});
 }
 
 } // namespace
@@ -111,6 +111,7 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
     if (!id || id->kind != JsonNode::Kind::String || id->text.empty())
       fail("missing 'id'");
     rule.id = id->text;
+    try { rule.metadata = read_rule_metadata(entry); } catch(const dslvm::Error &e) { fail(e.what()); }
     if (!seen_ids.insert(rule.id).second) fail("duplicate rule id (ids must be unique within a pack)");
     const JsonNode *on = member(entry, "on");
     if (on) {

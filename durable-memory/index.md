@@ -24,3 +24,5 @@ Repository: https://github.com/lmctl-ai/lmok.
 Operational name: **lmok** (binary, schemas, CMake and install paths). Tier-3
 proposal documents are owned by the other team and were intentionally retained
 verbatim; old product names there are historical, not current CLI instructions.
+
+- [Rule metadata and pack-author tests](12-rule-contracts.md)

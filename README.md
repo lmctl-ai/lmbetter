@@ -495,3 +495,27 @@ PE imports may list only system DLLs. Each test group rejects a deliberately
 corrupted output or architecture header; Linux also rejects a real dynamically
 linked control executable. These tests and the disposable Git repositories used
 by tests/release-hygiene.py need no network, models or installed lmok command.
+
+## Rule metadata and fixture tests
+
+`lmok rules PACK...` prints JSON Lines sorted by language/id: id, language,
+severity and metadata. Duplicate language/id pairs are refused. Packs may add
+`cwe`, `owasp` (string or string list), `tags` (string list), `url` (string),
+and `confidence` (`low`, `medium`, `high`) to each rule. Lists are sorted and
+deduplicated. Metadata is classification guidance, not proof of exploitability.
+
+`lmok lint PACK FILE --metadata` and `lmok check --lang c RULES.dslb FILE --metadata`
+include a `metadata` object on findings that declare it. Without the flag,
+existing JSON bytes remain unchanged. Entry rules use
+`ts.report_meta(node, message, id, severity, metadata_json_string)`; the JSON
+uses the same keys/validation as packs. `--dsl ... --metadata` also opts in.
+The structured fields are available to SARIF writers in `RuleMetadata`.
+
+`lmok test PACK FIXTURE...` compares finding (line, rule) sets against trailing
+CST comments containing `lmok-expect: RULE[,RULE]`. Any supported comment syntax
+works; markers in strings do not. An annotation describes its own one-based
+line, never the following line. Unannotated reported lines fail. Suppressions,
+ignores and baselines do not hide mismatches. JSON stdout has `ok`, `expected`,
+`actual`, and a `diff` array; stderr gives `file:line: missing|unexpected RULE`.
+Exit 0 passes, 1 means mismatch, 2 means malformed input/annotations. Repeated
+findings for the same rule on one line count once.
