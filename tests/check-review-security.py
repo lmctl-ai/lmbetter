@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Review regressions: text-free previews and safe credential identities."""
+from contextlib import closing
 import json
 from pathlib import Path
 import sqlite3
@@ -51,7 +52,7 @@ class Security(unittest.TestCase):
         sarif = self.work / 'java.sarif'
         p = self.lint(ROOT / 'rules/java-tier1.json', src, '--db', db, '--sarif', sarif)
         self.assertEqual(p.returncode, 0, p.stderr)
-        with sqlite3.connect(db) as con:
+        with closing(sqlite3.connect(db)) as con:
             rows = con.execute("select snippet from findings where rule='LJV005'").fetchall()
         self.assertEqual(len(rows), 1)
         self.assertTrue(rows[0][0].startswith('sha256:'), rows)
