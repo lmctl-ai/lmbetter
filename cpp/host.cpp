@@ -451,7 +451,7 @@ std::vector<std::vector<Predicate>> compile_predicates(const TSQuery *query, Pat
           p.options.push_back(string_value(query, args[a]->value_id));
         }
       } else if (op.back() == '?') {
-        fail("is not a supported predicate (known: eq?, not-eq?, any-eq?, any-not-eq?, match?, not-match?, any-match?, any-not-match?, any-of?, not-any-of?, is?, is-not?)");
+        fail("is not a supported predicate (known: eq?, not-eq?, any-eq?, any-not-eq?, match?, not-match?, any-match?, any-not-match?, any-of?, not-any-of?, entropy-gt?, is?, is-not?)");
       } else {
         continue; // neither predicate nor directive syntax: nothing to evaluate
       }
@@ -534,7 +534,7 @@ bool satisfies(const Predicate &p, const TSQueryMatch &match, const Tree *owner)
 // every match that passed its pattern's predicates.
 template <class OnMatch>
 static void run_query(const Node &root_node, const std::string &pattern, Grammar grammar,
-                      PatternProperties *properties, const OnMatch &on_match) {
+                      PatternProperties *properties, const OnMatch &on_match, std::vector<std::string> *capture_names = nullptr) {
   // tree-sitter's query compiler recurses on nested patterns. Bound nesting
   // before calling it, ignoring delimiters inside strings and comments.
   size_t depth = 0;
@@ -563,6 +563,9 @@ static void run_query(const Node &root_node, const std::string &pattern, Grammar
   if (!query.q)
     throw QueryError("query error at byte offset " + std::to_string(error_offset) +
                      ": " + query_error_word(error_type));
+  if (capture_names)
+    for (uint32_t id = 0; id < ts_query_capture_count(query.q); ++id)
+      capture_names->push_back(capture_name(query.q, id));
   const std::vector<std::vector<Predicate>> predicates = compile_predicates(query.q, properties);
   RaiiCursor cursor{ts_query_cursor_new()};
   ts_query_cursor_exec(cursor.c, query.q, ts(root_node));
@@ -598,7 +601,7 @@ QueryMatches query_matches(const Node &root_node, const std::string &pattern, Gr
       m.captures.push_back({capture_name(query, match.captures[i].index),
                             wrap_node(root_node.owner, match.captures[i].node)});
     out.matches.push_back(std::move(m));
-  });
+  }, &out.capture_names);
   return out;
 }
 

@@ -282,6 +282,8 @@ std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std
         if (rule->capture.empty()) captures = node_query(root, rule->query, grammar);
         else {
           const auto matches = query_matches(root, rule->query, grammar);
+          if (std::find(matches.capture_names.begin(), matches.capture_names.end(), rule->capture) == matches.capture_names.end())
+            throw QueryError("capture '" + rule->capture + "' is not declared by query");
           for (const auto &match : matches.matches)
             for (const auto &capture : match.captures)
               if (capture.name == rule->capture) captures.items.push_back(capture.node);

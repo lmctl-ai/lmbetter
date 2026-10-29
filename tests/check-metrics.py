@@ -64,11 +64,12 @@ with tempfile.TemporaryDirectory(prefix='metrics os ',dir=ROOT/'build') as tmp:
         actual = json.loads(run('check','--lang',lang,binary,whole).splitlines()[0])
         assert [int(f['message'].split('(')[1][:-1]) for f in actual] == expected,(lang,actual,expected)
         metrics = json.loads(run('metrics','--lang',lang,whole))
-        assert metrics['functions'] == 10 and metrics['max_nesting']==6, metrics
-        for row in TABLE:
+        assert metrics['functions'] == 10 and metrics['max_nesting']==6 and metrics['lines'] == (10 if lang=='c' else 52), metrics
+        hand_lines = [2,4,5,6,5,7,4,4,6,9]
+        for index,row in enumerate(TABLE):
             single=tmp/(row[0]+'.'+ext); single.write_bytes(function(row[0],row[col]).encode())
             m=json.loads(run('metrics',single))
-            assert m['functions']==1 and m['max_nesting']==row[2],(row[0],m)
+            assert m['functions']==1 and m['max_nesting']==row[2] and m['lines']==(1 if lang=='c' else hand_lines[index]),(row[0],m)
         binary=compile_pack('score > 15')
         actual=json.loads(run('check','--lang',lang,binary,whole).splitlines()[0])
         assert len(actual)==1 and actual[0]['message']=='cognitive complexity (21)',actual

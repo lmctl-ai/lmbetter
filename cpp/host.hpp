@@ -170,6 +170,7 @@ struct QueryMatch {
   std::vector<QueryCapture> captures; // in pattern order
 };
 struct QueryMatches {
+  std::vector<std::string> capture_names; // declarations, including queries with no matches
   std::vector<QueryMatch> matches;                            // cursor order
   std::vector<std::map<std::string, std::string>> properties; // per pattern
 };

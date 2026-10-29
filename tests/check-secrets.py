@@ -31,7 +31,7 @@ rng = random.Random(191011)
 samples = [
     ('AWS', 'AK' + 'IA' + 'A1B2C3D4E5F6G7H8'),
     ('GITHUB', 'gh' + 'p_' + 'aB9' * 12),
-    ('GITHUB', 'github' + '_pat_' + 'aB1_' * 22),
+    ('GITHUB', 'github' + '_pat_' + 'aB1_' * 20 + 'Ab'),
     ('SLACK', 'xo' + 'xb-' + '12345678901-12345678901-' + 'Ab9' * 10),
     ('PRIVATE_KEY', '-----BEGIN ' + 'RSA PRIVATE KEY-----'),
     ('JWT', 'ey' + 'JhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmYWtlIn0.' + 'abCD09_-' * 4),
@@ -80,8 +80,13 @@ with tempfile.TemporaryDirectory(prefix='secrets os ', dir=ROOT / 'build') as tm
         fs, _ = findings(pack, source)
         assert fs == [], (lang, fs)
         # Low-entropy values under sensitive keys must not fire.
-        write([('password', 'a' * 40)])
+        write([('password', 'a' * 40), ('value1', 'github' + '_pat_x'), ('value2', 'gh' + 'p_' + 'a' * 35)])
         assert findings(pack, source)[0] == []
+        if lang == 'c':
+            source.write_text('void set(void){ const char *password; password = '+json.dumps(samples[-1][1])+'; }')
+            fs, result = findings(pack, source)
+            assert len(fs)==1 and fs[0]['rule']=='SEC_ENTROPY',fs
+            assert samples[-1][1].encode() not in result.stdout
         print('ok -', lang, 'provider shapes, redaction/DB, 1000 random strings, low entropy')
     # Predicate arithmetic, strict comparison, arity/domain and bound.
     source = tmp / 'entropy.json'
@@ -95,7 +100,12 @@ with tempfile.TemporaryDirectory(prefix='secrets os ', dir=ROOT / 'build') as tm
     source.write_text(json.dumps(['ab' * 9000]))
     assert run('query', pattern, source).stdout == b''
     assert run('query', '((string_content) @s (#entropy-gt? @s))', source).returncode == 3
-    print('ok - entropy strict threshold, domain, arity, 16 KiB bound')
+    bad = tmp/'unknown-capture.json'
+    bad.write_text(json.dumps(dict(lang='json',rules=[dict(id='BAD',query='(number) @value',capture='typo',message='bad')])))
+    assert run('lint',bad,source).returncode == 3  # no numbers match; typo still fails
+    bad.write_text(json.dumps(dict(lang='json',rules=[dict(id='BAD',on='string_content',redact='true',message='bad')])))
+    assert run('lint',bad,source).returncode == 2
+    print('ok - entropy strict threshold/domain/arity/bound, capture typo and redact type')
     # Scan only tracked sources (generated build/npm/vendor trees are not the repository).
     paths = subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).split(b'\0')
     for lang, extensions in [('json',{'.json'}),('python',{'.py'}),('c',{'.c','.h'}),('bash',{'.sh','.bash'})]:

@@ -41,3 +41,7 @@ The score=15 boundary remains silent, score=21 fires. A compiled zero-score
 mutant is rejected before the actual table oracle. `tests/check-dup.py` pins
 ranges, normalization, keyword/operator preservation, nonoverlap, bad thresholds,
 CRLF and UTF-8 paths. Both tests run through test.sh on native matrix runners.
+
+Physical line counts for that same table are C: one per function; Python:
+2,4,5,6,5,7,4,4,6,9 (52 total). The combined table has ten functions and maximum
+nesting 6. These physical-line values are checked alongside scores and nesting.
