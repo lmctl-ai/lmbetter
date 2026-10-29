@@ -118,3 +118,8 @@ between inputs. Cross-file aggregation remains a body-level `--dsl` concern.
 `bash examples/secrets.sh` demonstrates opting in to the JSON and Python secret
 packs. Findings expose four content bytes plus `[REDACTED]`; examples read only
 committed sample inputs and need no provider account or network.
+### Self-testing pack
+
+`lmok test examples/self-test/pack.json examples/self-test/fixture.c` checks the
+positive annotated call and negative/string-marker cases. Change EXAMPLE_CALL in
+the annotation to see a located missing/unexpected JSON diff and exit 1.

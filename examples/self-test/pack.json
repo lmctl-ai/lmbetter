@@ -1,0 +1,1 @@
+{"lang":"c","rules":[{"id":"EXAMPLE_CALL","on":"call_expression","message":"example call","severity":"info","tags":["example"],"confidence":"high"}]}

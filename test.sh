@@ -1096,6 +1096,10 @@ ok "lmok ci planted-finding gate"
 
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-rule-contracts.py "$HOST" || fail "rule metadata and annotated pack harness"
 ok "rule metadata and annotated pack harness"
+"$HOST" test rules/c-tier1.json tests/fixtures/c-tier1-annotated.c || fail "annotated C pack"
+"$HOST" test rules/python-tier1.json tests/fixtures/python-tier1-annotated.py || fail "annotated Python pack"
+"$HOST" test examples/self-test/pack.json examples/self-test/fixture.c || fail "self-test example"
+ok "annotated C/Python fixture pairs and self-test example"
 
 python3 tests/check-secrets.py "$HOST" || fail "secrets packs and entropy"
 ok "secrets packs, redaction, entropy and false positive controls"

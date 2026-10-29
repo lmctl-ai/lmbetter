@@ -17,3 +17,11 @@ Native-OS controls: tests/check-rule-contracts.py, wired into test.sh. Initial
 control on the original host failed all six cases (missing verbs/flag/method).
 Tests cover unchanged default shape, deterministic metadata, invalid fields,
 CRLF/UTF-8 paths, strings vs comments, off-by-one, missing/extra rules and entries.
+
+The four tier-1 packs carry language/quality tags, medium confidence (syntactic
+candidates), help URLs and selected CWE/OWASP mappings where applicable. Do not
+assign a security taxonomy to style rules merely to fill every field. The C and
+Python annotated fixtures combine the existing violations/clean pairs without
+changing those older byte-oracle inputs; test.sh runs both plus examples/self-test.
+C preprocessor values are opaque CST tokens: reparse their contents to recognize
+trailing comments without accepting a marker in a macro string.

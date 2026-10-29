@@ -25,6 +25,12 @@ class Contracts(unittest.TestCase):
         listing=self.run_host('rules',self.pack);self.assertEqual(listing.returncode,0,listing.stderr)
         rows=[json.loads(line) for line in listing.stdout.splitlines()];self.assertEqual(rows[0]['id'],'R');self.assertEqual(rows[0]['severity'],'major');self.assertEqual(rows[0]['metadata'],meta)
         self.assertEqual(listing.stdout,self.run_host('rules',self.pack).stdout)
+    def test_catalog_sort_order_is_independent_of_pack_order(self):
+        other=self.work/'second.json';other.write_text(json.dumps(dict(lang='c',rules=[dict(self.rule,id='A')])))
+        first=self.run_host('rules',self.pack,other);second=self.run_host('rules',other,self.pack)
+        self.assertEqual(first.returncode,0,first.stderr);self.assertEqual(first.stdout,second.stdout)
+        self.assertEqual([json.loads(line)['id'] for line in first.stdout.splitlines()],['A','R'])
+        duplicate=self.run_host('rules',self.pack,self.pack);self.assertEqual(duplicate.returncode,2);self.assertIn('duplicate catalog rule',duplicate.stderr)
     def test_invalid_metadata_is_located(self):
         for key,value in [('tags',[42]),('cwe',False),('url',4),('confidence','certain')]:
             self.rule[key]=value;self.write_pack();r=self.run_host('rules',self.pack)
@@ -50,6 +56,11 @@ class Contracts(unittest.TestCase):
         src=self.file('int f(){foo();} // lmok-expect: A,B\n')
         clean=self.file('int f(){return 0;}\n','clean.c')
         r=self.run_host('test',self.pack,src,clean);self.assertEqual(r.returncode,0,r.stderr);self.assertEqual(json.loads(r.stdout)['expected'],2)
+    def test_macro_comment_is_not_lost_in_preprocessor_token(self):
+        self.rule['on']='preproc_def';self.write_pack()
+        src=self.file('#define VALUE 64 // lmok-expect: R\n')
+        r=self.run_host('test',self.pack,src);self.assertEqual(r.returncode,0,r.stderr)
+        self.assertEqual(json.loads(r.stdout)['expected'],1)
     def test_report_meta_entry(self):
         schema=json.dumps(str(ROOT/'schema/lmok.host.json'))
         meta=json.dumps(json.dumps({'tags':['entry'],'confidence':'medium'}))

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import sqlite3
+from contextlib import closing
 import subprocess
 import sys
 import tempfile
@@ -49,6 +50,7 @@ class ProjectTests(unittest.TestCase):
         explicit=self.findings(self.run_host('lint',self.pack,'generated/drop.c'));self.assertEqual(len(explicit),2)
         r=self.run_host('facts','.');self.assertEqual(r.returncode,0,r.stderr);self.assertNotIn(b'generated/drop.c',r.stdout);self.assertNotIn(b'skip1.c',r.stdout);self.assertIn(b'generated/keep.c',r.stdout)
         r=self.run_host('index','--db',self.root/'db.sqlite','.');self.assertEqual(r.returncode,0,r.stderr)
+        # SQLite's transaction context does not close its handle; Windows refuses fixture removal.
         with closing(sqlite3.connect(self.root/'db.sqlite')) as db: paths=[r[0] for r in db.execute('select path from files')]
         self.assertEqual(len(paths),2,paths)
     def test_check_sink_and_directory_ignores(self):

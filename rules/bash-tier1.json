@@ -6,42 +6,87 @@
       "query": "((command name: (command_name (word) @w)) @cmd (#eq? @w \"rm\"))",
       "text_matches": "-([a-zA-Z]*r[a-zA-Z]*f|[a-zA-Z]*f[a-zA-Z]*r)",
       "message": "rm with recursive force flags",
-      "severity": "critical"
+      "severity": "critical",
+      "tags": [
+        "bash",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LBS002",
       "on": "comment",
       "text_matches": "FIXME|TODO",
       "message": "unresolved FIXME/TODO comment",
-      "severity": "minor"
+      "severity": "minor",
+      "tags": [
+        "bash",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LBS003",
       "on": "command_substitution",
       "text_matches": "^`",
       "message": "backtick command substitution (use $(...))",
-      "severity": "minor"
+      "severity": "minor",
+      "tags": [
+        "bash",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LBS004",
       "query": "(command name: (command_name) @n)",
       "text_matches": "^cd$",
       "message": "cd without guard (use 'cd ... || exit')",
-      "severity": "major"
+      "severity": "major",
+      "tags": [
+        "bash",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LBS005",
       "query": "((command name: (command_name (word) @w)) @cmd (#eq? @w \"chmod\"))",
       "text_matches": "\\b777\\b",
       "message": "world-writable chmod 777",
-      "severity": "major"
+      "severity": "major",
+      "tags": [
+        "bash",
+        "security"
+      ],
+      "confidence": "medium",
+      "url": "https://cwe.mitre.org/data/definitions/732.html",
+      "cwe": [
+        "CWE-732"
+      ]
     },
     {
       "id": "LBS006",
       "query": "(command name: (command_name) @n)",
       "text_matches": "^eval$",
       "message": "eval used",
-      "severity": "critical"
+      "severity": "critical",
+      "tags": [
+        "bash",
+        "security"
+      ],
+      "confidence": "medium",
+      "url": "https://cwe.mitre.org/data/definitions/95.html",
+      "cwe": [
+        "CWE-95"
+      ],
+      "owasp": [
+        "A03:2021"
+      ]
     }
   ]
 }

@@ -6,75 +6,153 @@
       "query": "(pair key: (string (string_content) @key))",
       "text_matches": "password|secret",
       "message": "credential key \"{text}\"",
-      "severity": "critical"
+      "severity": "critical",
+      "tags": [
+        "json",
+        "security"
+      ],
+      "confidence": "medium",
+      "url": "https://cwe.mitre.org/data/definitions/798.html",
+      "cwe": [
+        "CWE-798"
+      ]
     },
     {
       "id": "LBJ002",
       "query": "(string (string_content) @value)",
       "text_matches": "^(TODO|FIXME|CHANGEME|XXX)$",
       "message": "placeholder string {text}",
-      "severity": "minor"
+      "severity": "minor",
+      "tags": [
+        "json",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LBJ003",
       "on": "null",
       "message": "null value present",
-      "severity": "minor"
+      "severity": "minor",
+      "tags": [
+        "json",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LBJ004",
       "query": "(pair key: (string (string_content) @key))",
       "text_matches": "[A-Z]",
       "message": "key not snake_case: {text}",
-      "severity": "minor"
+      "severity": "minor",
+      "tags": [
+        "json",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LBJ005",
       "query": "(pair value: (string (string_content) @value))",
       "text_matches": "^[0-9]+$",
       "message": "number encoded as string: {text}",
-      "severity": "minor"
+      "severity": "minor",
+      "tags": [
+        "json",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LBJ104",
       "query": "((pair key: (string (string_content) @k)) (#eq? @k \"password\"))",
       "message": "exact password key",
-      "severity": "critical"
+      "severity": "critical",
+      "tags": [
+        "json",
+        "security"
+      ],
+      "confidence": "medium",
+      "url": "https://cwe.mitre.org/data/definitions/798.html",
+      "cwe": [
+        "CWE-798"
+      ]
     },
     {
       "id": "LBJ006",
       "query": "(pair key: (string) @key)",
       "text_matches": "^\"(aws_secret|aws_secret_access_key|private_key|api_key)\"$",
       "message": "sensitive credential key {text}",
-      "severity": "critical"
+      "severity": "critical",
+      "tags": [
+        "json",
+        "security"
+      ],
+      "confidence": "medium",
+      "url": "https://cwe.mitre.org/data/definitions/798.html",
+      "cwe": [
+        "CWE-798"
+      ]
     },
     {
       "id": "LBJ007",
       "query": "(pair value: (string) @value) (array (string) @value)",
       "text_matches": "^\"http://",
       "message": "insecure HTTP URL",
-      "severity": "major"
+      "severity": "major",
+      "tags": [
+        "json",
+        "security"
+      ],
+      "confidence": "medium",
+      "url": "https://cwe.mitre.org/data/definitions/319.html",
+      "cwe": [
+        "CWE-319"
+      ]
     },
     {
       "id": "LBJ008",
       "query": "(pair value: (string) @value)",
       "text_matches": "^\"(\\*|latest)\"$",
       "message": "unpinned version {text}",
-      "severity": "minor"
+      "severity": "minor",
+      "tags": [
+        "json",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LBJ009",
       "query": "[(array) (object)] @container",
       "text_matches": "^(\\[\\s*\\]|\\{\\s*\\})$",
       "message": "empty container placeholder",
-      "severity": "minor"
+      "severity": "minor",
+      "tags": [
+        "json",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LBJ010",
       "on": "string",
       "text_matches": "^\".{201,}\"$",
       "message": "string exceeds 200 source bytes",
-      "severity": "minor"
+      "severity": "minor",
+      "tags": [
+        "json",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     }
   ]
 }
