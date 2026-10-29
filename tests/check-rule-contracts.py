@@ -31,6 +31,11 @@ class Contracts(unittest.TestCase):
         self.assertEqual(first.returncode,0,first.stderr);self.assertEqual(first.stdout,second.stdout)
         self.assertEqual([json.loads(line)['id'] for line in first.stdout.splitlines()],['A','R'])
         duplicate=self.run_host('rules',self.pack,self.pack);self.assertEqual(duplicate.returncode,2);self.assertIn('duplicate catalog rule',duplicate.stderr)
+    def test_buffer_copy_is_not_labeled_as_owasp_injection(self):
+        # OWASP 2021 A03 maps CWE-78/95; CWE-120 is not in its published mapping.
+        rules=json.loads((ROOT/'rules/c-tier1.json').read_text(encoding='utf8'))['rules']
+        rule=next(rule for rule in rules if rule['id']=='LBC001')
+        self.assertEqual(rule['cwe'],['CWE-120']);self.assertNotIn('A03:2021',rule.get('owasp',[]))
     def test_invalid_metadata_is_located(self):
         for key,value in [('tags',[42]),('cwe',False),('url',4),('confidence','certain')]:
             self.rule[key]=value;self.write_pack();r=self.run_host('rules',self.pack)

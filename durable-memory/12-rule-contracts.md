@@ -25,3 +25,7 @@ Python annotated fixtures combine the existing violations/clean pairs without
 changing those older byte-oracle inputs; test.sh runs both plus examples/self-test.
 C preprocessor values are opaque CST tokens: reparse their contents to recognize
 trailing comments without accepting a marker in a macro string.
+
+OWASP values are explicitly versioned taxonomy hints, not a blanket security tag.
+The 2021 A03 mapped CWE list includes CWE-78/95, not CWE-120; unsafe buffer-copy
+rule LBC001 therefore carries CWE-120 without A03. Source: https://top10.owasp.org/2021/A03_2021-Injection/

@@ -14,9 +14,6 @@
       "url": "https://cwe.mitre.org/data/definitions/120.html",
       "cwe": [
         "CWE-120"
-      ],
-      "owasp": [
-        "A03:2021"
       ]
     },
     {
