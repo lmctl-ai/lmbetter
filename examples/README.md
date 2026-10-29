@@ -24,19 +24,22 @@ not a fixed version pin. Compilation is offline once the local host and
 compiler are available. Raw URL invocation and its working-directory
 requirements are covered in the [README](../README.md#published-host-and-raw-urls).
 
-Run all 13 examples (12 bytecode demos and one outer-script CLI demo):
+Run all 14 examples (12 bytecode demos and two outer-script CLI demos):
 
 ```sh
 for source in examples/*.lms; do
   lmscript "$source" || exit 1
   case "$source" in
-    examples/lint-repo.lms) ;; # runs subprocesses directly; no saved bytecode
+    examples/lint-repo.lms|examples/lint-go.lms) ;; # drives the CLI directly; no saved bytecode run
     *) build/lmok --dsl "build/$(basename "$source" .lms).dslb" || exit 1 ;;
   esac
 done
 ```
 
 `lint-repo.lms` prints `repo lint: c-security 1 findings, json-config 2 findings`.
+`lint-go.lms` runs the Go tier-1 pack on `tests/fixtures/go-tier1-violations.go`
+and prints `go-tier1: 7 findings`; `examples/data/sample.go` is the small
+parser/query example used by the CLI docs.
 `sarif-report.lms` also writes `build/sarif-results.sarif` (four results).
 Findings and the catalog demo's `gate=FAIL` are demonstration output, not a
 nonzero process exit status.

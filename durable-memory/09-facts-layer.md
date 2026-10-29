@@ -5,7 +5,7 @@ tier-3 knowledge tree (docs/tier3/deep-analysis.md §4, README "Facts").
 
 ## Mechanism
 
-- `queries/<lang>/facts.scm` (c, python, bash, json) are embedded at build
+- `queries/<lang>/facts.scm` (c, python, bash, go, json) are embedded at build
   time by `cmake/embed_schema.cmake` (same path as the schema) and evaluated
   by `host.cpp`'s shared query runner. New host primitive:
   `query_matches()` keeps CAPTURE NAMES and collects `(#set! key "value")`
@@ -41,6 +41,9 @@ tier-3 knowledge tree (docs/tier3/deep-analysis.md §4, README "Facts").
   `ref.import_from`.
 - Bash: every command word is a `ref.call` candidate (builtins such as
   `return`/`echo` included); `$1` is a `ref.read` of `1`.
+- Go: function/method/type/package-variable/short-variable definitions, explicit
+  import aliases and literal import paths, and direct/selector calls are emitted;
+  receiver/type resolution and ordinary identifier reads are not inferred.
 - JSON: the empty key `""` has no `string_content` node and is skipped;
   arrays do not contribute to the scope chain.
 - Incremental check (facts after edit+reparse == cold facts) waits for the

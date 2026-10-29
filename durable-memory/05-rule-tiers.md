@@ -117,6 +117,21 @@ to move: the unknown-language error now lists all four languages.
   clean uses `shell=False`, `except ValueError:`, `b=None` defaults; bash
   clean uses `rm -r`, `$()`, `chmod 750`, no cd/eval).
 
+## Go grammar and tier-1 pack (Wave 2, 2026-10-29)
+
+tree-sitter-go v0.25.0 (ABI 15) is pinned in `deps.lock` and contributes only
+`src/parser.c`; `--lang go` selects it for parse/query/check and `.go` files
+are recognized by lint/facts expansion. The lmscript `ts.parse_*` surface is
+unchanged; Go is CLI-only in this slice.
+
+`rules/go-tier1.json` (GOS001–GOS006) is a heuristic gosec-flavored pack:
+variable arguments to `exec.Command`, `unsafe` and weak-crypto imports,
+literal 0777 permissions, assignment to `_`, and literal
+`InsecureSkipVerify: true`. It does not perform type or taint analysis: blank
+assignments are only obvious ignored-result candidates, and command variables
+are not proved attacker-controlled. Violations and clean fixtures are pinned
+in `tests/fixtures/go-tier1-*` and run in `test.sh` plus the native-OS oracles.
+
 Dropped candidates (and why): none — everything on the shortlist was
 query-expressible once node-types.json was checked (`except_clause` block
 inclusion and the two-capture filter trick were the only surprises).

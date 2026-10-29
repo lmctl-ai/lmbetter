@@ -1,6 +1,6 @@
 # DSLB v6 entry dispatch
 
-`lmok check [--lang json|c|python|bash] RULES.dslb FILE...` is the host
+`lmok check [--lang json|c|python|bash|go] RULES.dslb FILE...` is the host
 entry-dispatch path. It loads one DSLB v6 program and rejects v5 files through
 the SDK's version check. The host indexes `Program::entries()` by annotation, preserving entry source order, then runs the body once for configuration.
 

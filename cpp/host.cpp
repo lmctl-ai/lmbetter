@@ -18,6 +18,7 @@ extern "C" const TSLanguage *tree_sitter_c(void);
 extern "C" const TSLanguage *tree_sitter_python(void);
 extern "C" const TSLanguage *tree_sitter_bash(void);
 extern "C" const TSLanguage *tree_sitter_java(void);
+extern "C" const TSLanguage *tree_sitter_go(void);
 
 namespace lmok {
 
@@ -28,6 +29,7 @@ static const TSLanguage *language_of(Grammar grammar) {
   case Grammar::Python: return tree_sitter_python();
   case Grammar::Bash: return tree_sitter_bash();
   case Grammar::Java: return tree_sitter_java();
+  case Grammar::Go: return tree_sitter_go();
   }
   return tree_sitter_json();
 }
@@ -79,6 +81,7 @@ const char *grammar_name(Grammar grammar) {
   case Grammar::Python: return "python";
   case Grammar::Bash: return "bash";
   case Grammar::Java: return "java";
+  case Grammar::Go: return "go";
   }
   return "json";
 }

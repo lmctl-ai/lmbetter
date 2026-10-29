@@ -6,8 +6,10 @@ scriptable CLI.
 lmok wraps [tree-sitter](https://tree-sitter.github.io) 0.27.1 together
 with the [tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json),
 [tree-sitter-c](https://github.com/tree-sitter/tree-sitter-c),
-[tree-sitter-python](https://github.com/tree-sitter/tree-sitter-python) and
-[tree-sitter-bash](https://github.com/tree-sitter/tree-sitter-bash) grammars in one dependency-free executable that can be driven from the command
+[tree-sitter-python](https://github.com/tree-sitter/tree-sitter-python),
+[tree-sitter-bash](https://github.com/tree-sitter/tree-sitter-bash),
+[tree-sitter-java](https://github.com/tree-sitter/tree-sitter-java), and
+[tree-sitter-go](https://github.com/tree-sitter/tree-sitter-go) grammars in one dependency-free executable that can be driven from the command
 line or scripted with [lmscript](https://github.com/lmctl-ai). Feed it source text
 and it prints the concrete syntax tree; from lmscript you get a typed `Tree`
 object to inspect.
@@ -122,12 +124,14 @@ lmok --version
 lmok --notices
 lmok --dsl-schema [--json]
 lmok --dsl-signatures
-lmok parse [--lang json|c|python|bash] FILE       # '-' reads stdin
-lmok query [--lang json|c|python|bash] [--pattern] PATTERN FILE  # '-' reads stdin
+lmok parse [--lang json|c|python|bash|java|go] FILE       # '-' reads stdin
+lmok query [--lang json|c|python|bash|java|go] [--pattern] PATTERN FILE  # '-' reads stdin
 lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress]
 lmok ci [--config FILE] [--no-suppress] [ROOT]
+lmok rules PACK... | test PACK FIXTURE...
 lmok findings [--rule ID] [--file PATH] [--db PATH]
-lmok check [--lang json|c|python|bash] RULES.dslb FILE|DIR... [--no-suppress]
+lmok facts [--lang json|c|python|bash|java|go] FILE|DIR...
+lmok check [--lang json|c|python|bash|java|go] RULES.dslb FILE|DIR... [--no-suppress]
 lmok --dsl FILE [FILE ...]
 ```
 
@@ -137,7 +141,7 @@ regions appear as `(ERROR ...)` nodes — and still exits 0; tree-sitter always
 produces a tree. `query` runs a tree-sitter S-expression pattern over the
 document and prints one line per captured node, `kind
 start_row:start_col-end_row:end_col` (0-based). Both default to the JSON
-grammar; `--lang c|python|bash` switches grammars (an unknown language exits
+grammar; `--lang c|python|bash|java|go` switches grammars (an unknown language exits
 2 with the known-languages list). `query --pattern` takes a code-shaped
 (semgrep-style) pattern instead of an S-expression — `strcpy($DST, $SRC)`, `$F(...)`, `if ($C) { return $V; }` —
 compiles it with the same grammar (first slice: c and python), prints the generated query on a `query:` line and
@@ -339,7 +343,9 @@ password key, sensitive credential keys, HTTP URLs, unpinned versions, empty
 containers, long strings), `python-tier1.json` (9 rules: os shell-out,
 shell=True, eval/exec, assert, FIXME/TODO, wildcard imports, bare except,
 print(), mutable default args) and `bash-tier1.json` (6 rules: rm -rf,
-FIXME/TODO, backticks, unguarded cd, chmod 777, eval) — plus lmcode-native rules in `rules/lmcode/` for
+FIXME/TODO, backticks, unguarded cd, chmod 777, eval) and `go-tier1.json`
+(6 gosec-flavored rules: variable `exec.Command`, unsafe/weak-crypto imports,
+0777 file modes, blank assignment results, and `InsecureSkipVerify`) — plus lmcode-native rules in `rules/lmcode/` for
 checks that need logic (function metrics, switch/if style, duplicate JSON
 keys and sibling string values, object size, nesting depth via `Node.has_parent()`/`parent()`, scanf width via
 query predicates, same-file symbol rules via set algebra, unquoted bash
@@ -361,7 +367,7 @@ lmok lint rules/c-tier1.json examples/data/sample.c
 ## Facts (knowledge tree, tier 3 / E6)
 
 ```sh
-lmok facts [--lang json|c|python|bash] FILE|DIR...
+lmok facts [--lang json|c|python|bash|java|go] FILE|DIR...
 ```
 
 Prints one JSON Lines record per definition, reference or edge found in each
@@ -387,6 +393,7 @@ reads), `unresolved` (a `source "$DIR/x.sh"` target), `external`
 - Python: `def.class def.function def.method def.variable def.parameter
   def.import ref.call ref.read ref.import ref.import_from ref.import_wildcard`
 - Bash: `def.function def.variable ref.call ref.read ref.source`
+- Go: `def.function def.method def.type def.variable def.import ref.call ref.import`
 - JSON: `def.key` (every object key; scope = enclosing key chain, arrays
   transparent)
 
@@ -462,14 +469,12 @@ second grammar is vendored: tree-sitter-c (pinned in `deps.lock`) with
 follow the same pattern: tree-sitter-python (`ts.parse_python` /
 `ts.query_python`) and tree-sitter-bash (`ts.parse_bash` / `ts.query_bash`),
 both pinned in `deps.lock` — these are the first grammars with an external
-scanner (`src/scanner.c`), wired into the CMake source list. `ts.match_c(root,
-pattern)` / `ts.match_python(root, pattern)` take a code-shaped pattern instead
-of an S-expression (`strcpy($DST, $SRC)`, `$F(...)`, the same compiler as
-`lmok query --pattern` and the pack `pattern` field) and return the matched
-nodes; the pattern is compiled once per run and cached, and an unparseable one
-is a runtime error naming the fragment (exit 3) — see
-[examples/pattern-rules.lms](examples/pattern-rules.lms). See `examples/` for
-runnable scripts.
+scanner (`src/scanner.c`), wired into the CMake source list. Go (tree-sitter-go v0.25.0) is the sixth CLI grammar: use
+`--lang go` for parse/query/check and `.go` files for lint/facts extension
+inference. The lmscript `ts.parse_*` DSL surface remains unchanged. Example:
+`build/lmok lint rules/go-tier1.json tests/fixtures/go-tier1-violations.go`. The
+`ts.match_*` code-pattern APIs work for C/Python; see
+[examples/pattern-rules.lms](examples/pattern-rules.lms). See `examples/` for runnable scripts.
 
 ## Repository layout
 

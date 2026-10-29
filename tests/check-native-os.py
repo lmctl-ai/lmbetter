@@ -43,6 +43,26 @@ class NativeOS(unittest.TestCase):
         return result
     def exact(self, result, output, code=0, error=b''):
         self.assertEqual((result.returncode, result.stdout, result.stderr), (code, output, error))
+    def test_go_cli_and_extension_dispatch(self):
+        source = self.work / 'go input.go'
+        source.write_text('package main\nfunc café_水() {}\n', encoding='utf-8')
+        parsed = self.run_host('parse', '--lang', 'go', source)
+        self.assertEqual(parsed.returncode, 0, parsed.stderr)
+        self.assertTrue(parsed.stdout.startswith(b'(source_file (package_clause'), parsed.stdout)
+        self.exact(self.run_host('query', '--lang', 'go', '(function_declaration name: (identifier) @name)', source),
+                   b'identifier 1:5-1:14\n')
+        facts = self.run_host('facts', source)  # .go extension selects Go without --lang.
+        self.assertEqual((facts.returncode, facts.stderr), (0, b''), facts)
+        rows = [json.loads(line) for line in facts.stdout.splitlines()]
+        self.assertIn({'file': source.as_posix(), 'lang': 'go', 'kind': 'def.function', 'name': 'café_水',
+                       'scope': '', 'confidence': 'exact', 'row': 1, 'col': 0, 'end_row': 1,
+                       'end_col': 19, 'start_byte': 13, 'end_byte': 32, 'name_row': 1, 'name_col': 5}, rows)
+        pack = self.work / 'go.json'
+        pack.write_text(json.dumps({'lang': 'go', 'rules': [{'id': 'GO', 'on': 'function_declaration', 'message': 'go'}]}), encoding='utf-8')
+        lint = self.run_host('lint', pack, source)  # .go extension selects the pack language.
+        self.assertEqual((lint.returncode, lint.stderr), (0, b''), lint)
+        found = json.loads(lint.stdout.splitlines()[0])
+        self.assertEqual((found['rule'], found['message']), ('GO', 'go'))
     def test_paths(self):
         folder = self.work / 'space 雪 café'
         folder.mkdir()
@@ -65,6 +85,16 @@ class NativeOS(unittest.TestCase):
             lines = result.stdout.decode('utf-8').splitlines()
             self.assertEqual(json.loads(lines[0])['rule'], 'N')
             self.assertEqual(lines[1], '1 findings in ' + source.as_posix())
+        go = folder / 'input.go'
+        go.write_text('package main\nfunc café_水() {}\n', encoding='utf-8')
+        self.exact(self.run_host('parse', '--lang', 'go', go),
+                   b'(source_file (package_clause (package_identifier)) (function_declaration name: (identifier) parameters: (parameter_list) body: (block)))\n')
+        self.exact(self.run_host('query', '--lang', 'go', '(function_declaration name: (identifier) @name)', go),
+                   b'identifier 1:5-1:14\n')
+        facts = self.run_host('facts', go)
+        self.assertEqual((facts.returncode, facts.stderr), (0, b''), facts)
+        self.assertIn(b'"lang":"go"', facts.stdout)
+        self.assertIn(b'"kind":"def.function","name":"caf\xc3\xa9_\xe6\xb0\xb4"', facts.stdout)
         bad = folder / 'bad 雪.dslb'; bad.write_bytes(b'not bytecode')
         result = self.run_host('--dsl', bad)
         self.assertEqual(result.returncode, 3)

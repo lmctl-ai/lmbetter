@@ -8,7 +8,7 @@ Three delivery forms, by how much logic a rule needs:
   for the framework and [Rule packs](../README.md#rule-packs) for the format.
   Shipped: `c-tier1.json` (11 rules), `json-tier1.json` (11 rules:
   LBJ001–LBJ010 and LBJ104), `python-tier1.json` (9 rules),
-  `bash-tier1.json` (6 rules). The opt-in `bash-autofix.json` and
+  `bash-tier1.json` (6 rules), and `go-tier1.json` (6 rules, GOS001–GOS006). The opt-in `bash-autofix.json` and
   `c-autofix.json` packs demonstrate four token-safe plain replacements. A
   pack `fix` is a literal replacement for the reported node; it does not
   perform metavariable substitution.
@@ -45,6 +45,14 @@ Three delivery forms, by how much logic a rule needs:
   bash-tier1 heuristic notes:
   - LBS004 (cd) fires on guarded `cd x || exit` too — a pack cannot see the
     enclosing `list` node; refining that needs `Node.parent()` (lmcode).
+
+  go-tier1 heuristic notes:
+  - GOS001 reports `exec.Command` when an argument is an identifier; it does
+    not determine whether the command is trusted or externally controlled.
+  - GOS005 reports assignment results sent to `_` as an obvious ignored-result
+    spot; without type information it cannot prove that the result is an error.
+  - GOS006 catches the literal `InsecureSkipVerify: true`; computed values are
+    outside a data-only rule pack's scope.
 
 - **lmcode rules** (`rules/lmcode/*.lms`) — rules that need LOGIC beyond
   selector+regex: arithmetic (`end_row - start_row`), counting children,

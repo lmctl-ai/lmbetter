@@ -20,10 +20,9 @@ struct Node;
 
 // The vendored grammars. The DSL surface is explicit per grammar
 // (ts.parse / ts.parse_c / ts.parse_python / ts.parse_bash, same for query and
-// reparse); a fifth grammar should trigger generalizing this to a language
-// parameter.
-enum class Grammar { Json, C, Python, Bash, Java };
-const char *grammar_name(Grammar grammar); // "json", "c", "python", "bash"
+// reparse). CLI grammar selection is language-parameterized separately.
+enum class Grammar { Json, C, Python, Bash, Java, Go };
+const char *grammar_name(Grammar grammar); // "json", "c", "python", "bash", "java", "go"
 // Empty when `kind` is a kind the walk can visit in this grammar (a named node, an anonymous token or ERROR);
 // otherwise the reason it can never match: unknown spelling, a supertype (abstract; annotate its concrete
 // kinds) or a hidden/auxiliary symbol. Used by `check` to refuse annotations at load instead of silently

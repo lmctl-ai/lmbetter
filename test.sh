@@ -25,7 +25,7 @@ LMSCRIPT="$(scripts/select-compiler.sh)"
 scripts/sync-sdk.sh --verify >/dev/null || fail "SDK header pin mismatch"
 ok "SDK headers match sdk.lock"
 scripts/sync-deps.sh --verify >/dev/null || fail "deps pin mismatch"
-ok "third_party/ tree-sitter, tree-sitter-json, tree-sitter-c, tree-sitter-python and tree-sitter-bash match deps.lock"
+ok "third_party/ tree-sitter and JSON/C/Python/Bash/Go grammars match deps.lock"
 
 # release versioning (CI stamps this into the build; see scripts/next-version.sh)
 nv() { LMOK_TAGS="$1" GITHUB_REF_TYPE= GITHUB_REF_NAME= scripts/next-version.sh; }
@@ -154,8 +154,16 @@ identifier 5:2-5:8' ] || fail "query --lang c captures: $out"
 ok "query --lang c: called-function identifiers (gets, printf)"
 
 set +e; out="$("$HOST" parse --lang rust examples/data/sample.c 2>&1)"; code=$?; set -e
-[ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust' (known: json, c, python, bash, java)"* ]] || fail "unknown --lang (exit $code): $out"
+[ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust' (known: json, c, python, bash, java, go)"* ]] || fail "unknown --lang (exit $code): $out"
 ok "unknown --lang refused with the known-languages list (exit 2)"
+
+# --- Go grammar (tree-sitter-go) ---
+out="$("$HOST" parse --lang go examples/data/sample.go)"
+echo "$out" | grep -qF '(source_file (package_clause (package_identifier)) (import_declaration (import_spec path: (interpreted_string_literal (interpreted_string_literal_content)))) (function_declaration name: (identifier)' \
+  || fail "parse --lang go sexp head: $out"
+out="$("$HOST" query --lang go '(call_expression function: (selector_expression field: (field_identifier) @fn))' examples/data/sample.go)"
+[ "$out" = 'field_identifier 5:5-5:12' ] || fail "query --lang go captures: $out"
+ok "parse/query --lang go: package, imports, functions and selector calls"
 
 # --- query predicates (E1) ---
 printf '{"pass": 1, "word": 2}' > "$WORK/mini.json"
@@ -435,6 +443,13 @@ while IFS= read -r line; do
 done < <(grep '^#|' examples/lint-repo.lms)
 ok "lint-repo: lmscript drives lmok lint and counts findings"
 
+"$LMSCRIPT" examples/lint-go.lms >"$WORK/lint-go.out" 2>"$WORK/lint-go.err" ||
+  { cat "$WORK/lint-go.err" >&2; fail "lint-go example run"; }
+while IFS= read -r line; do
+  grep -qxF "${line:2}" "$WORK/lint-go.out" || fail "lint-go output missing: ${line:2} (got $(cat "$WORK/lint-go.out"))"
+done < <(grep '^#|' examples/lint-go.lms)
+ok "lint-go: lmscript drives the Go tier-1 pack"
+
 # Entry rules declare their language/input in a non-executable test header.
 # Aggregate scripts without that header retain the body-only --dsl path.
 run_rule() {
@@ -643,11 +658,11 @@ set +e; out="$("$HOST" lint "$WORK/dup.json" examples/data/sample.c 2>&1)"; code
 [ "$code" = 2 ] && [[ "$out" == *'rule DUP: duplicate rule id'* ]] || fail "duplicate rule id (exit $code): $out"
 python3 - <<'PY'
 import json
-for path, want in (("rules/c-tier1.json", 11), ("rules/json-tier1.json", 11)):
+for path, want in (("rules/c-tier1.json", 11), ("rules/json-tier1.json", 11), ("rules/go-tier1.json", 6)):
     ids = [r["id"] for r in json.load(open(path))["rules"]]
     assert len(ids) == want and len(set(ids)) == want, (path, ids)
 PY
-ok "rule packs: duplicate ids refused (exit 2); shipped packs carry unique ids (c 11, json 11)"
+ok "rule packs: duplicate ids refused (exit 2); shipped packs carry unique ids (c 11, json 11, Go 6)"
 
 # Minor CLI contracts from the same review.
 set +e; out="$("$HOST" parse "$WORK" 2>&1)"; code=$?; set -e
@@ -912,15 +927,33 @@ ok "DB wrapper: rollback/commit, prepared bindings, foreign keys"
 python3 tests/check-db.py "$HOST" || fail "DB status and resolution contracts"
 ok "DB status: verbatim schema, FTS5, counts, last run, version guard and path precedence"
 
+# --- Go tier-1 pack: gosec-flavored checks with clean/violations controls ---
+"$HOST" lint rules/go-tier1.json tests/fixtures/go-tier1-violations.go >"$WORK/go-tier1.out" || fail "go-tier1 violations run"
+cat >"$WORK/go-tier1.expected" <<'EXPECTED_GO'
+{"row":3,"col":1,"end_row":3,"end_col":13,"rule":"GOS003","severity":"major","message":"weak cryptographic package imported"}
+{"row":4,"col":1,"end_row":4,"end_col":14,"rule":"GOS003","severity":"major","message":"weak cryptographic package imported"}
+{"row":8,"col":1,"end_row":8,"end_col":9,"rule":"GOS002","severity":"critical","message":"unsafe package imported"}
+{"row":14,"col":1,"end_row":14,"end_col":13,"rule":"GOS001","severity":"major","message":"exec.Command uses a variable argument; review the command and arguments"}
+{"row":15,"col":1,"end_row":15,"end_col":27,"rule":"GOS005","severity":"minor","message":"blank identifier discards an assignment result; review returned errors"}
+{"row":19,"col":19,"end_row":19,"end_col":43,"rule":"GOS006","severity":"critical","message":"TLS certificate verification is disabled"}
+{"row":20,"col":19,"end_row":20,"end_col":23,"rule":"GOS004","severity":"major","message":"world-writable file mode 0777"}
+7 findings in tests/fixtures/go-tier1-violations.go
+EXPECTED_GO
+cmp "$WORK/go-tier1.expected" "$WORK/go-tier1.out" || { diff "$WORK/go-tier1.expected" "$WORK/go-tier1.out" >&2; fail "go-tier1 violations output"; }
+out="$("$HOST" lint rules/go-tier1.json tests/fixtures/go-tier1-clean.go)"
+[ "$out" = "0 findings in tests/fixtures/go-tier1-clean.go" ] || fail "go-tier1 clean: $out"
+ok "lint: go-tier1 pack, all six rules fire on violations and clean fixture stays silent"
+
 # --- facts (E6: per-file knowledge-tree records as JSON Lines; cpp/facts.cpp, queries/<lang>/facts.scm) ---
-for f in sample.c sample.json sample.py sample.sh; do
+for f in sample.c sample.go sample.json sample.py sample.sh; do
   "$HOST" facts "tests/fixtures/facts/$f" >"$WORK/facts-$f.out" || fail "facts $f run"
   cmp "tests/fixtures/facts/expected/$f.jsonl" "$WORK/facts-$f.out" || { diff "tests/fixtures/facts/expected/$f.jsonl" "$WORK/facts-$f.out" >&2; fail "facts $f output"; }
 done
-ok "facts: byte-exact JSONL for the C, JSON, Python and Bash fixtures"
+ok "facts: byte-exact JSONL for the C, JSON, Python, Bash and Go fixtures"
 
-cat tests/fixtures/facts/expected/sample.c.jsonl tests/fixtures/facts/expected/sample.json.jsonl \
-    tests/fixtures/facts/expected/sample.py.jsonl tests/fixtures/facts/expected/sample.sh.jsonl >"$WORK/facts-dir.expected"
+cat tests/fixtures/facts/expected/sample.c.jsonl tests/fixtures/facts/expected/sample.go.jsonl \
+    tests/fixtures/facts/expected/sample.json.jsonl tests/fixtures/facts/expected/sample.py.jsonl \
+    tests/fixtures/facts/expected/sample.sh.jsonl >"$WORK/facts-dir.expected"
 "$HOST" facts tests/fixtures/facts >"$WORK/facts-dir.out" || fail "facts dir run"
 cmp "$WORK/facts-dir.expected" "$WORK/facts-dir.out" || { diff "$WORK/facts-dir.expected" "$WORK/facts-dir.out" >&2; fail "facts dir output"; }
 ok "facts: directory expansion (sorted, non-source files skipped) equals the per-file records"
@@ -934,13 +967,14 @@ want = {
   "python": {"def.class","def.function","def.method","def.variable","def.parameter","def.import",
              "ref.call","ref.read","ref.import","ref.import_from","ref.import_wildcard"},
   "bash": {"def.function","def.variable","ref.call","ref.read","ref.source"},
+  "go": {"def.function","def.method","def.type","def.variable","def.import","ref.call","ref.import"},
   "json": {"def.key"},
 }
 confidences = {"c": {"exact","candidate","external"}, "python": {"exact","candidate"},
-               "bash": {"exact","candidate","unresolved"}, "json": {"exact"}}
+               "bash": {"exact","candidate","unresolved"}, "go": {"exact","candidate"}, "json": {"exact"}}
 scopes = {"c": {"", "point", "u", "color", "helper", "main"}, "python": {"", "af", "C", "C.m", "C.n"},
-          "bash": {"", "local_fn", "f2"}, "json": {"", "server", "server.tls", "server.hosts"}}
-for lang, ext in (("c","c"),("python","py"),("bash","sh"),("json","json")):
+          "bash": {"", "local_fn", "f2"}, "go": {"", "Add", "Save"}, "json": {"", "server", "server.tls", "server.hosts"}}
+for lang, ext in (("c","c"),("python","py"),("bash","sh"),("go","go"),("json","json")):
     seen_kinds, seen_conf, seen_scopes = set(), set(), set()
     for line in open(f"tests/fixtures/facts/expected/sample.{ext}.jsonl", encoding="utf-8"):
         rec = json.loads(line)

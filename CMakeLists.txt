@@ -13,18 +13,19 @@ set(LMOK_HOST_SCHEMA "${CMAKE_CURRENT_SOURCE_DIR}/schema/lmok.host.json")
 
 # ---- vendored tree-sitter ---------------------------------------------------
 # third_party/tree-sitter, third_party/tree-sitter-json,
-# third_party/tree-sitter-c, third_party/tree-sitter-python and
-# third_party/tree-sitter-bash are git-ignored and synced by
+# third_party/tree-sitter-c, third_party/tree-sitter-python,
+# third_party/tree-sitter-bash and third_party/tree-sitter-go are git-ignored and synced by
 # scripts/sync-deps.sh, pinned by deps.lock. The C library is compiled through
 # its amalgamation lib/src/lib.c alone (which #includes the individual
 # translation units); each grammar contributes src/parser.c plus its
 # src/scanner.c external scanner where one exists at the pinned commit
-# (python and bash; json and c have none).
+# (python and bash; json, c, java and go have none).
 set(TS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter")
 set(TSJSON_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-json")
 set(TSC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-c")
 set(TSPY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-python")
 set(TSBASH_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-bash")
+set(TSGO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-go")
 
 set(TSJAVA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-java")
 
@@ -37,6 +38,7 @@ set(TS_SOURCES
   "${TSPY_ROOT}/src/scanner.c"
   "${TSBASH_ROOT}/src/parser.c"
   "${TSBASH_ROOT}/src/scanner.c"
+  "${TSGO_ROOT}/src/parser.c"
 )
 
 # ---- embedded DSL schema and notices ---------------------------------------
@@ -70,7 +72,7 @@ add_custom_command(
 )
 # ---- embedded facts.scm query files (E6, cpp/facts.cpp) ---------------------
 set(GENERATED_FACTS)
-foreach(lang c python bash json java)
+foreach(lang c python bash json java go)
   set(_facts_out "${GENERATED_DIR}/facts_${lang}_embedded.hpp")
   add_custom_command(
     OUTPUT "${_facts_out}"

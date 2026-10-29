@@ -110,9 +110,9 @@ class RulePacksOS(unittest.TestCase):
         # Columns are byte offsets on every platform; a UTF-16-code-unit host
         # would compute different end columns for non-ASCII identifiers.
         binary = self.compile('@identifier fn name(n: Node) -> void implements Rule { ts.report(n, n.text(), "U", "minor"); }')
-        for lang, text in [('python', 'def héllo_雪():\n    return 1\n'), ('c', 'int café_水;\n')]:
+        for lang, text in [('python', 'def héllo_雪():\n    return 1\n'), ('c', 'int café_水;\n'), ('go', 'package main\nfunc café_水() {}\n')]:
             with self.subTest(lang=lang):
-                source = self.work / ('unicode.' + ('py' if lang == 'python' else 'c'))
+                source = self.work / ('unicode.' + {'python':'py','c':'c','go':'go'}[lang])
                 source.write_bytes(text.encode('utf-8'))
                 result = self.run_host('check', '--lang', lang, binary, source)
                 self.assertEqual((result.returncode, result.stderr), (0, b''), result)
@@ -133,6 +133,7 @@ class RulePacksOS(unittest.TestCase):
             ('c', '@return', b'int f(void) { return 1; }\n', 1, 'return'),
             ('python', '@def', b'def f():\n    return 1\n', 1, 'def'),
             ('bash', '@if', b'if true; then echo x; fi\n', 1, 'if'),
+            ('go', '@return', b'package p\nfunc f() { return }\n', 1, 'return'),
         ]
         for lang, annotation, data, want_count, want_text in cases:
             with self.subTest(lang=lang):
