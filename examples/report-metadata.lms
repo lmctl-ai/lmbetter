@@ -1,0 +1,15 @@
+# Chapter: Rules - optional classification metadata
+# Shows: ts.report_meta and byte-compatible default report_json
+# Run: lmscript examples/report-metadata.lms
+# Then: lmok --dsl build/report-metadata.dslb --metadata
+# Needs: README setup; local lmok on PATH. No network or provider calls.
+# exit: 0
+# expect:
+#|[{"row":0,"col":0,"end_row":0,"end_col":1,"rule":"META001","severity":"info","message":"example"}]
+p = _lmcode_ cli="lmok" install="github:lmctl-ai/lmok@latest";
+let tree = ts.parse("1");
+let n = tree.root().child(0);
+ts.report_meta(n, "example", "META001", "info", "{\"tags\":[\"example\"],\"confidence\":\"high\"}");
+println(ts.report_json());
+end _lmcode_
+savedsl(p, "build/report-metadata.dslb");

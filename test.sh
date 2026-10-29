@@ -1099,6 +1099,13 @@ ok "rule metadata and annotated pack harness"
 "$HOST" test rules/c-tier1.json tests/fixtures/c-tier1-annotated.c || fail "annotated C pack"
 "$HOST" test rules/python-tier1.json tests/fixtures/python-tier1-annotated.py || fail "annotated Python pack"
 "$HOST" test examples/self-test/pack.json examples/self-test/fixture.c || fail "self-test example"
+"$LMSCRIPT" examples/report-metadata.lms >"$WORK/report-metadata.compile" || fail "metadata example compile"
+"$HOST" --dsl build/report-metadata.dslb --metadata >"$WORK/report-metadata.json" || fail "metadata example run"
+python3 - "$WORK/report-metadata.json" <<'PYMETA'
+import json, sys
+finding=json.loads(open(sys.argv[1],encoding='utf8').readline())[0]
+assert finding['metadata']=={'tags':['example'],'confidence':'high'},finding
+PYMETA
 ok "annotated C/Python fixture pairs and self-test example"
 
 python3 tests/check-secrets.py "$HOST" || fail "secrets packs and entropy"

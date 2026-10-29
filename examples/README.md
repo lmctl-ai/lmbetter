@@ -135,3 +135,6 @@ committed sample inputs and need no provider account or network.
 `lmok test examples/self-test/pack.json examples/self-test/fixture.c` checks the
 positive annotated call and negative/string-marker cases. Change EXAMPLE_CALL in
 the annotation to see a located missing/unexpected JSON diff and exit 1.
+
+`examples/report-metadata.lms` shows `ts.report_meta`; pass `--metadata` to the
+host to see classification fields while its default output stays byte-compatible.

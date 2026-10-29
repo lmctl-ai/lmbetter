@@ -6,63 +6,117 @@
       "text_matches": "^\\{\\s*\\}$",
       "message": "empty catch block",
       "severity": "major",
-      "query": "(catch_clause body: (block) @body)"
+      "query": "(catch_clause body: (block) @body)",
+      "tags": [
+        "java",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LJV002",
       "text_matches": "System\\s*\\.\\s*out\\s*\\.\\s*println\\s*\\(",
       "message": "System.out.println in application code (use a logger)",
       "severity": "minor",
-      "query": "((method_declaration name: (identifier) @method) @site (#not-eq? @method \"main\"))"
+      "query": "((method_declaration name: (identifier) @method) @site (#not-eq? @method \"main\"))",
+      "tags": [
+        "java",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LJV003",
       "on": "binary_expression",
       "text_matches": "==[\\s\\S]*\\\"|\\\"[\\s\\S]*==",
       "message": "== used with a string literal (use equals)",
-      "severity": "major"
+      "severity": "major",
+      "tags": [
+        "java",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LJV004",
       "text_matches": "\\)\\s*$",
       "message": "printStackTrace leaks diagnostics",
       "severity": "major",
-      "query": "((method_invocation name: (identifier) @method) @site (#eq? @method \"printStackTrace\"))"
+      "query": "((method_invocation name: (identifier) @method) @site (#eq? @method \"printStackTrace\"))",
+      "tags": [
+        "java",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LJV005",
       "text_matches": "=\\s*\"[^\"\\r\\n]+\"",
       "message": "credential-looking field initialized in source",
       "severity": "critical",
-      "query": "((field_declaration declarator: (variable_declarator name: (identifier) @name value: (string_literal))) @field (#match? @name \"(password|PASSWORD|passwd|PASSWD|secret|SECRET|apiKey|API_KEY|token|TOKEN)\"))"
+      "query": "((field_declaration declarator: (variable_declarator name: (identifier) @name value: (string_literal))) @field (#match? @name \"(password|PASSWORD|passwd|PASSWD|secret|SECRET|apiKey|API_KEY|token|TOKEN)\"))",
+      "tags": [
+        "java",
+        "security"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LJV006",
       "text_matches": "^Runtime\\s*\\.",
       "message": "Runtime.exec with a variable command",
       "severity": "critical",
-      "query": "((method_invocation object: (method_invocation object: (identifier) @rt name: (identifier) @get) name: (identifier) @exec arguments: (argument_list (identifier))) @call (#eq? @rt \"Runtime\") (#eq? @get \"getRuntime\") (#eq? @exec \"exec\"))"
+      "query": "((method_invocation object: (method_invocation object: (identifier) @rt name: (identifier) @get) name: (identifier) @exec arguments: (argument_list (identifier))) @call (#eq? @rt \"Runtime\") (#eq? @get \"getRuntime\") (#eq? @exec \"exec\"))",
+      "tags": [
+        "java",
+        "security"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LJV007",
       "text_matches": "^\"(?:MD5|SHA-?1)\"$",
       "message": "weak MD5/SHA-1 digest",
       "severity": "major",
-      "query": "((method_invocation object: (identifier) @type name: (identifier) @method arguments: (argument_list (string_literal) @algorithm)) (#eq? @type \"MessageDigest\") (#eq? @method \"getInstance\"))"
+      "query": "((method_invocation object: (identifier) @type name: (identifier) @method arguments: (argument_list (string_literal) @algorithm)) (#eq? @type \"MessageDigest\") (#eq? @method \"getInstance\"))",
+      "tags": [
+        "java",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LJV008",
       "on": "catch_clause",
       "text_matches": "catch\\s*\\(\\s*(?:Exception|Throwable)(?:\\s|\\))",
       "message": "generic Exception/Throwable catch",
-      "severity": "major"
+      "severity": "major",
+      "tags": [
+        "java",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "LJV009",
       "text_matches": "TODO|FIXME|todo|fixme",
       "message": "unresolved TODO/FIXME comment",
       "severity": "minor",
-      "query": "(line_comment) @comment\n(block_comment) @comment"
+      "query": "(line_comment) @comment\n(block_comment) @comment",
+      "tags": [
+        "java",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     }
   ]
 }
