@@ -5,7 +5,7 @@ tier-3 knowledge tree (docs/tier3/deep-analysis.md §4, README "Facts").
 
 ## Mechanism
 
-- `queries/<lang>/facts.scm` (c, python, bash, go, javascript, json) are embedded at build
+- `queries/<lang>/facts.scm` (c, python, bash, go, javascript, typescript, json) are embedded at build
   time by `cmake/embed_schema.cmake` (same path as the schema) and evaluated
   by `host.cpp`'s shared query runner. New host primitive:
   `query_matches()` keeps CAPTURE NAMES and collects `(#set! key "value")`
@@ -44,6 +44,8 @@ tier-3 knowledge tree (docs/tier3/deep-analysis.md §4, README "Facts").
 - Go: function/method/type/package-variable/short-variable definitions, explicit
   import aliases and literal import paths, and direct/selector calls are emitted;
   receiver/type resolution and ordinary identifier reads are not inferred.
+- TypeScript: function/method/class/type/variable/import definitions and calls;
+  type resolution and ordinary identifier reads are not inferred.
 - JavaScript: function/method/class/variable/import definitions, literal import
   paths and direct/selector calls; dynamic property resolution is not inferred.
 - JSON: the empty key `""` has no `string_content` node and is skipped;

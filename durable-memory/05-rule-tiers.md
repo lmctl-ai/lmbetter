@@ -140,6 +140,13 @@ The CLI facts capture functions, methods, classes, variables, imports and calls.
 `rules/javascript-tier1.json` flags `eval`, `new Function`, child_process and
 direct innerHTML writes. These syntax-only rules do not perform taint analysis.
 
+## TypeScript grammar and tier-1 pack (Wave 2, 2026-10-29)
+
+tree-sitter-typescript v0.23.2 is pinned in `deps.lock`; its TypeScript parser is
+registered as `--lang typescript` for `.ts` files. `rules/typescript-tier1.json`
+reuses the dynamic-code, child_process and innerHTML checks for typed source
+syntax; it does not perform type-aware dataflow.
+
 Dropped candidates (and why): none — everything on the shortlist was
 query-expressible once node-types.json was checked (`except_clause` block
 inclusion and the two-capture filter trick were the only surprises).

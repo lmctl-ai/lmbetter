@@ -7,6 +7,7 @@
 #include "facts_java_embedded.hpp"
 #include "facts_go_embedded.hpp"
 #include "facts_javascript_embedded.hpp"
+#include "facts_typescript_embedded.hpp"
 
 #include <algorithm>
 #include <sstream>
@@ -22,6 +23,7 @@ const std::string &facts_query(Grammar grammar) {
   static const std::string java(reinterpret_cast<const char *>(embedded_facts_java), embedded_facts_java_size);
   static const std::string go(reinterpret_cast<const char *>(embedded_facts_go), embedded_facts_go_size);
   static const std::string javascript(reinterpret_cast<const char *>(embedded_facts_javascript), embedded_facts_javascript_size);
+  static const std::string typescript(reinterpret_cast<const char *>(embedded_facts_typescript), embedded_facts_typescript_size);
   switch (grammar) {
   case Grammar::C: return c;
   case Grammar::Python: return python;
@@ -30,6 +32,7 @@ const std::string &facts_query(Grammar grammar) {
   case Grammar::Java: return java;
   case Grammar::Go: return go;
   case Grammar::Javascript: return javascript;
+  case Grammar::Typescript: return typescript;
   }
   return json;
 }
@@ -94,6 +97,8 @@ std::vector<Fact> extract_facts(const Tree &tree, Grammar grammar) {
     if (grammar == Grammar::Go && kind == "ref.import")
       f.name = unwrap(unwrap(f.name, '"', '"'), '`', '`');
     if (grammar == Grammar::Javascript && kind == "ref.import")
+      f.name = unwrap(unwrap(f.name, '"', '"'), '\'', '\'');
+    if (grammar == Grammar::Typescript && kind == "ref.import")
       f.name = unwrap(unwrap(f.name, '"', '"'), '\'', '\'');
     if (kind == "ref.source") {
       const std::string raw_text = f.name;

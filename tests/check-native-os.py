@@ -88,6 +88,17 @@ class NativeOS(unittest.TestCase):
         lint = self.run_host('lint', pack, source)
         self.assertEqual((lint.returncode, lint.stderr), (0, b''), lint)
         self.assertEqual(json.loads(lint.stdout.splitlines()[0])['rule'], 'JS')
+    def test_typescript_cli_and_extension_dispatch(self):
+        source = self.work / 'typescript input.ts'
+        source.write_bytes(b'function greet(name: string): string { return name; }\n')
+        parsed = self.run_host('parse', '--lang', 'typescript', source)
+        self.assertEqual(parsed.returncode, 0, parsed.stderr)
+        self.assertTrue(parsed.stdout.startswith(b'(program (function_declaration'), parsed.stdout)
+        self.exact(self.run_host('query', '--lang', 'typescript', '(function_declaration name: (identifier) @name)', source),
+                   b'identifier 0:9-0:14\n')
+        facts = self.run_host('facts', source)
+        self.assertEqual((facts.returncode, facts.stderr), (0, b''), facts)
+        self.assertIn(b'"kind":"def.function","name":"greet"', facts.stdout)
     def test_paths(self):
         folder = self.work / 'space 雪 café'
         folder.mkdir()

@@ -14,12 +14,12 @@ set(LMOK_HOST_SCHEMA "${CMAKE_CURRENT_SOURCE_DIR}/schema/lmok.host.json")
 # ---- vendored tree-sitter ---------------------------------------------------
 # third_party/tree-sitter, third_party/tree-sitter-json,
 # third_party/tree-sitter-c, third_party/tree-sitter-python,
-# third_party/tree-sitter-bash, tree-sitter-go and tree-sitter-javascript are git-ignored and synced by
+# third_party/tree-sitter-bash, tree-sitter-go, tree-sitter-javascript and tree-sitter-typescript are git-ignored and synced by
 # scripts/sync-deps.sh, pinned by deps.lock. The C library is compiled through
 # its amalgamation lib/src/lib.c alone (which #includes the individual
 # translation units); each grammar contributes src/parser.c plus its
 # src/scanner.c external scanner where one exists at the pinned commit
-# (python, bash and javascript; json, c, java and go have none).
+# (python, bash, javascript and typescript; json, c, java and go have none).
 set(TS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter")
 set(TSJSON_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-json")
 set(TSC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-c")
@@ -27,6 +27,7 @@ set(TSPY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-python")
 set(TSBASH_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-bash")
 set(TSGO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-go")
 set(TSJS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-javascript")
+set(TSTS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-typescript")
 
 set(TSJAVA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-java")
 
@@ -42,6 +43,8 @@ set(TS_SOURCES
   "${TSGO_ROOT}/src/parser.c"
   "${TSJS_ROOT}/src/parser.c"
   "${TSJS_ROOT}/src/scanner.c"
+  "${TSTS_ROOT}/typescript/src/parser.c"
+  "${TSTS_ROOT}/typescript/src/scanner.c"
 )
 
 # ---- embedded DSL schema and notices ---------------------------------------
@@ -75,7 +78,7 @@ add_custom_command(
 )
 # ---- embedded facts.scm query files (E6, cpp/facts.cpp) ---------------------
 set(GENERATED_FACTS)
-foreach(lang c python bash json java go javascript)
+foreach(lang c python bash json java go javascript typescript)
   set(_facts_out "${GENERATED_DIR}/facts_${lang}_embedded.hpp")
   add_custom_command(
     OUTPUT "${_facts_out}"
@@ -117,6 +120,7 @@ target_include_directories(lmok PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite"
   "${TS_ROOT}/lib/include"
   "${TS_ROOT}/lib/src"
+  "${TSTS_ROOT}/typescript/src"
   "${GENERATED_DIR}"
 )
 # Same feature-test defines as the upstream tree-sitter Makefile.

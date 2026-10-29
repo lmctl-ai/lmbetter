@@ -10,7 +10,8 @@ with the [tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json),
 [tree-sitter-bash](https://github.com/tree-sitter/tree-sitter-bash),
 [tree-sitter-java](https://github.com/tree-sitter/tree-sitter-java), and
 [tree-sitter-go](https://github.com/tree-sitter/tree-sitter-go),
-[tree-sitter-javascript](https://github.com/tree-sitter/tree-sitter-javascript) grammars in one dependency-free executable that can be driven from the command
+[tree-sitter-javascript](https://github.com/tree-sitter/tree-sitter-javascript), and
+[tree-sitter-typescript](https://github.com/tree-sitter/tree-sitter-typescript) grammars in one dependency-free executable that can be driven from the command
 line or scripted with [lmscript](https://github.com/lmctl-ai). Feed it source text
 and it prints the concrete syntax tree; from lmscript you get a typed `Tree`
 object to inspect.
@@ -125,15 +126,15 @@ lmok --version
 lmok --notices
 lmok --dsl-schema [--json]
 lmok --dsl-signatures
-lmok parse [--lang json|c|python|bash|java|go|javascript] FILE       # '-' reads stdin
-lmok query [--lang json|c|python|bash|java|go|javascript] [--pattern] PATTERN FILE  # '-' reads stdin
+lmok parse [--lang json|c|python|bash|java|go|javascript|typescript] FILE       # '-' reads stdin
+lmok query [--lang json|c|python|bash|java|go|javascript|typescript] [--pattern] PATTERN FILE  # '-' reads stdin
 lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress] [--sarif FILE]
         [--new-since RUN|--baseline FILE] [--fail-on-new] [--changed[=REV]]
 lmok ci [--config FILE] [--no-suppress] [--sarif FILE] [ROOT]
 lmok rules PACK... | test PACK FIXTURE...
 lmok findings [--rule ID] [--file PATH] [--db PATH]
-lmok facts [--lang json|c|python|bash|java|go|javascript] FILE|DIR...
-lmok check [--lang json|c|python|bash|java|go|javascript] RULES.dslb FILE|DIR... [--no-suppress] [--sarif FILE]
+lmok facts [--lang json|c|python|bash|java|go|javascript|typescript] FILE|DIR...
+lmok check [--lang json|c|python|bash|java|go|javascript|typescript] RULES.dslb FILE|DIR... [--no-suppress] [--sarif FILE]
 lmok --dsl FILE [FILE ...]
 ```
 
@@ -143,7 +144,7 @@ regions appear as `(ERROR ...)` nodes — and still exits 0; tree-sitter always
 produces a tree. `query` runs a tree-sitter S-expression pattern over the
 document and prints one line per captured node, `kind
 start_row:start_col-end_row:end_col` (0-based). Both default to the JSON
-grammar; `--lang c|python|bash|java|go|javascript` switches grammars (an unknown language exits
+grammar; `--lang c|python|bash|java|go|javascript|typescript` switches grammars (an unknown language exits
 2 with the known-languages list). `query --pattern` takes a code-shaped
 (semgrep-style) pattern instead of an S-expression — `strcpy($DST, $SRC)`, `$F(...)`, `if ($C) { return $V; }` —
 compiles it with the same grammar (first slice: c and python), prints the generated query on a `query:` line and
@@ -436,7 +437,7 @@ lmok lint rules/c-tier1.json examples/data/sample.c
 ## Facts (knowledge tree, tier 3 / E6)
 
 ```sh
-lmok facts [--lang json|c|python|bash|java|go|javascript] FILE|DIR...
+lmok facts [--lang json|c|python|bash|java|go|javascript|typescript] FILE|DIR...
 ```
 
 Prints one JSON Lines record per definition, reference or edge found in each
@@ -549,7 +550,9 @@ JavaScript (tree-sitter-javascript v0.25.0) is available as `--lang javascript`
 and inferred for `.js` files. Its CLI facts include declarations, imports and
 calls; the lmscript `ts.parse_*` DSL surface remains unchanged. The heuristic
 `rules/javascript-tier1.json` pack flags dynamic code, child_process imports,
-and innerHTML assignments.
+and innerHTML assignments. TypeScript (tree-sitter-typescript v0.23.2) is a
+separate `--lang typescript` grammar for `.ts` files; its fact extraction and
+`typescript-tier1.json` remain separate from JavaScript.
 
 ## Repository layout
 

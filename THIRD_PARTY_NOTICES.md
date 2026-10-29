@@ -57,6 +57,17 @@ The JavaScript grammar compiled into the executable (`third_party/tree-sitter-ja
 - Full license text: the upstream `LICENSE` file, vendored at
   `third_party/tree-sitter-javascript/LICENSE` after running `scripts/sync-deps.sh`
 
+## tree-sitter-typescript
+
+The TypeScript grammar compiled into the executable (`third_party/tree-sitter-typescript/typescript`).
+
+- Upstream: https://github.com/tree-sitter/tree-sitter-typescript
+- Version: 0.23.2, pinned in `deps.lock`
+- License: **MIT License**
+- Copyright (c) 2017 Max Brunsfeld
+- Full license text: the upstream `LICENSE` file, vendored at
+  `third_party/tree-sitter-typescript/LICENSE` after running `scripts/sync-deps.sh`
+
 ## lmcode-cpp SDK
 
 `cpp/dslvm.hpp`, the `cpp/stdlib/*.hpp` headers, and
