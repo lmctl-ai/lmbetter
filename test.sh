@@ -977,7 +977,8 @@ ok "findings: stored findings print as lint JSON lines + path; --rule and --file
 
 # Fix the violation and re-lint: the old finding is superseded (gone from the
 # default view) but kept as history; the clean file's row set is unaffected.
-sed -i 's/gets(buf)/fgets(buf, sizeof buf, stdin)/' "$WORK/dbproj/src/a.c"
+sed 's/gets(buf)/fgets(buf, sizeof buf, stdin)/' "$WORK/dbproj/src/a.c" >"$WORK/dbproj/src/a.fixed.c" &&
+  mv "$WORK/dbproj/src/a.fixed.c" "$WORK/dbproj/src/a.c" || fail "edit fixture"
 "$HOST" lint rules/c-tier1.json "$WORK/dbproj/src" --db "$DBPATH" >/dev/null || fail "re-lint after fix"
 out="$("$HOST" findings --db "$DBPATH")"
 [ -z "$out" ] || fail "the fixed finding must leave the default findings output: $out"
