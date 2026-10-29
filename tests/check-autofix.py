@@ -6,6 +6,8 @@ directory. It therefore exercises the same CLI on Linux, macOS and MinGW,
 including UTF-8 paths, byte offsets and CRLF files.
 """
 import json
+import hashlib
+import sqlite3
 import os
 import shutil
 from pathlib import Path
@@ -76,6 +78,7 @@ class Autofix(unittest.TestCase):
         findings = self.findings(result)
         self.assertEqual([f["rule"] for f in findings], ["FIX_C_GETS", "FIX_C_COPY"])
         for finding, token in zip(findings, (b"gets", b"strcpy")):
+            self.assertIn("fix", finding)
             start = before.index(token)
             self.assertEqual(finding["fix"], {"start_byte": start, "end_byte": start + len(token),
                                                "text": b"safe_gets".decode() if token == b"gets" else "safe_copy"})
@@ -253,6 +256,40 @@ class Autofix(unittest.TestCase):
         self.assertEqual(result.stdout.count(b"\\ No newline at end of file"), 2)
         self.assertIn(b"@@ -1,1 +1,1 @@\n", result.stdout)
         self.assertIn(b"caf\xc3\xa9 space.c", result.stdout)
+
+    def test_diff_is_read_only_for_database_and_apply_records_final_bytes(self):
+        source = self.work / "record.c"
+        before = b"int f() { gets(x); }\n"
+        after = b"int f() { safe_gets(x); }\n"
+        source.write_bytes(before)
+        db = self.work / "fix.db"
+        preview = self.lint(self.cpack, source, "--diff", "--db", db)
+        self.assertEqual(preview.returncode, 0, preview.stdout + preview.stderr)
+        self.assertFalse(db.exists())
+        self.assertEqual(source.read_bytes(), before)
+        result = self.lint(self.cpack, source, "--fix", "--db", db)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(source.read_bytes(), after)
+        connection = sqlite3.connect(db)
+        try:
+            self.assertEqual(connection.execute("select sha256,size from files").fetchall(),
+                             [(hashlib.sha256(after).hexdigest(), len(after))])
+            self.assertEqual(connection.execute("select count(*) from findings").fetchone()[0], 0)
+        finally:
+            connection.close()  # Windows requires this before TemporaryDirectory cleanup.
+
+    def test_fix_and_opt_in_rule_metadata_coexist(self):
+        source = self.work / "metadata.c"
+        source.write_bytes(b"int foo;\n")
+        pack = self.work / "metadata.json"
+        pack.write_text(json.dumps({"lang": "c", "rules": [
+            {"id": "META", "on": "identifier", "message": "style", "fix": "bar", "tags": ["autofix"]},
+        ]}), encoding="utf-8")
+        result = self.lint(pack, source, "--metadata")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        finding = self.findings(result)[0]
+        self.assertEqual(finding["fix"], {"start_byte": 4, "end_byte": 7, "text": "bar"})
+        self.assertEqual(finding["metadata"]["tags"], ["autofix"])
 
     def test_entry_report_fix_emits_the_same_fix_shape(self):
         compiler = os.environ.get("LMSCRIPT_BIN", LMSCRIPT)
