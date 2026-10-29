@@ -1097,4 +1097,7 @@ ok "lmok ci planted-finding gate"
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-rule-contracts.py "$HOST" || fail "rule metadata and annotated pack harness"
 ok "rule metadata and annotated pack harness"
 
+python3 tests/check-secrets.py "$HOST" || fail "secrets packs and entropy"
+ok "secrets packs, redaction, entropy and false positive controls"
+
 echo "PASS: $pass checks"

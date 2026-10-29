@@ -146,7 +146,8 @@ struct QueryError : std::runtime_error {
 // #any-eq?/#any-not-eq? (capture text vs literal or another capture),
 // #match?/#not-match?/#any-match?/#any-not-match? (ECMAScript regex,
 // UNANCHORED like upstream — authors anchor with ^...$), and
-// #any-of?/#not-any-of?. The plain forms must hold for EVERY node of a
+// #any-of?/#not-any-of?, plus #entropy-gt? @capture "bits" (strict byte Shannon
+// entropy threshold, finite 0..8, non-empty captures <=16 KiB). The plain forms must hold for EVERY node of a
 // quantified capture, the any-* forms for SOME node (the web binding's
 // every/some semantics; the Rust binding lets any-* pass vacuously, which is
 // not copied). Property predicates

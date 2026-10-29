@@ -60,9 +60,16 @@ void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding>
     throw QueryError("rule " + rule.id + ": " + e.what());
   }
   if(suppression && suppression->drop(static_cast<size_t>(node_start_row(node)),rule.id,no_suppress))return;
+  std::string display = text;
+  if (rule.redact) {
+    // Only content prefix leaves this boundary; the raw candidate is never persisted.
+    const size_t first = display.find_first_not_of("\"'");
+    display = first == std::string::npos ? "" : display.substr(first, 4);
+    display += "[REDACTED]";
+  }
   findings.push_back({node_start_row(node), node_start_col(node),
                       node_end_row(node), node_end_col(node),
-                      rule.id, rule.severity, expand_message(rule.message, text), rule.metadata});
+                      rule.id, rule.severity, expand_message(rule.message, display), rule.metadata});
 }
 
 } // namespace
@@ -140,7 +147,7 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
     for (const char *key : {"capture", "pattern-inside", "pattern-not-inside"}) {
       const JsonNode *value = member(entry, key);
       if (!value) continue;
-      if (!pattern) fail(std::string("'") + key + "' needs 'pattern'");
+      if (!pattern && !(query && std::string(key) == "capture")) fail(std::string("'") + key + "' needs 'pattern'");
       if (value->kind != JsonNode::Kind::String || value->text.empty()) fail(std::string("'") + key + "' must be a non-empty string");
       std::string &target = std::string(key) == "capture" ? rule.capture : std::string(key) == "pattern-inside" ? rule.pattern_inside : rule.pattern_not_inside;
       target = value->text;
@@ -149,6 +156,10 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
     if (!message || message->kind != JsonNode::Kind::String)
       fail("missing 'message'");
     rule.message = message->text;
+    if (const JsonNode *redact = member(entry, "redact")) {
+      if (redact->kind != JsonNode::Kind::Bool) fail("'redact' must be a boolean");
+      rule.redact = redact->boolean;
+    }
     if (const JsonNode *severity = member(entry, "severity")) {
       if (severity->kind != JsonNode::Kind::String || severity->text.empty())
         fail("'severity' must be a string");
@@ -258,7 +269,13 @@ std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std
       if (rule->query.empty()) continue;
       NodeList captures;
       try {
-        captures = node_query(root, rule->query, grammar);
+        if (rule->capture.empty()) captures = node_query(root, rule->query, grammar);
+        else {
+          const auto matches = query_matches(root, rule->query, grammar);
+          for (const auto &match : matches.matches)
+            for (const auto &capture : match.captures)
+              if (capture.name == rule->capture) captures.items.push_back(capture.node);
+        }
       } catch (const QueryError &e) {
         throw QueryError("rule " + rule->id + ": " + e.what());
       }

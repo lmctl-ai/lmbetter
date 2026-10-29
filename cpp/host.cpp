@@ -1,6 +1,8 @@
 // lmok wrapper over tree-sitter. The only translation unit that includes
 // tree-sitter headers; see host.hpp for the interface contract.
 #include "host.hpp"
+#include <array>
+#include <cmath>
 #include "bounded_regex.hpp"
 
 #include <algorithm>
@@ -343,7 +345,7 @@ struct RaiiCursor {
 };
 
 struct Predicate {
-  enum Kind { Eq, Match, AnyOf } kind = Eq;
+  enum Kind { Eq, Match, AnyOf, Entropy } kind = Eq;
   bool positive = true;
   bool match_all = true;
   uint32_t capture = 0;          // first argument (always a capture)
@@ -352,6 +354,7 @@ struct Predicate {
   std::string operand;           // Eq literal
   std::vector<std::string> options; // AnyOf literals
   std::regex re;                 // Match
+  double threshold = 0;         // Entropy, bits per byte
 };
 
 std::string string_value(const TSQuery *query, uint32_t id) {
@@ -423,6 +426,17 @@ std::vector<std::vector<Predicate>> compile_predicates(const TSQuery *query, Pat
         try { p.re = bounded_regex(source); }
         catch (const std::length_error &e) { fail(e.what()); }
         catch (const std::regex_error &) { fail("has an invalid regex '" + source + "'"); }
+      } else if (op == "entropy-gt?") {
+        if (args.size() != 2 || !is_capture(args[0]) || is_capture(args[1]))
+          fail("takes a capture and a numeric literal threshold (0..8)");
+        p.kind = Predicate::Entropy;
+        p.capture = args[0]->value_id;
+        const std::string value = string_value(query, args[1]->value_id);
+        size_t used = 0;
+        try { p.threshold = std::stod(value, &used); }
+        catch (const std::exception &) { fail("threshold must be finite and within 0..8"); }
+        if (used != value.size() || !std::isfinite(p.threshold) || p.threshold < 0 || p.threshold > 8)
+          fail("threshold must be finite and within 0..8");
       } else if (op == "any-of?" || op == "not-any-of?") {
         if (args.size() < 2) fail("takes a capture and at least one literal");
         if (!is_capture(args[0])) fail("first argument must be a capture, got literal \"" + string_value(query, args[0]->value_id) + "\"");
@@ -487,6 +501,20 @@ bool satisfies(const Predicate &p, const TSQueryMatch &match, const Tree *owner)
   case Predicate::Match:
     if (texts.empty()) return !p.positive;
     return every_or_some([&](const std::string &t) { return regex_search_bounded(t, p.re) == p.positive; });
+  case Predicate::Entropy:
+    if (texts.empty()) return false;
+    return every_or_some([&](const std::string &t) {
+      // Byte histogram, O(n + 256), bounded independently of regex matching.
+      if (t.empty() || t.size() > kRegexTextCap) return false;
+      std::array<size_t, 256> counts{};
+      for (unsigned char c : t) ++counts[c];
+      double entropy = 0;
+      for (size_t count : counts) if (count) {
+        const double probability = static_cast<double>(count) / t.size();
+        entropy -= probability * std::log2(probability);
+      }
+      return entropy > p.threshold;
+    });
   case Predicate::AnyOf:
     for (const auto &t : texts) {
       const bool hit = std::find(p.options.begin(), p.options.end(), t) != p.options.end();

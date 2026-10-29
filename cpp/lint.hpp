@@ -20,11 +20,13 @@ namespace lmok {
 struct LintRule {
   std::string id;
   RuleMetadata metadata; // SARIF: rule properties and helpUri; JSON only under --metadata
+
+  bool redact = false; // Render only the first four content bytes, before any output/DB sink.
   Grammar grammar = Grammar::Json;
   std::string on;          // CST node kind; empty = not set
   std::string query;       // S-expression pattern; empty = not set
   std::string pattern;     // code-shaped pattern (pattern.hpp); empty = not set; compiled into `compiled`
-  std::string capture;     // metavariable whose node is reported instead of the whole match; empty = root
+  std::string capture;     // pattern metavariable / query capture to report; empty = default candidates
   std::string pattern_inside, pattern_not_inside; // ancestor filters, also code-shaped; empty = not set
   CompiledPattern compiled, compiled_inside, compiled_not_inside;
   std::string message;     // "{text}" expands to the matched node's text

@@ -245,6 +245,14 @@ unreadable/corrupt DBs exit 3, and stdout failures exit 4.
 
 ## Rule packs
 
+## Metrics
+
+`lmok metrics FILE...` prints one JSON object per file with physical `lines`,
+`functions`, and maximum control-flow `max_nesting`. Use `--lang` when a file
+has no recognized extension. `lmok dup [--tokens N] FILE...` hashes normalized
+token windows within each file (identifiers and literals are replaced), and
+prints duplicate ranges; the default minimum window is 20 tokens.
+
 `lmok lint` reads a pack — conditions as data. Format:
 
 ```json
@@ -279,6 +287,9 @@ unreadable/corrupt DBs exit 3, and stdout failures exit 4.
     metavariable in a statement slot binds any statement or block). A pattern
     that does not compile, a `capture` naming no metavariable, or an ancestor
     filter without `pattern` is a pack error (exit 2).
+- Query rules may set `"capture": "name"` to emit only that capture; other
+  captures remain available to predicates. This keeps credential names out of
+  the secret finding candidates.
 - `text_matches`: optional `std::regex` (ECMAScript) applied with
   `regex_search` (unanchored — anchor with `^`/`$` yourself) to the
   candidate's text as a post-match filter. Regex matching is bounded: node
@@ -528,3 +539,22 @@ Java source is supported by --lang java and .java directory targets, using the p
     lmok facts examples/java-sample.java
 
 The nine Java tier-1 rules cover empty catches, println outside methods named main, string-literal reference comparisons, stack traces, credential-looking literal fields, variable Runtime.exec, weak digests, generic catches and TODO/FIXME comments. These are syntax heuristics, not type resolution. Java facts describe classes, interfaces, methods, fields, imports and candidate calls; ts.parse_java/query_java/reparse_java are available in lmcode. See [Java behavior and limits](durable-memory/java.md).
+
+
+## Secrets packs
+
+`lmok lint rules/secrets-python.json src/` scans string literal content. Packs
+for `json`, `bash`, `python` and `c` detect AWS access IDs, GitHub classic/fine
+grained tokens, Slack tokens, private-key headers and JWT-shaped values. These
+are shape checks, not credential validation. Generic high-entropy candidates
+also require a credential assignment/key (`password`, `token`, `secret`,
+`api_key`, including underscore suffixes), 24–128 allowed bytes and entropy
+above 4.3 bits/byte; random ordinary strings alone are not credentials.
+
+Pack field `"redact": true` replaces `{text}` with the first four content bytes
+plus `[REDACTED]` before findings reach stdout, SQLite or downstream formats.
+Do not put literal credentials in rule messages. Query predicate
+`(#entropy-gt? @capture "4.3")` computes byte Shannon entropy with a strict
+threshold (finite 0–8); empty or over-16-KiB captures do not match. Quantified
+captures must all exceed the threshold. No network checks are made. See
+[secrets details](durable-memory/12-secrets-packs.md).

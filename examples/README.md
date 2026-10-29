@@ -114,3 +114,7 @@ lmok check --lang c build/c-function-metrics.dslb examples/data/sample.c
 
 The command parses each named input once and resets transient trees/findings
 between inputs. Cross-file aggregation remains a body-level `--dsl` concern.
+
+`bash examples/secrets.sh` demonstrates opting in to the JSON and Python secret
+packs. Findings expose four content bytes plus `[REDACTED]`; examples read only
+committed sample inputs and need no provider account or network.
