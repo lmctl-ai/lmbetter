@@ -90,6 +90,7 @@ add_executable(lmok
   cpp/main.cpp
   cpp/host.cpp
   cpp/lint.cpp
+  cpp/pattern.cpp
   cpp/db.cpp
   $<TARGET_OBJECTS:lmok_sqlite>
   cpp/facts.cpp

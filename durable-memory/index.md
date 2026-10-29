@@ -18,6 +18,7 @@ Repository: https://github.com/lmctl-ai/lmok.
 | [08-v6-entry-dispatch.md](08-v6-entry-dispatch.md) | v6 lmcode entry loading, CST dispatch, findings and CLI contract |
 | [09-facts-layer.md](09-facts-layer.md) | E6 facts extraction: facts.scm vocabulary, query_matches, scope chains, confidence, known edges |
 | [10-lint-db-findings.md](10-lint-db-findings.md) | lint --db run recording + supersession, findings verb, DB-create/side-channel decisions |
+| [11-pattern-rules.md](11-pattern-rules.md) | Code-shaped (semgrep-style) patterns compiled to queries: `query --pattern`, pack `pattern` fields, `ts.match_*`, corner cases |
 
 Operational name: **lmok** (binary, schemas, CMake and install paths). Tier-3
 proposal documents are owned by the other team and were intentionally retained

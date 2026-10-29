@@ -884,6 +884,8 @@ ok "robustness: invalid UTF-8 replaced in JSON findings; valid UTF-8 preserved (
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-entries.py "$HOST" || fail "v6 entry dispatch controls"
 ok "v6 entries: kind dispatch, source order, anonymous nodes, per-file state and refusals"
 python3 tests/check-native-os.py "$HOST" --prove-controls || fail "native OS contracts"
+python3 tests/check-patterns.py "$HOST" || fail "pattern compiler cases"
+ok "patterns: code-shaped patterns compile to pinned queries; root matches and exit-2 diagnostics byte-exact"
 ok "native OS byte/path/linkage contracts and negative controls"
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-rules-os.py "$HOST" --prove-controls || fail "rule pack OS oracles"
 ok "rule packs per OS: all twelve converted packs, CRLF/no-newline/unicode fixtures, anonymous kinds, argument order"

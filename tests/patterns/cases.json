@@ -1,0 +1,229 @@
+{
+ "c_code": "int main(void) {\n  strcpy(a, b); strcpy ( c ,d );\n  f(); f(1); g(1, x->y, \"s\"); g(1, 2, 3, \"s\");\n  if (a == a) { return 1; } if (a == b) { return 2; }\n  if (p) { return q; } if (p) { return q; return r; }\n  goto out; p->field = 3; q->other = 4;\n  z = malloc(n); w = (char *) buf; v = (int) buf; k = a + b * c;\nout: return 0;\n}\n",
+ "python_code": "eval(x); exec(y); print(); print(1, 2)\nos.system(\"ls\"); sub.system(cmd); subprocess.call(args, shell=True); subprocess.call(args, shell=False)\na == a; a == b; open(f, \"w\"); open(f, \"r\")\ndef g():\n    return None\n",
+ "cases": [
+  {
+   "lang": "c",
+   "pattern": "strcpy($DST, $SRC)",
+   "query": "((call_expression function: (identifier) @lit_1 arguments: (argument_list . (_) @mv_DST_1 . (_) @mv_SRC_1 .)) @root (#eq? @lit_1 \"strcpy\"))",
+   "matches": [
+    "call_expression 1:2-1:14",
+    "call_expression 1:16-1:31"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "$F(...)",
+   "query": "((call_expression function: (_) @mv_F_1 arguments: (argument_list)) @root)",
+   "matches": [
+    "call_expression 1:2-1:14",
+    "call_expression 1:16-1:31",
+    "call_expression 2:2-2:5",
+    "call_expression 2:7-2:11",
+    "call_expression 2:13-2:28",
+    "call_expression 2:30-2:45",
+    "call_expression 6:6-6:15"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "f()",
+   "query": "((call_expression function: (identifier) @lit_1 arguments: (argument_list) @lit_2) @root (#eq? @lit_1 \"f\") (#eq? @lit_2 \"()\"))",
+   "matches": [
+    "call_expression 2:2-2:5"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "g(1, ..., \"s\")",
+   "query": "((call_expression function: (identifier) @lit_1 arguments: (argument_list . (number_literal) @lit_2 (string_literal) @lit_3 .)) @root (#eq? @lit_1 \"g\") (#eq? @lit_2 \"1\") (#eq? @lit_3 \"\\\"s\\\"\"))",
+   "matches": [
+    "call_expression 2:13-2:28",
+    "call_expression 2:30-2:45"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "$X == $X",
+   "query": "((binary_expression left: (_) @mv_X_1 operator: \"==\" right: (_) @mv_X_2) @root (#eq? @mv_X_1 @mv_X_2))",
+   "matches": [
+    "binary_expression 3:6-3:12"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "if ($C) { return $V; }",
+   "query": "((if_statement condition: (parenthesized_expression . (_) @mv_C_1 .) consequence: (compound_statement . (return_statement . (_) @mv_V_1 .) .)) @root)",
+   "matches": [
+    "if_statement 3:2-3:27",
+    "if_statement 3:28-3:53",
+    "if_statement 4:2-4:22"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "goto $L;",
+   "query": "((goto_statement label: (_) @mv_L_1) @root)",
+   "matches": [
+    "goto_statement 5:2-5:11"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "x->y",
+   "query": "((field_expression argument: (identifier) @lit_1 operator: \"->\" field: (field_identifier) @lit_2) @root (#eq? @lit_1 \"x\") (#eq? @lit_2 \"y\"))",
+   "matches": [
+    "field_expression 2:18-2:22"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "$P->$F",
+   "query": "((field_expression argument: (_) @mv_P_1 operator: \"->\" field: (_) @mv_F_1) @root)",
+   "matches": [
+    "field_expression 2:18-2:22",
+    "field_expression 5:12-5:20",
+    "field_expression 5:26-5:34"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "return $X",
+   "query": "((return_statement . (_) @mv_X_1 .) @root)",
+   "matches": [
+    "return_statement 3:16-3:25",
+    "return_statement 3:42-3:51",
+    "return_statement 4:11-4:20",
+    "return_statement 4:32-4:41",
+    "return_statement 4:42-4:51",
+    "return_statement 7:5-7:14"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "malloc($N)",
+   "query": "((call_expression function: (identifier) @lit_1 arguments: (argument_list . (_) @mv_N_1 .)) @root (#eq? @lit_1 \"malloc\"))",
+   "matches": [
+    "call_expression 6:6-6:15"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "(char *) $X",
+   "query": "((cast_expression type: (type_descriptor type: (primitive_type) @lit_1 declarator: (abstract_pointer_declarator) @lit_2) value: (_) @mv_X_1) @root (#eq? @lit_1 \"char\") (#eq? @lit_2 \"*\"))",
+   "matches": [
+    "cast_expression 6:21-6:33"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "strcpy ( $A ,$B )",
+   "query": "((call_expression function: (identifier) @lit_1 arguments: (argument_list . (_) @mv_A_1 . (_) @mv_B_1 .)) @root (#eq? @lit_1 \"strcpy\"))",
+   "matches": [
+    "call_expression 1:2-1:14",
+    "call_expression 1:16-1:31"
+   ]
+  },
+  {
+   "lang": "c",
+   "pattern": "a + b * c",
+   "query": "((binary_expression left: (identifier) @lit_1 operator: \"+\" right: (binary_expression left: (identifier) @lit_2 operator: \"*\" right: (identifier) @lit_3)) @root (#eq? @lit_1 \"a\") (#eq? @lit_2 \"b\") (#eq? @lit_3 \"c\"))",
+   "matches": [
+    "binary_expression 6:54-6:63"
+   ]
+  },
+  {
+   "lang": "python",
+   "pattern": "eval($X)",
+   "query": "((call function: (identifier) @lit_1 arguments: (argument_list . (_) @mv_X_1 .)) @root (#eq? @lit_1 \"eval\"))",
+   "matches": [
+    "call 0:0-0:7"
+   ]
+  },
+  {
+   "lang": "python",
+   "pattern": "$O.system(...)",
+   "query": "((call function: (attribute object: (_) @mv_O_1 attribute: (identifier) @lit_1) arguments: (argument_list)) @root (#eq? @lit_1 \"system\"))",
+   "matches": [
+    "call 1:0-1:15",
+    "call 1:17-1:32"
+   ]
+  },
+  {
+   "lang": "python",
+   "pattern": "print(...)",
+   "query": "((call function: (identifier) @lit_1 arguments: (argument_list)) @root (#eq? @lit_1 \"print\"))",
+   "matches": [
+    "call 0:18-0:25",
+    "call 0:27-0:38"
+   ]
+  },
+  {
+   "lang": "python",
+   "pattern": "print()",
+   "query": "((call function: (identifier) @lit_1 arguments: (argument_list) @lit_2) @root (#eq? @lit_1 \"print\") (#eq? @lit_2 \"()\"))",
+   "matches": [
+    "call 0:18-0:25"
+   ]
+  },
+  {
+   "lang": "python",
+   "pattern": "$A == $A",
+   "query": "((comparison_operator . (_) @mv_A_1 operators: \"==\" . (_) @mv_A_2 .) @root (#eq? @mv_A_1 @mv_A_2))",
+   "matches": [
+    "comparison_operator 2:0-2:6"
+   ]
+  },
+  {
+   "lang": "python",
+   "pattern": "subprocess.call($ARGS, shell=True)",
+   "query": "((call function: (attribute object: (identifier) @lit_1 attribute: (identifier) @lit_2) arguments: (argument_list . (_) @mv_ARGS_1 . (keyword_argument name: (identifier) @lit_3 value: (true) @lit_4) .)) @root (#eq? @lit_1 \"subprocess\") (#eq? @lit_2 \"call\") (#eq? @lit_3 \"shell\") (#eq? @lit_4 \"True\"))",
+   "matches": [
+    "call 1:34-1:67"
+   ]
+  },
+  {
+   "lang": "python",
+   "pattern": "return None",
+   "query": "((return_statement . (none) @lit_1 .) @root (#eq? @lit_1 \"None\"))",
+   "matches": [
+    "return_statement 4:4-4:15"
+   ]
+  },
+  {
+   "lang": "python",
+   "pattern": "open($F, \"w\")",
+   "query": "((call function: (identifier) @lit_1 arguments: (argument_list . (_) @mv_F_1 . (string) @lit_2 .)) @root (#eq? @lit_1 \"open\") (#eq? @lit_2 \"\\\"w\\\"\"))",
+   "matches": [
+    "call 2:16-2:28"
+   ]
+  }
+ ],
+ "errors": [
+  {
+   "lang": "c",
+   "pattern": "strcpy($A",
+   "message": "does not parse as c"
+  },
+  {
+   "lang": "c",
+   "pattern": "$X + ...",
+   "message": "'...' is only supported as a call argument"
+  },
+  {
+   "lang": "c",
+   "pattern": "a; b;",
+   "message": "one statement or expression per pattern"
+  },
+  {
+   "lang": "c",
+   "pattern": "/* x */",
+   "message": "is empty"
+  },
+  {
+   "lang": "python",
+   "pattern": "def",
+   "message": "does not parse as python"
+  }
+ ]
+}

@@ -123,7 +123,7 @@ lmok --notices
 lmok --dsl-schema [--json]
 lmok --dsl-signatures
 lmok parse [--lang json|c|python|bash] FILE          # '-' reads stdin
-lmok query [--lang json|c|python|bash] PATTERN FILE  # '-' reads stdin
+lmok query [--lang json|c|python|bash] [--pattern] PATTERN FILE  # '-' reads stdin; --pattern: code-shaped
 lmok lint RULES.json FILE... [--db PATH]
 lmok findings [--rule ID] [--file PATH] [--db PATH]
 lmok check [--lang json|c|python|bash] RULES.dslb FILE...
@@ -137,7 +137,13 @@ produces a tree. `query` runs a tree-sitter S-expression pattern over the
 document and prints one line per captured node, `kind
 start_row:start_col-end_row:end_col` (0-based). Both default to the JSON
 grammar; `--lang c|python|bash` switches grammars (an unknown language exits
-2 with the known-languages list). `lint` runs a rule pack (below) over each file and
+2 with the known-languages list). `query --pattern` takes a code-shaped
+(semgrep-style) pattern instead of an S-expression — `strcpy($DST, $SRC)`, `$F(...)`, `if ($C) { return $V; }` —
+compiles it with the same grammar (first slice: c and python), prints the generated query on a `query:` line and
+then the matched nodes; `$NAME` matches any one node (the same name twice means equal text), `...` any call
+arguments, everything else is literal code; whitespace and comments in the pattern do not matter. A pattern
+that does not parse, holds several statements, or uses `...` outside a call exits 2 naming the fragment.
+The same patterns work in rule packs (`pattern`, below). `lint` runs a rule pack (below) over each file and
 prints one JSON finding per line plus `N findings in <file>`; exit codes:
 0 ok (findings never fail the run — gating is the caller's job), 2 usage or
 rule-pack error, 3 input/DSL error (unreadable file aborts the run fast; an

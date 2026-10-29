@@ -3,6 +3,7 @@
 // subcommand (JSON grammar).
 #include "host.hpp"
 #include "lint.hpp"
+#include "pattern.hpp"
 #include "facts.hpp"
 #include "input.hpp"
 #include "db.hpp"
@@ -501,7 +502,7 @@ static int run_cli(int argc, char **argv) {
       "       lmok refs NAME [--db PATH]\n"
       "       lmok findings [--rule ID] [--file PATH] [--db PATH]\n"
       "       lmok parse [--lang json|c|python|bash] FILE\n"
-      "       lmok query [--lang json|c|python|bash] PATTERN FILE\n"
+      "       lmok query [--lang json|c|python|bash] [--pattern] PATTERN FILE\n"
       "       lmok lint RULES.json FILE... [--db PATH]\n"
       "       lmok facts [--lang json|c|python|bash] FILE|DIR...\n"
       "       lmok check [--lang json|c|python|bash] RULES.dslb FILE...\n"
@@ -832,9 +833,16 @@ static int run_cli(int argc, char **argv) {
       argi += 2;
     }
     const char *pattern = nullptr;
+    bool code_pattern = false; // --pattern: PATTERN is code-shaped; print the generated query, then the root matches
+    lmok::CompiledPattern compiled;
     if (is_query) {
+      if (argi < argc && std::string(argv[argi]) == "--pattern") { code_pattern = true; ++argi; }
       if (argi >= argc) { std::cerr << usage; return 2; }
       pattern = argv[argi++];
+      if (code_pattern) {
+        try { compiled = lmok::compile_pattern(grammar, pattern); }
+        catch (const lmok::PatternError &e) { std::cerr << e.what() << "\n"; return 2; }
+      }
     }
     if (argi != argc - 1) { std::cerr << usage; return 2; }
     std::string raw;
@@ -856,7 +864,12 @@ static int run_cli(int argc, char **argv) {
     }
     lmok::NodeList captures;
     try {
-      captures = lmok::node_query(lmok::node_root(tree), pattern, grammar);
+      if (code_pattern) {
+        std::cout << "query: " << compiled.query << "\n";
+        captures = lmok::pattern_matches(lmok::node_root(tree), compiled, grammar);
+      } else {
+        captures = lmok::node_query(lmok::node_root(tree), pattern, grammar);
+      }
     } catch (const lmok::QueryError &e) {
       std::cerr << e.what() << "\n";
       return 3;
