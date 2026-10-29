@@ -82,6 +82,10 @@ struct Emitter {
 
   std::string emit(TSNode n) {
     std::string name;
+    // `if ($C) $S`: a statement slot holding only a metavariable binds the statement itself (a block too),
+    // not an expression statement, so pattern-inside shapes like `while ($C) $B` cover every body form.
+    if (std::string(ts_node_type(n)) == "expression_statement" && ts_node_named_child_count(n) == 1 && is_meta(ts_node_named_child(n, 0), name))
+      return emit(ts_node_named_child(n, 0));
     if (is_meta(n, name)) {
       const int k = ++seen[name];
       const std::string capture = "mv_" + name + "_" + std::to_string(k);

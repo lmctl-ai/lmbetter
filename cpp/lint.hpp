@@ -7,6 +7,7 @@
 // finding message/severity. See README "Rule packs" for the format.
 
 #include "host.hpp"
+#include "pattern.hpp"
 
 #include <regex>
 #include <string>
@@ -19,6 +20,10 @@ struct LintRule {
   Grammar grammar = Grammar::Json;
   std::string on;          // CST node kind; empty = not set
   std::string query;       // S-expression pattern; empty = not set
+  std::string pattern;     // code-shaped pattern (pattern.hpp); empty = not set; compiled into `compiled`
+  std::string capture;     // metavariable whose node is reported instead of the whole match; empty = root
+  std::string pattern_inside, pattern_not_inside; // ancestor filters, also code-shaped; empty = not set
+  CompiledPattern compiled, compiled_inside, compiled_not_inside;
   std::string message;     // "{text}" expands to the matched node's text
   std::string severity = "minor"; // free-form; the pack owns the vocabulary
   std::string text_matches;      // ECMAScript regex source; empty = not set
@@ -41,8 +46,11 @@ std::vector<LintRule> load_rule_pack(const std::string &path);
 // pre-order CST walk with a kind→rules index (the dispatcher core v6
 // reuses); `query` rules run one ts_query cursor per rule over the root
 // (merging them into the single walk is a later optimization — deliberately
-// no Rete). Findings are sorted by (row, col). A query compile failure
-// throws QueryError with the rule id prepended.
+// no Rete); `pattern` rules run their compiled query and, when
+// `pattern-inside`/`pattern-not-inside` are set, keep a candidate only if some
+// ancestor is (is not) the root of a match of that pattern, over one parent map
+// per file built from a single cursor walk. Findings are sorted by (row, col).
+// A query compile failure throws QueryError with the rule id prepended.
 std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std::string &text);
 
 class Database;

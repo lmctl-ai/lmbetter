@@ -1,0 +1,17 @@
+{
+ "lang": "c",
+ "rules": [
+  {
+   "id": "LBC001",
+   "query": "((call_expression function: (identifier) @fn) (#match? @fn \"^(gets|strcpy|sprintf|strcat)$\"))",
+   "message": "unsafe call '{text}'",
+   "severity": "critical"
+  },
+  {
+   "id": "LBC004",
+   "query": "((call_expression function: (identifier) @fn) (#match? @fn \"^(system|popen|execl|execlp|execvp)$\"))",
+   "message": "command exec call '{text}'",
+   "severity": "critical"
+  }
+ ]
+}

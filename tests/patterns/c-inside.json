@@ -1,0 +1,19 @@
+{
+ "lang": "c",
+ "rules": [
+  {
+   "id": "IN1",
+   "pattern": "free($P)",
+   "pattern-inside": "while ($C) $B",
+   "message": "free inside a while",
+   "severity": "minor"
+  },
+  {
+   "id": "OUT1",
+   "pattern": "free($P)",
+   "pattern-not-inside": "while ($C) $B",
+   "message": "free outside any while",
+   "severity": "minor"
+  }
+ ]
+}

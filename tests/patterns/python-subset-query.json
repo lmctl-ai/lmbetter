@@ -1,0 +1,17 @@
+{
+ "lang": "python",
+ "rules": [
+  {
+   "id": "LBP003",
+   "query": "((call function: (identifier) @fn) (#match? @fn \"^(eval|exec)$\"))",
+   "message": "dynamic eval/exec call '{text}'",
+   "severity": "critical"
+  },
+  {
+   "id": "LBP008",
+   "query": "((call function: (identifier) @fn) (#eq? @fn \"print\"))",
+   "message": "print() call left in code",
+   "severity": "minor"
+  }
+ ]
+}

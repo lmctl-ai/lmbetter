@@ -268,6 +268,16 @@ unreadable/corrupt DBs exit 3, and stdout failures exit 4.
     the v6 entry table and this same kind-indexed dispatcher.
   - `query`: an S-expression pattern; every captured node of every match is a
     candidate.
+  - `pattern`: a code-shaped pattern (`strcpy($DST, $SRC)`, `$F(...)`, see
+    `query --pattern`), compiled at pack load with the rule's grammar (c and
+    python); the whole match is the candidate, or the node bound by the
+    metavariable named in `capture` (`"pattern": "$F(...)", "capture": "F"`
+    reports the callee, so `text_matches` filters on it). `pattern-inside` /
+    `pattern-not-inside` keep a candidate only if some ancestor is (is not) a
+    match of that pattern (`"pattern-inside": "while ($C) $B"`; a lone
+    metavariable in a statement slot binds any statement or block). A pattern
+    that does not compile, a `capture` naming no metavariable, or an ancestor
+    filter without `pattern` is a pack error (exit 2).
 - `text_matches`: optional `std::regex` (ECMAScript) applied with
   `regex_search` (unanchored — anchor with `^`/`$` yourself) to the
   candidate's text as a post-match filter. Regex matching is bounded: node

@@ -1,0 +1,21 @@
+{
+ "lang": "c",
+ "rules": [
+  {
+   "id": "LBC001",
+   "pattern": "$F(...)",
+   "capture": "F",
+   "text_matches": "^(gets|strcpy|sprintf|strcat)$",
+   "message": "unsafe call '{text}'",
+   "severity": "critical"
+  },
+  {
+   "id": "LBC004",
+   "pattern": "$F(...)",
+   "capture": "F",
+   "text_matches": "^(system|popen|execl|execlp|execvp)$",
+   "message": "command exec call '{text}'",
+   "severity": "critical"
+  }
+ ]
+}

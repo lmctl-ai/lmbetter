@@ -50,5 +50,33 @@ class Patterns(unittest.TestCase):
         self.assertEqual(run('query', '--lang', 'c', '--pattern').returncode, 2)
         self.assertEqual(run('query', '--lang', 'bash', '--pattern', 'echo', self.work / 'in.c').returncode, 2, 'bash patterns are outside this slice')
 
+    def test_pack_pattern_rules_equal_their_query_rules_byte_for_byte(self):
+        # Three tier-1 rules rewritten as patterns (LBC001, LBC004 in C; LBP003, LBP008 in Python) must print the
+        # same findings as the original query rules on the violations fixtures, byte for byte.
+        for lang, fixture in (('c', 'tests/fixtures/c-tier1-violations.c'), ('python', 'tests/fixtures/python-tier1-violations.py')):
+            with self.subTest(lang=lang):
+                query = run('lint', ROOT / f'tests/patterns/{lang}-subset-query.json', ROOT / fixture)
+                pattern = run('lint', ROOT / f'tests/patterns/{lang}-subset-pattern.json', ROOT / fixture)
+                self.assertEqual(query.returncode, 0, query.stderr)
+                self.assertEqual(pattern.returncode, 0, pattern.stderr)
+                self.assertGreater(query.stdout.count(b'\n'), 1, 'the subset must find something')
+                self.assertEqual(pattern.stdout, query.stdout)
+    def test_pattern_inside_and_not_inside(self):
+        r = run('lint', ROOT / 'tests/patterns/c-inside.json', ROOT / 'tests/patterns/c-inside.c')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        found = [(json.loads(l)['rule'], json.loads(l)['row']) for l in r.stdout.decode().splitlines() if l.startswith('{')]
+        self.assertEqual(found, [('IN1', 1), ('OUT1', 2), ('IN1', 3)])
+    def test_pack_pattern_errors_are_pack_errors(self):
+        bad = [({'id': 'X', 'pattern': 'strcpy($A', 'message': 'm'}, b"does not parse as c"),
+               ({'id': 'X', 'pattern': 'f($A)', 'capture': 'B', 'message': 'm'}, b"'capture' names no metavariable of the pattern"),
+               ({'id': 'X', 'pattern': 'f($A)', 'query': '(identifier)', 'message': 'm'}, b"mutually exclusive"),
+               ({'id': 'X', 'on': 'identifier', 'pattern-inside': 'f($A)', 'message': 'm'}, b"'pattern-inside' needs 'pattern'")]
+        for rule, message in bad:
+            with self.subTest(rule=rule):
+                pack = self.work / 'bad.json'; pack.write_bytes(json.dumps({'lang': 'c', 'rules': [rule]}).encode())
+                r = run('lint', pack, self.work / 'in.c')
+                self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+                self.assertIn(message, r.stderr)
+
 if __name__ == '__main__':
     unittest.main()

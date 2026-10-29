@@ -1,0 +1,21 @@
+{
+ "lang": "python",
+ "rules": [
+  {
+   "id": "LBP003",
+   "pattern": "$F(...)",
+   "capture": "F",
+   "text_matches": "^(eval|exec)$",
+   "message": "dynamic eval/exec call '{text}'",
+   "severity": "critical"
+  },
+  {
+   "id": "LBP008",
+   "pattern": "$F(...)",
+   "capture": "F",
+   "text_matches": "^print$",
+   "message": "print() call left in code",
+   "severity": "minor"
+  }
+ ]
+}

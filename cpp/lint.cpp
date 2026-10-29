@@ -11,6 +11,8 @@
 #include <fstream>
 #include <map>
 #include <set>
+#include <unordered_map>
+#include <unordered_set>
 #include <sstream>
 #include <utility>
 
@@ -119,8 +121,27 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
       if (query->kind != JsonNode::Kind::String || query->text.empty()) fail("'query' must be a pattern string");
       rule.query = query->text;
     }
-    if (!on && !query) fail("needs 'on' or 'query'");
-    if (on && query) fail("'on' and 'query' are mutually exclusive (pick one selector)");
+    const JsonNode *pattern = member(entry, "pattern");
+    if (pattern) {
+      if (pattern->kind != JsonNode::Kind::String || pattern->text.empty()) fail("'pattern' must be a code-shaped pattern string");
+      rule.pattern = pattern->text;
+    }
+    const int selectors = (on ? 1 : 0) + (query ? 1 : 0) + (pattern ? 1 : 0);
+    if (selectors == 0) fail("needs 'on', 'query' or 'pattern'");
+    if (selectors > 1) {
+      std::string present;
+      for (const char *key : {"on", "query", "pattern"})
+        if (member(entry, key)) present += (present.empty() ? "'" : (present.find(' ') == std::string::npos && selectors == 2 ? "' and '" : "', '")) + std::string(key);
+      fail(present + "' are mutually exclusive (pick one selector)");
+    }
+    for (const char *key : {"capture", "pattern-inside", "pattern-not-inside"}) {
+      const JsonNode *value = member(entry, key);
+      if (!value) continue;
+      if (!pattern) fail(std::string("'") + key + "' needs 'pattern'");
+      if (value->kind != JsonNode::Kind::String || value->text.empty()) fail(std::string("'") + key + "' must be a non-empty string");
+      std::string &target = std::string(key) == "capture" ? rule.capture : std::string(key) == "pattern-inside" ? rule.pattern_inside : rule.pattern_not_inside;
+      target = value->text;
+    }
     const JsonNode *message = member(entry, "message");
     if (!message || message->kind != JsonNode::Kind::String)
       fail("missing 'message'");
@@ -150,6 +171,21 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
         fail("bad text_matches regex '" + rule.text_matches + "'");
       }
     }
+    if (!rule.pattern.empty()) {
+      // Compile once at pack load, against the rule's grammar; a bad pattern is a pack error (exit 2) naming it.
+      try {
+        rule.compiled = compile_pattern(rule.grammar, rule.pattern);
+        if (!rule.pattern_inside.empty()) rule.compiled_inside = compile_pattern(rule.grammar, rule.pattern_inside);
+        if (!rule.pattern_not_inside.empty()) rule.compiled_not_inside = compile_pattern(rule.grammar, rule.pattern_not_inside);
+      } catch (const PatternError &e) {
+        fail(e.what());
+      }
+      if (!rule.capture.empty() && !rule.compiled.first_capture.count(rule.capture)) {
+        std::string names;
+        for (const auto &m : rule.compiled.metavariables) names += (names.empty() ? "" : ", ") + m;
+        fail("'capture' names no metavariable of the pattern (metavariables: " + (names.empty() ? std::string("none") : names) + ")");
+      }
+    }
     rules.push_back(std::move(rule));
   }
   return rules;
@@ -176,6 +212,41 @@ std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std
         const auto it = by_kind.find(node_kind(node));
         if (it == by_kind.end()) continue;
         for (const LintRule *rule : it->second) maybe_emit(*rule, node, findings);
+      }
+    }
+
+    // Pattern rules: the compiled query, then the ancestor filters over one parent map per file.
+    std::unordered_map<const void *, Node> parent_of; // built on first use: node id -> parent node
+    bool parents_built = false;
+    const auto ancestor_matches = [&](const Node &node, const CompiledPattern &inside) {
+      if (!parents_built) {
+        walk_nodes(tree, [&](const Node &n, const std::vector<Node> &ancestors) {
+          if (!ancestors.empty()) parent_of.emplace(node_id(n), ancestors.back());
+        });
+        parents_built = true;
+      }
+      std::unordered_set<const void *> roots;
+      for (const Node &r : pattern_matches(root, inside, grammar).items) roots.insert(node_id(r));
+      const Node *cur = &node;
+      for (;;) {
+        const auto it = parent_of.find(node_id(*cur));
+        if (it == parent_of.end()) return false;
+        cur = &it->second;
+        if (roots.count(node_id(*cur))) return true;
+      }
+    };
+    for (const LintRule *rule : here) {
+      if (rule->pattern.empty()) continue;
+      NodeList nodes;
+      try {
+        nodes = pattern_matches(root, rule->compiled, grammar, rule->capture);
+      } catch (const QueryError &e) {
+        throw QueryError("rule " + rule->id + ": " + e.what());
+      }
+      for (const Node &node : nodes.items) {
+        if (!rule->pattern_inside.empty() && !ancestor_matches(node, rule->compiled_inside)) continue;
+        if (!rule->pattern_not_inside.empty() && ancestor_matches(node, rule->compiled_not_inside)) continue;
+        maybe_emit(*rule, node, findings);
       }
     }
 
