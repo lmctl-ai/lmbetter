@@ -1,0 +1,7 @@
+{
+  "lang": "c",
+  "rules": [
+    {"id":"LBCF001","on":"number_literal","text_matches":"^01$","message":"avoid misleading octal spelling for zero-one literal","severity":"minor","fix":"1"},
+    {"id":"LBCF002","on":"number_literal","text_matches":"^0XFF$","message":"use canonical lower-case hexadecimal spelling","severity":"minor","fix":"0xff"}
+  ]
+}

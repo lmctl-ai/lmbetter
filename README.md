@@ -558,3 +558,42 @@ Do not put literal credentials in rule messages. Query predicate
 threshold (finite 0–8); empty or over-16-KiB captures do not match. Quantified
 captures must all exceed the threshold. No network checks are made. See
 [secrets details](durable-memory/12-secrets-packs.md).
+
+## Token-safe autofix
+
+Pack rules may supply an optional `"fix": "replacement text"`. Findings then
+include `"fix":{"start_byte":0,"end_byte":4,"text":"replacement text"}` with
+zero-based UTF-8 byte offsets (end exclusive). Text is literal; pattern
+metavariable substitution is not performed. lmcode entries can report the same
+metadata through `ts.report_fix(node, message, rule, severity, text)`; see
+[autofix-report.lms](examples/autofix-report.lms).
+
+```sh
+build/lmok lint rules/bash-autofix.json tests/fixtures/autofix-bash-before.sh --diff
+# Work on your own copy when applying the pinned fixture:
+cp tests/fixtures/autofix-c-before.c build/autofix-example.c
+build/lmok lint rules/c-autofix.json build/autofix-example.c --fix
+```
+
+`--fix` applies non-overlapping whole-node replacements bottom-up. Before writing,
+the host reparses the proposed bytes, refuses ERROR/MISSING nodes or changes to
+the CST outside the replaced nodes, and re-lints once using the verified tree.
+Remaining findings are printed, including findings exposed by the edit; `K fixed`
+is reported per file. Suppressed findings never enter the edit set. CRLF source
+keeps its line endings, including newlines inside replacement text. Repeating a
+fix run makes no further changes to an already-fixed file.
+
+`--diff` previews the same verified batch without writing source or recording a
+DB run; it wins when combined with `--fix`. Stdout is a unified full-file hunk,
+with the fixed count on stderr. Files with no edits produce no diff. Overlap or
+unsafe parse/shape changes refuse the entire file's batch (exit 3), leaving its
+bytes untouched. Whole-file/root replacements, empty/deleting replacements that
+cannot form a syntax node, and mixed-grammar edit batches are conservatively
+refused. The guard verifies syntax boundaries, not program behavior; only the
+four narrow shipped rules claim their documented semantics.
+
+The initial packs cover exact Bash `` `date` `` / `` `pwd` `` substitutions and C
+`01` / `0XFF` literal spelling. Before/after fixture bytes and native OS controls
+are in `tests/check-autofix.py`, run by `./test.sh` on every platform. Fix metadata
+is available in current lint/check output; historical DB findings keep their
+existing position/message schema.

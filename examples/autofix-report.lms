@@ -1,0 +1,24 @@
+# Chapter: Rules - report a token-safe replacement from an lmcode entry
+# Shows: ts.report_fix with a literal replacement and structured finding output
+# Run: lmscript examples/autofix-report.lms (then: build/lmok --dsl build/autofix-report.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
+# Data: the C source is embedded below.
+# expect:
+#|[{"row":1,"col":9,"end_row":1,"end_col":11,"rule":"LBCF001","severity":"minor","message":"canonical decimal literal","fix":{"start_byte":26,"end_byte":28,"text":"1"}}]
+#|1 findings
+p = _lmcode_ cli="lmok" install="github:lmctl-ai/lmok@latest";
+
+@number_literal
+fn canonical_number(n: Node) -> void implements Rule {
+  if (n.text() == "01") {
+    ts.report_fix(n, "canonical decimal literal", "LBCF001", "minor", "1");
+  }
+}
+
+let tree = ts.parse_c("int main(void) {\n  return 01;\n}\n");
+for (n in tree.nodes()) { canonical_number(n); }
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/autofix-report.dslb");

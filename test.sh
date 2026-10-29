@@ -398,7 +398,7 @@ ok "multiple bytecode files run sequentially"
 
 # --- examples compile and run ---
 mkdir -p build
-for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json lint-c rule-catalog suppress-findings sarif-report incremental-reparse pattern-rules; do
+for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json lint-c rule-catalog suppress-findings sarif-report incremental-reparse pattern-rules autofix-report; do
   "$LMSCRIPT" "examples/$f.lms" "build/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f example compile"
   "$HOST" --dsl "build/$f.dslb" >"$WORK/$f.out" || fail "$f example run"
   # every '# expect:' line must appear in the program output
@@ -1103,5 +1103,7 @@ ok "annotated C/Python fixture pairs and self-test example"
 
 python3 tests/check-secrets.py "$HOST" || fail "secrets packs and entropy"
 ok "secrets packs, redaction, entropy and false positive controls"
+LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-autofix.py "$HOST" --prove-controls || fail "token-safe autofix native OS contracts"
+ok "token-safe autofix, previews, suppression, rollback and pinned bytes"
 
 echo "PASS: $pass checks"

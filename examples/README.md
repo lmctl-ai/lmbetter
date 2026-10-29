@@ -86,6 +86,18 @@ nonzero process exit status.
   canonical, larger library lives in the repo-root `rules/` (tier-1 packs,
   see [rule tiers](../docs/rule-tiers.md)); `examples/rules/` stays small on purpose.
 
+Autofix examples live in the root `rules/bash-autofix.json` and
+`rules/c-autofix.json`. They use literal node replacements only. Run
+`build/lmok lint rules/bash-autofix.json tests/fixtures/autofix-bash-before.sh
+--diff` to inspect the diff, or `--fix` to
+write it. The corresponding C fixture demonstrates canonicalization of exact
+`01` and `0XFF` number literals. The before/after files pin bytes,
+including the expected line endings; no metavariable substitution is needed.
+
+- `autofix-report.lms` — a small lmcode rule using `ts.report_fix` directly;
+  it reports a literal replacement on a C number node and prints the structured
+  finding for host-side `--fix` verification.
+
 `cst-rules.lms` shows manual `Node.child(i)` navigation (fixed-depth nested
 loops, because lmcode has no recursion); `lint-json.lms` shows the `NodeList`
 idiom that replaces it for whole-tree scans; `report-json.lms` shows the

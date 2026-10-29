@@ -21,6 +21,8 @@ Repository: https://github.com/lmctl-ai/lmok.
 | [10-lint-db-findings.md](10-lint-db-findings.md) | lint --db run recording + supersession, findings verb, DB-create/side-channel decisions |
 | [11-pattern-rules.md](11-pattern-rules.md) | Code-shaped (semgrep-style) patterns compiled to queries: `query --pattern`, pack `pattern` fields, `ts.match_*`, corner cases |
 
+| [12-autofix.md](12-autofix.md) | Whole-node fix metadata, verified edits and unified previews |
+
 Operational name: **lmok** (binary, schemas, CMake and install paths). Tier-3
 proposal documents are owned by the other team and were intentionally retained
 verbatim; old product names there are historical, not current CLI instructions.

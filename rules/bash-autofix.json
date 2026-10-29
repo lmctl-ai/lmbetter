@@ -1,0 +1,7 @@
+{
+  "lang": "bash",
+  "rules": [
+    {"id":"LBSF001","on":"command_substitution","text_matches":"^`date`$","message":"use modern command substitution for date","severity":"minor","fix":"$(date)"},
+    {"id":"LBSF002","on":"command_substitution","text_matches":"^`pwd`$","message":"use modern command substitution for pwd","severity":"minor","fix":"$(pwd)"}
+  ]
+}

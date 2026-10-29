@@ -4,6 +4,8 @@
 #include "host.hpp"
 #include "lint.hpp"
 #include "rule_test.hpp"
+#include "autofix.hpp"
+#include "autofix_io.hpp"
 #include "ignore.hpp"
 #include "project_config.hpp"
 #include "project_ci.hpp"
@@ -53,6 +55,7 @@ struct Finding {
   // severity policy belongs to the script, the host validates nothing.
   std::string rule, severity;
   lmok::RuleMetadata metadata; // SARIF rule properties/helpUri: use structured metadata, not message parsing.
+  std::optional<lmok::FixEdit> fix;
 };
 
 // Every arena is append-only for one program run and cleared by reset()
@@ -199,7 +202,9 @@ std::string findings_json(const std::vector<Finding> &findings, bool include_met
           << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col;
       if (!f.rule.empty()) out << ",\"rule\":\"" << json_escape(f.rule) << "\"";
       if (!f.severity.empty()) out << ",\"severity\":\"" << json_escape(f.severity) << "\"";
-      out << ",\"message\":\"" << json_escape(f.message) << "\"" << lmok::metadata_suffix(f.metadata,include_metadata) << "}";
+      out << ",\"message\":\"" << json_escape(f.message) << "\"";
+      if (f.fix) out << ",\"fix\":{\"start_byte\":" << f.fix->start_byte << ",\"end_byte\":" << f.fix->end_byte << ",\"text\":\"" << json_escape(f.fix->text) << "\"}";
+      out << lmok::metadata_suffix(f.metadata,include_metadata) << "}";
     }
     out << "]";
     return out.str();
@@ -232,12 +237,15 @@ void register_host(dslvm::Registry &reg, Host &host) {
   parse_method("parse_bash", lmok::Grammar::Bash);
   // The findings sink: rules are void fns, so they report into the host and
   // the chunk body reads the collection back (count / JSON array string).
-  const auto report_impl = [&host](void *, Args &args) {
+  const auto report_impl = [&host](void *, Args &args, bool with_fix) {
     const lmok::Node *n = node_of(args[0].obj, "report");
     Finding f{lmok::node_start_row(*n), lmok::node_start_col(*n),
-              lmok::node_end_row(*n), lmok::node_end_col(*n), args[1].s, "", "", {}};
+              lmok::node_end_row(*n), lmok::node_end_col(*n), args[1].s, "", "", {}, std::nullopt};
     if (args.size() >= 4) { f.rule = args[2].s; f.severity = args[3].s; }
-    if(args.size()==5) f.metadata=lmok::parse_rule_metadata(args[4].s);
+    if (args.size() == 5) {
+      if (with_fix) f.fix = lmok::FixEdit{lmok::node_start_byte(*n), lmok::node_end_byte(*n), args[4].s};
+      else f.metadata = lmok::parse_rule_metadata(args[4].s);
+    }
     auto &suppression=host.suppressions.try_emplace(n->owner,n->owner->source()).first->second;
     if(suppression.drop(static_cast<size_t>(f.row),f.rule,host.no_suppress))return Value::none();
     if (host.findings.size() >= 65536)
@@ -245,9 +253,11 @@ void register_host(dslvm::Registry &reg, Host &host) {
     host.findings.push_back(std::move(f));
     return Value::none();
   };
-  reg.method("Ts", "report", {"Node", "string"}, "void", report_impl);
-  reg.method("Ts", "report", {"Node", "string", "string", "string"}, "void", report_impl);
-  reg.method("Ts", "report_meta", {"Node", "string", "string", "string", "string"}, "void", report_impl);
+  const auto normal_report = [report_impl](void *p, Args &args) { return report_impl(p, args, false); };
+  reg.method("Ts", "report", {"Node", "string"}, "void", normal_report);
+  reg.method("Ts", "report", {"Node", "string", "string", "string"}, "void", normal_report);
+  reg.method("Ts", "report_meta", {"Node", "string", "string", "string", "string"}, "void", normal_report);
+  reg.method("Ts", "report_fix", {"Node", "string", "string", "string", "string"}, "void", [report_impl](void *p, Args &args) { return report_impl(p, args, true); });
   reg.method("Ts", "report_count", {}, "int", [&host](void *, Args &) {
     return Value::integer(static_cast<int64_t>(host.findings.size()));
   });
@@ -555,7 +565,7 @@ static int run_cli(int argc, char **argv) {
       "       lmok query [--lang json|c|python|bash|java] [--pattern] PATTERN FILE\n"
       "       lmok ci [--config FILE] [--no-suppress] [ROOT]\n"
       "       lmok rules PACK... | test PACK FIXTURE...\n"
-      "       lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress]\n"
+      "       lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress] [--fix|--diff]\n"
       "       lmok facts [--lang json|c|python|bash|java] FILE|DIR...\n"
       "       lmok check [--lang json|c|python|bash|java] RULES.dslb FILE|DIR... [--no-suppress]\n"
       "       lmok --dsl FILE [FILE ...]\n";
@@ -1041,11 +1051,11 @@ static int run_cli(int argc, char **argv) {
     }
     // `--db PATH` may appear anywhere after the pack; the rest are targets.
     std::optional<std::string> db_path;
-    bool no_suppress=false;
+    bool no_suppress=false, fix_files=false, show_diff=false;
     std::vector<std::string> target_args;
     for (int i = 3; i < argc; ++i) {
       const std::string arg = argv[i];
-      if (arg == "--no-suppress") {no_suppress=true;} else if (arg == "--db") {
+      if (arg == "--fix") {fix_files=true;} else if (arg == "--diff") {show_diff=true;} else if (arg == "--no-suppress") {no_suppress=true;} else if (arg == "--db") {
         if (db_path || i + 1 >= argc || std::string(argv[i + 1]).rfind("--", 0) == 0) {
           std::cerr << usage;
           return 2;
@@ -1106,14 +1116,42 @@ static int run_cli(int argc, char **argv) {
         std::cerr << "lint " << target.path << ": " << e.what() << "\n";
         return 3;
       }
+      if (fix_files || show_diff) {
+        try {
+          std::vector<lmok::FixEdit> edits;
+          for (const auto &finding : findings) if (finding.fix) edits.push_back(*finding.fix);
+          auto result = lmok::apply_fixes(raw, edits);
+          if (result.fixed) {
+            // Verify + re-lint once in memory before any file write. Reuse the
+            // verifier's parsed trees, so the modified bytes are parsed once.
+            lmok::Suppression after_suppression(result.text);
+            auto after = lmok::lint_text(*active, result.text, &after_suppression, no_suppress, &result.verified_trees);
+            if (show_diff) std::cout << lmok::unified_fix_diff(target.path, raw, result.text);
+            else {
+              lmok::write_fixed_file(target.path, raw, result.text);
+              raw = std::move(result.text);
+              findings = std::move(after);
+              suppression = std::move(after_suppression);
+            }
+          }
+          (show_diff ? std::cerr : std::cout) << result.fixed << " fixed in " << target.path << "\n";
+        } catch (const std::exception &e) {
+          std::cerr << "lint " << target.path << ": " << e.what() << "\n";
+          return 3;
+        }
+      }
+      if (show_diff) continue; // previews never write findings DB records
       std::set<std::string> known_ids;for(const auto &rule:rules)known_ids.insert(rule.id);
       suppression.warn(target.path,known_ids);
-      for (const auto &f : findings)
+      for (const auto &f : findings) {
         std::cout << "{\"row\":" << f.row << ",\"col\":" << f.col
                   << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col
                   << ",\"rule\":\"" << json_escape(f.rule)
                   << "\",\"severity\":\"" << json_escape(f.severity)
-                  << "\",\"message\":\"" << json_escape(f.message) << "\"" << lmok::metadata_suffix(f.metadata,host.include_metadata) << "}\n";
+                  << "\",\"message\":\"" << json_escape(f.message) << "\"";
+        if (f.fix) std::cout << ",\"fix\":{\"start_byte\":" << f.fix->start_byte << ",\"end_byte\":" << f.fix->end_byte << ",\"text\":\"" << json_escape(f.fix->text) << "\"}";
+        std::cout << lmok::metadata_suffix(f.metadata,host.include_metadata) << "}\n";
+      }
       std::cout << findings.size() << " findings in " << target.path << lmok::suppressed_suffix(suppression.suppressed) << "\n";
       if (db_path) {
         lmok::LintFileRecord record;
@@ -1130,7 +1168,7 @@ static int run_cli(int argc, char **argv) {
         records.push_back(std::move(record));
       }
     }
-    if (db_path) {
+    if (db_path && !show_diff) {
       try {
         // Same resolution chain as `index` (docs/tier3/db-design.md §1): the
         // DB is CREATED when missing — lint --db is an explicit recording

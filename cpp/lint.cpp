@@ -69,7 +69,8 @@ void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding>
   }
   findings.push_back({node_start_row(node), node_start_col(node),
                       node_end_row(node), node_end_col(node),
-                      rule.id, rule.severity, expand_message(rule.message, display), rule.metadata});
+                      rule.id, rule.severity, expand_message(rule.message, display), rule.metadata,
+                      rule.fix ? std::optional<FixEdit>(FixEdit{node_start_byte(node), node_end_byte(node), *rule.fix, rule.grammar}) : std::nullopt});
 }
 
 } // namespace
@@ -160,6 +161,10 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
       if (redact->kind != JsonNode::Kind::Bool) fail("'redact' must be a boolean");
       rule.redact = redact->boolean;
     }
+    if (const JsonNode *fix = member(entry, "fix")) {
+      if (fix->kind != JsonNode::Kind::String) fail("'fix' must be a plain replacement string");
+      rule.fix = fix->text;
+    }
     if (const JsonNode *severity = member(entry, "severity")) {
       if (severity->kind != JsonNode::Kind::String || severity->text.empty())
         fail("'severity' must be a string");
@@ -205,14 +210,18 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
   return rules;
 }
 
-std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std::string &text, Suppression *suppression, bool no_suppress) {
+std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std::string &text, Suppression *suppression, bool no_suppress, const std::map<Grammar, Tree> *parsed) {
   std::vector<LintFinding> findings;
   for (const Grammar grammar : {Grammar::Json, Grammar::C, Grammar::Python, Grammar::Bash, Grammar::Java}) {
     std::vector<const LintRule *> here;
     for (const auto &rule : rules)
       if (rule.grammar == grammar) here.push_back(&rule);
     if (here.empty()) continue;
-    const Tree tree = parse(grammar, text);
+    Tree owned;
+    const Tree *verified = nullptr;
+    if (parsed) { const auto found = parsed->find(grammar); if (found != parsed->end()) verified = &found->second; }
+    if (!verified) { owned = parse(grammar, text); verified = &owned; }
+    const Tree &tree = *verified;
     const Node root = node_root(tree);
 
     // Lint retains its named-node kind index; check uses the corresponding

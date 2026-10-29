@@ -7,6 +7,8 @@
 // finding message/severity. See README "Rule packs" for the format.
 
 #include "host.hpp"
+#include "fix.hpp"
+#include <optional>
 #include "pattern.hpp"
 #include "rule_metadata.hpp"
 #include "suppression.hpp"
@@ -30,6 +32,7 @@ struct LintRule {
   std::string pattern_inside, pattern_not_inside; // ancestor filters, also code-shaped; empty = not set
   CompiledPattern compiled, compiled_inside, compiled_not_inside;
   std::string message;     // "{text}" expands to the matched node's text
+  std::optional<std::string> fix; // plain whole-node replacement; no metavariable expansion
   std::string severity = "minor"; // free-form; the pack owns the vocabulary
   std::string text_matches;      // ECMAScript regex source; empty = not set
                                  // (applied through regex_search_bounded: see host.hpp kRegexTextCap)
@@ -40,6 +43,7 @@ struct LintFinding {
   int64_t row = 0, col = 0, end_row = 0, end_col = 0; // 0-based
   std::string rule, severity, message;
   RuleMetadata metadata;
+  std::optional<FixEdit> fix;
 };
 
 // Parse and validate a rule pack file. Throws dslvm::Error (plain message,
@@ -57,7 +61,7 @@ std::vector<LintRule> load_rule_pack(const std::string &path);
 // ancestor is (is not) the root of a match of that pattern, over one parent map
 // per file built from a single cursor walk. Findings are sorted by (row, col).
 // A query compile failure throws QueryError with the rule id prepended.
-std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std::string &text, Suppression *suppression = nullptr, bool no_suppress = false);
+std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std::string &text, Suppression *suppression = nullptr, bool no_suppress = false, const std::map<Grammar, Tree> *parsed = nullptr);
 
 class Database;
 

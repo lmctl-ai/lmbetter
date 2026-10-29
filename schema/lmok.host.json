@@ -54,6 +54,18 @@
             "returns": "void"
           }
         ],
+        "report_fix": [
+          {
+            "params": [
+              "Node",
+              "string",
+              "string",
+              "string",
+              "string"
+            ],
+            "returns": "void"
+          }
+        ],
         "report_count": [
           {
             "params": [],

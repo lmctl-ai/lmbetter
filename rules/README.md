@@ -8,7 +8,10 @@ Three delivery forms, by how much logic a rule needs:
   for the framework and [Rule packs](../README.md#rule-packs) for the format.
   Shipped: `c-tier1.json` (11 rules), `json-tier1.json` (11 rules:
   LBJ001–LBJ010 and LBJ104), `python-tier1.json` (9 rules),
-  `bash-tier1.json` (6 rules).
+  `bash-tier1.json` (6 rules). The opt-in `bash-autofix.json` and
+  `c-autofix.json` packs demonstrate four token-safe plain replacements. A
+  pack `fix` is a literal replacement for the reported node; it does not
+  perform metavariable substitution.
   JSON checks cover credential keys, placeholders, nulls, key naming, numeric
   strings, HTTP URLs, unpinned versions, empty containers, and long source
   strings. The length threshold is >200 source bytes excluding quotes, not
