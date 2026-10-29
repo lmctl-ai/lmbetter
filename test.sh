@@ -1152,4 +1152,8 @@ ok "C/Python ten-function cognitive and nesting table"
 python3 tests/check-dup.py "$HOST" || fail "normalized token duplication"
 ok "token duplication ranges, normalization and controls"
 
+# --- baseline / new-code-only + host SARIF (roadmap wave 1) ---
+LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-baseline-sarif.py "$HOST" || fail "baseline/new-code and SARIF contracts"
+ok "baseline: --new-since/--baseline/--changed/--fail-on-new keying (moved finding stays baseline), controls proven; SARIF: lint/check/ci"
+
 echo "PASS: $pass checks"

@@ -8,6 +8,7 @@
 #include "lint.hpp"
 #include "project_config.hpp"
 #include "input.hpp"
+#include "sarif.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -20,6 +21,14 @@
 #include <vector>
 
 namespace lmok {
+// Optional side channel for `ci --sarif FILE` (item 4): when set, the runner
+// appends one SarifResult per printed finding and fills `rules` from the
+// loaded packs; the caller serializes with sarif_log after the run.
+struct SarifSink {
+  std::vector<SarifRuleMeta> *rules = nullptr;
+  std::vector<SarifResult> *results = nullptr;
+};
+
 // Target must expose `path` and `from_dir`.  Expand must have the shape:
 //   int expand(vector<string> roots, vector<Target>& out, vector<string> ignore)
 // and return the normal lmok CLI status (0, 2, or 3).  GrammarForExtension
@@ -28,7 +37,8 @@ namespace lmok {
 template <class Target, class Expand, class GrammarForExtension, class ReadFile, class Escape, class ParseLanguage>
 int run_project_ci(const ProjectConfig &config, const std::string &root,
                    bool no_suppress, Expand expand,
-                   GrammarForExtension grammar_for_extension, ReadFile read_file, Escape json_escape, ParseLanguage parse_language) {
+                   GrammarForExtension grammar_for_extension, ReadFile read_file, Escape json_escape,
+                   ParseLanguage parse_language, SarifSink *sarif = nullptr) {
   if (config.baseline) {
     // Item 3 owns baseline comparison.  Keep the field in the versioned
     // format, but refuse it here so CI cannot silently claim a baseline was
@@ -70,6 +80,13 @@ int run_project_ci(const ProjectConfig &config, const std::string &root,
   const int walk_status = expand(std::vector<std::string>{root}, targets, config.ignore);
   if (walk_status != 0) return walk_status;
 
+  if (sarif && sarif->rules)
+    for (const auto &rule : rules) {
+      const auto url = rule.metadata.strings.find("url");
+      sarif->rules->push_back({rule.id, rule.message,
+                               url == rule.metadata.strings.end() ? "" : url->second});
+    }
+
   size_t findings_count = 0;
   size_t suppressed_count = 0;
   bool threshold_hit = false;
@@ -100,6 +117,9 @@ int run_project_ci(const ProjectConfig &config, const std::string &root,
                 << ",\"rule\":\"" << json_escape(finding.rule)
                 << "\",\"severity\":\"" << json_escape(finding.severity)
                 << "\",\"message\":\"" << json_escape(finding.message) << "\"}\n";
+      if (sarif && sarif->results)
+        sarif->results->push_back({finding.rule, finding.severity, finding.message, path,
+                                   finding.row, finding.col, finding.end_row, finding.end_col});
       if (config.fail_on == "findings" && severity_rank(finding.severity) >= floor)
         threshold_hit = true;
     }

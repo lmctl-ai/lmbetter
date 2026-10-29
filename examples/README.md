@@ -75,7 +75,8 @@ nonzero process exit status.
 - `sarif-report.lms` — analyzer interop: emit a minimal valid SARIF 2.1.0
   document to `build/sarif-results.sarif` via string building; severity→level
   mapping, the 0-based→1-based region conversion, and the driver rule catalog
-  (derived from the findings) are all script-side
+  (derived from the findings) are all script-side. The same mapping is now a
+  host flag: `lmok lint|check|ci ... --sarif FILE` (README "SARIF output")
 - `incremental-reparse.lms` — the incremental loop: edit the source text,
   `Tree.edit` + `ts.reparse_c` re-parse against the old tree,
   `ts.changed_ranges` shows what moved, and the re-linted NEW tree finds the

@@ -126,12 +126,13 @@ lmok --dsl-schema [--json]
 lmok --dsl-signatures
 lmok parse [--lang json|c|python|bash|java|go] FILE       # '-' reads stdin
 lmok query [--lang json|c|python|bash|java|go] [--pattern] PATTERN FILE  # '-' reads stdin
-lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress]
-lmok ci [--config FILE] [--no-suppress] [ROOT]
+lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress] [--sarif FILE]
+        [--new-since RUN|--baseline FILE] [--fail-on-new] [--changed[=REV]]
+lmok ci [--config FILE] [--no-suppress] [--sarif FILE] [ROOT]
 lmok rules PACK... | test PACK FIXTURE...
 lmok findings [--rule ID] [--file PATH] [--db PATH]
 lmok facts [--lang json|c|python|bash|java|go] FILE|DIR...
-lmok check [--lang json|c|python|bash|java|go] RULES.dslb FILE|DIR... [--no-suppress]
+lmok check [--lang json|c|python|bash|java|go] RULES.dslb FILE|DIR... [--no-suppress] [--sarif FILE]
 lmok --dsl FILE [FILE ...]
 ```
 
@@ -150,10 +151,11 @@ arguments, everything else is literal code; whitespace and comments in the patte
 that does not parse, holds several statements, or uses `...` outside a call exits 2 naming the fragment.
 The same patterns work in rule packs (`pattern`, below). `lint` runs a rule pack (below) over each file and
 prints one JSON finding per line plus `N findings in <file>`; exit codes:
-0 ok (findings never fail the run — gating is the caller's job), 2 usage or
+0 ok (findings never fail the run — gating is the caller's job, or use
+`--fail-on-new`, below), 2 usage or
 rule-pack error, 3 input/DSL error (unreadable file aborts the run fast; an
 invalid query pattern names the rule id, byte offset and reason), 4 stdout
-failure.
+failure or new findings under `--fail-on-new`.
 
 ```
 $ echo '{"a": [1, null]}' | lmok parse -
@@ -246,6 +248,70 @@ checks. Readers see one transaction snapshot. The [schema](docs/tier3/db-design.
 is embedded verbatim, including its FTS5 default tokenizer; trigram search
 is future work. Schema-version mismatches exit 2 with delete/re-index guidance;
 unreadable/corrupt DBs exit 3, and stdout failures exit 4.
+
+## New-code-only linting (`--new-since`, `--baseline`, `--changed`, `--fail-on-new`)
+
+`lint` can report only findings that are NEW relative to a baseline. A finding
+is new when its key — (rule, file, message, normalized snippet) — has no
+unmatched baseline occurrence. The snippet is the matched node's source text
+with whitespace runs collapsed to one space; positions are deliberately NOT
+part of the key, so inserting lines above a violation does not resurrect it as
+new. Keys are multisets: if a baseline holds one `goto used` for a file and
+the file now has two identical ones, the second is new.
+
+```sh
+lmok lint rules/c-tier1.json src/ --db .lmok/lmok.db --new-since last --fail-on-new
+lmok lint rules/c-tier1.json src/ --baseline old.lintout
+lmok lint rules/c-tier1.json . --changed          # working tree vs HEAD
+lmok lint rules/c-tier1.json . --changed=HEAD~3
+```
+
+- `--new-since RUN` reads the findings DB (`--db PATH` when given, else the
+  standard resolution chain, opened read-only): RUN is a `runs` id (see `lmok
+  status`) or `last` for the latest recorded run. Every finding row — live or
+  superseded — with `run_id <= RUN` is baseline. Runs are not tagged; pick the
+  run by id or `last`. A missing DB, an unknown run or a bad selector is exit
+  2. Rows recorded before the `findings.snippet` column existed match on
+  (rule, file, message) alone — the documented fallback.
+- `--baseline FILE` uses a previous lint JSON-lines output file instead of the
+  DB (finding lines attach to the file named by their following `N findings
+  in PATH` line; such files carry no snippets, so the (rule, file, message)
+  fallback applies). An unreadable file is exit 3; lines that lack the key
+  fields simply never match, so their findings report as new. `--baseline`
+  and `--new-since` are mutually exclusive (exit 2).
+- `--changed[=REV]` restricts the targets to the files `git diff --name-only
+  REV` reports for the repository containing the working directory (bare
+  `--changed` = `HEAD`, i.e. working tree vs HEAD, staged or not; untracked
+  files are not listed by git diff). Outside a git repository, or for an
+  unknown revision, it fails fast with exit 2.
+- `--fail-on-new` (requires `--new-since` or `--baseline`) exits 4 when any
+  new finding exists, 0 otherwise. Without it the exit code is unchanged (0;
+  findings never fail the run).
+
+Output is unchanged per file (only new findings print, and the `N findings in
+FILE` line counts them; suppressed findings are dropped before baseline
+matching, so they never become new) plus one trailing summary line
+`N new, M baseline`. Recording (`--db`) always stores the unfiltered set:
+the DB is reality, the baseline is a view.
+
+## SARIF output (`--sarif FILE`)
+
+`lint`, `check` and `ci` accept `--sarif FILE`: the normal stdout is
+unchanged and a SARIF 2.1.0 log (the
+[examples/sarif-report.lms](examples/sarif-report.lms) mapping, ported into
+the host) is written to FILE after the run completes — version 2.1.0 with the
+schemastore `$schema`, one run, `tool.driver.name` "lmok". Positions convert
+0-based to 1-based (`startLine`/`startColumn`; `endColumn` 1-based exclusive).
+Severity maps to level exactly like the example: `critical` → `error`,
+`minor` → `note`, everything else → `warning`. For `lint`/`ci`,
+`driver.rules` comes from the pack metadata: the rule `id`,
+`shortDescription` from the pack message, and `helpUri` from the rule's
+top-level `url` when carried. For `check` (lmcode rules carry no pack) the
+rule catalog is derived from the results, distinct ids in first-seen order;
+`check` body findings (no file) are emitted without `locations`. Under
+`--new-since`/`--baseline` the SARIF contains the printed (new) findings
+only. With zero findings the file is still written, with an empty `results`
+array. An unwritable FILE is exit 3.
 
 ## Rule packs
 

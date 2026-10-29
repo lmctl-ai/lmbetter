@@ -14,6 +14,8 @@
 #include "metrics.hpp"
 #include "input.hpp"
 #include "db.hpp"
+#include "baseline.hpp"
+#include "sarif.hpp"
 #include "dslvm.hpp"
 #include "stdlib/string.hpp"
 #include "stdlib/collections.hpp"
@@ -539,6 +541,29 @@ std::string normalize_join(const std::string &dir, const std::string &name) {
   return out;
 }
 
+// Write a SARIF log to FILE (binary, truncated). Returns 0, or 3 after a
+// stderr diagnostic — the SARIF file is a requested output, so a failed
+// write fails the run (unlike DB recording, which is a side channel).
+int write_sarif_file(const std::string &path, const std::string &log) {
+  std::ofstream out(std::filesystem::u8path(path), std::ios::binary | std::ios::trunc);
+  if (!out) { std::cerr << "cannot write " << canonical_path(path) << "\n"; return 3; }
+  out << log;
+  out.flush();
+  if (!out) { std::cerr << "cannot write " << canonical_path(path) << "\n"; return 3; }
+  return 0;
+}
+
+// driver.rules entries from a loaded pack: the id always, shortDescription
+// from the pack message, helpUri from rule metadata `url` when carried.
+std::vector<lmok::SarifRuleMeta> sarif_rules_of(const std::vector<lmok::LintRule> &rules) {
+  std::vector<lmok::SarifRuleMeta> out;
+  for (const auto &rule : rules) {
+    const auto url = rule.metadata.strings.find("url");
+    out.push_back({rule.id, rule.message, url == rule.metadata.strings.end() ? "" : url->second});
+  }
+  return out;
+}
+
 void print_schema_summary(const dslvm::Registry &reg) {
   for (const auto &line : reg.signatures()) std::cout << line << "\n";
 }
@@ -566,11 +591,12 @@ static int run_cli(int argc, char **argv) {
       "       lmok findings [--rule ID] [--file PATH] [--db PATH]\n"
       "       lmok parse [--lang json|c|python|bash|java|go] FILE\n"
       "       lmok query [--lang json|c|python|bash|java|go] [--pattern] PATTERN FILE\n"
-      "       lmok ci [--config FILE] [--no-suppress] [ROOT]\n"
+      "       lmok ci [--config FILE] [--no-suppress] [--sarif FILE] [ROOT]\n"
       "       lmok rules PACK... | test PACK FIXTURE...\n"
-      "       lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress] [--fix|--diff]\n"
+      "       lmok lint RULES.json FILE|DIR... [--db PATH] [--no-suppress] [--sarif FILE] [--fix|--diff]\n"
+      "               [--new-since RUN|--baseline FILE] [--fail-on-new] [--changed[=REV]]\n"
       "       lmok facts [--lang json|c|python|bash|java|go] FILE|DIR...\n"
-      "       lmok check [--lang json|c|python|bash|java|go] RULES.dslb FILE|DIR... [--no-suppress]\n"
+      "       lmok check [--lang json|c|python|bash|java|go] RULES.dslb FILE|DIR... [--no-suppress] [--sarif FILE]\n"
       "       lmok metrics [--lang json|c|python|bash|java|go] FILE|DIR...\n"
       "       lmok dup [--lang json|c|python|bash|java|go] [--tokens N] FILE|DIR...\n"
       "       lmok --dsl FILE [FILE ...]\n";
@@ -608,11 +634,14 @@ static int run_cli(int argc, char **argv) {
   }
   if (argc >= 2 && std::string(argv[1]) == "ci") {
     std::string root = ".", config_path;
+    std::optional<std::string> sarif_path;
     bool root_seen = false, no_suppress = false;
     for (int i = 2; i < argc; ++i) {
       const std::string arg = argv[i];
       if (arg == "--no-suppress") no_suppress = true;
       else if (arg == "--config" && i + 1 < argc && config_path.empty()) config_path = argv[++i];
+      else if (arg == "--sarif" && !sarif_path && i + 1 < argc && std::string(argv[i + 1]).rfind("--", 0) != 0)
+        sarif_path = argv[++i];
       else if (arg.rfind("--", 0) == 0 || root_seen) { std::cerr << usage; return 2; }
       else { root = arg; root_seen = true; }
     }
@@ -622,10 +651,22 @@ static int run_cli(int argc, char **argv) {
     if (config_path.empty()) config_path = (std::filesystem::u8path(root) / ".lmok" / "config.json").generic_u8string();
     try {
       const auto config = lmok::load_project_config(config_path);
-      return lmok::run_project_ci<Target>(config, root, no_suppress,
+      std::vector<lmok::SarifRuleMeta> sarif_rules;
+      std::vector<lmok::SarifResult> sarif_results;
+      lmok::SarifSink sarif_sink;
+      if (sarif_path) { sarif_sink.rules = &sarif_rules; sarif_sink.results = &sarif_results; }
+      const int rc = lmok::run_project_ci<Target>(config, root, no_suppress,
         [](const std::vector<std::string> &roots, std::vector<Target> &out, const std::vector<std::string> &ignore) {
           return expand_targets(roots, 0, out, nullptr, ignore);
-        }, grammar_for_extension, read_file, json_escape, parse_lang);
+        }, grammar_for_extension, read_file, json_escape, parse_lang, sarif_path ? &sarif_sink : nullptr);
+      // The SARIF artifact is written once the run completed (even with
+      // findings); rc 1 (threshold hit) still counts as a completed run.
+      if (sarif_path && (rc == 0 || rc == 1)) {
+        const int write_rc = write_sarif_file(*sarif_path,
+          lmok::sarif_log(LMOK_VERSION, sarif_rules, sarif_results, json_escape));
+        if (write_rc) return write_rc;
+      }
+      return rc;
     } catch (const std::exception &e) { std::cerr << e.what() << "\n"; return 2; }
   }
   if (argc >= 2 && std::string(argv[1]) == "status") {
@@ -1055,28 +1096,88 @@ static int run_cli(int argc, char **argv) {
       std::cerr << e.what() << "\n";
       return 2;
     }
-    // `--db PATH` may appear anywhere after the pack; the rest are targets.
-    std::optional<std::string> db_path;
-    bool no_suppress=false, fix_files=false, show_diff=false;
+    // Flags may appear anywhere after the pack; the rest are targets.
+    std::optional<std::string> db_path, sarif_path, baseline_path, new_since;
+    bool no_suppress = false, fix_files = false, show_diff = false, changed = false, fail_on_new = false;
+    std::string changed_rev = "HEAD"; // bare --changed: working tree vs HEAD
     std::vector<std::string> target_args;
     for (int i = 3; i < argc; ++i) {
       const std::string arg = argv[i];
-      if (arg == "--fix") {fix_files=true;} else if (arg == "--diff") {show_diff=true;} else if (arg == "--no-suppress") {no_suppress=true;} else if (arg == "--db") {
-        if (db_path || i + 1 >= argc || std::string(argv[i + 1]).rfind("--", 0) == 0) {
+      std::optional<std::string> *slot = nullptr;
+      if (arg == "--db") slot = &db_path;
+      else if (arg == "--sarif") slot = &sarif_path;
+      else if (arg == "--baseline") slot = &baseline_path;
+      else if (arg == "--new-since") slot = &new_since;
+      if (slot) {
+        if (*slot || i + 1 >= argc || std::string(argv[i + 1]).rfind("--", 0) == 0) {
           std::cerr << usage;
           return 2;
         }
-        db_path = argv[++i];
+        *slot = argv[++i];
+      } else if (arg == "--fix") {
+        fix_files = true;
+      } else if (arg == "--diff") {
+        show_diff = true;
+      } else if (arg == "--no-suppress") {
+        no_suppress = true;
+      } else if (arg == "--changed" && !changed) {
+        changed = true;
+      } else if (arg.rfind("--changed=", 0) == 0 && !changed && arg.size() > 10) {
+        changed = true;
+        changed_rev = arg.substr(10);
+      } else if (arg == "--fail-on-new" && !fail_on_new) {
+        fail_on_new = true;
       } else {
         target_args.push_back(arg);
       }
     }
     if (target_args.empty()) { std::cerr << usage; return 2; }
+    if (baseline_path && new_since) {
+      std::cerr << "lint: --baseline and --new-since are mutually exclusive\n";
+      return 2;
+    }
+    if (fail_on_new && !baseline_path && !new_since) {
+      std::cerr << "lint: --fail-on-new needs --new-since or --baseline\n";
+      return 2;
+    }
     const int64_t started_at = std::time(nullptr);
     std::string command;
     for (int i = 1; i < argc; ++i) {
       if (i > 1) command += ' ';
       command += argv[i];
+    }
+    // The baseline (when asked for) loads BEFORE the run: with --new-since
+    // the current run is recorded only at the end, so run_id <= RUN never
+    // sees this run's own rows.
+    const bool filtering = baseline_path.has_value() || new_since.has_value();
+    lmok::Baseline baseline;
+    if (baseline_path) {
+      try { baseline = lmok::load_baseline_file(*baseline_path); }
+      catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
+    }
+    if (new_since) {
+      try {
+        // The comparison DB is --db when given, else the standard resolution
+        // chain; ReadOnly: a never-recorded DB is exit 2, not "all new".
+        const auto resolved = lmok::resolve_db_path(db_path, false);
+        lmok::Database db(resolved, lmok::Database::Mode::ReadOnly);
+        const int64_t run_id = lmok::resolve_baseline_run(db, *new_since);
+        baseline = lmok::load_baseline_db(db, run_id, lmok::db_has_column(db, "findings", "snippet"));
+      } catch (const lmok::DbError &e) {
+        std::cerr << e.what() << "\n";
+        return e.exit_code;
+      } catch (const lmok::BaselineError &e) {
+        std::cerr << e.what() << "\n";
+        return 2;
+      }
+    }
+    // --changed: keep only targets `git diff --name-only REV` reports for the
+    // repository containing the cwd (bare --changed = REV HEAD, working tree
+    // vs HEAD). Fail fast outside a repository (exit 2), like Semgrep.
+    std::set<std::string> changed_files;
+    if (changed) {
+      try { changed_files = lmok::git_changed_files(changed_rev); }
+      catch (const lmok::BaselineError &e) { std::cerr << e.what() << "\n"; return 2; }
     }
     // Per-grammar rule lists for extension-based filtering.
     std::vector<lmok::LintRule> c_rules, json_rules, python_rules, bash_rules, java_rules, go_rules;
@@ -1096,9 +1197,16 @@ static int run_cli(int argc, char **argv) {
     // so findings are collected per file and written in one transaction at
     // the end (docs/tier3/local-index-survey.md §4).
     std::vector<lmok::LintFileRecord> records;
+    std::vector<lmok::SarifResult> sarif_results;
+    int64_t n_new = 0, n_baseline = 0;
     // Fail fast: the first unreadable file aborts the whole run (exit 3);
     // earlier files' findings were already printed.
     for (const auto &target : targets) {
+      if (changed) {
+        const std::string absolute =
+            fs::absolute(fs::u8path(target.path)).lexically_normal().generic_u8string();
+        if (!changed_files.count(absolute)) continue;
+      }
       const std::vector<lmok::LintRule> *active = &rules;
       const std::string ext = fs::u8path(target.path).extension().u8string();
       if (ext == ".c" || ext == ".h") active = &c_rules;
@@ -1151,7 +1259,17 @@ static int run_cli(int argc, char **argv) {
       if (show_diff) continue; // previews never write findings DB records
       std::set<std::string> known_ids;for(const auto &rule:rules)known_ids.insert(rule.id);
       suppression.warn(target.path,known_ids);
+      int64_t printed = 0;
       for (const auto &f : findings) {
+        // Suppressed findings never reach this loop, so they can never become
+        // "new". Under --new-since/--baseline only NEW findings print (the
+        // baseline matches on rule/file/message/snippet, never positions);
+        // the DB still records the unfiltered set below: recording is
+        // reality, filtering is the view.
+        const bool is_new = !filtering || !baseline.match(f.rule, target.path, f.message, f.snippet);
+        if (!is_new) { ++n_baseline; continue; }
+        ++n_new;
+        ++printed;
         std::cout << "{\"row\":" << f.row << ",\"col\":" << f.col
                   << ",\"end_row\":" << f.end_row << ",\"end_col\":" << f.end_col
                   << ",\"rule\":\"" << json_escape(f.rule)
@@ -1159,8 +1277,11 @@ static int run_cli(int argc, char **argv) {
                   << "\",\"message\":\"" << json_escape(f.message) << "\"";
         if (f.fix) std::cout << ",\"fix\":{\"start_byte\":" << f.fix->start_byte << ",\"end_byte\":" << f.fix->end_byte << ",\"text\":\"" << json_escape(f.fix->text) << "\"}";
         std::cout << lmok::metadata_suffix(f.metadata,host.include_metadata) << "}\n";
+        if (sarif_path)
+          sarif_results.push_back({f.rule, f.severity, f.message, target.path,
+                                   f.row, f.col, f.end_row, f.end_col});
       }
-      std::cout << findings.size() << " findings in " << target.path << lmok::suppressed_suffix(suppression.suppressed) << "\n";
+      std::cout << printed << " findings in " << target.path << lmok::suppressed_suffix(suppression.suppressed) << "\n";
       if (db_path) {
         lmok::LintFileRecord record;
         record.path = target.path;
@@ -1175,6 +1296,11 @@ static int run_cli(int argc, char **argv) {
         record.findings = std::move(findings);
         records.push_back(std::move(record));
       }
+    }
+    if (filtering) std::cout << n_new << " new, " << n_baseline << " baseline\n";
+    if (sarif_path) {
+      const std::string log = lmok::sarif_log(LMOK_VERSION, sarif_rules_of(rules), sarif_results, json_escape);
+      if (const int rc = write_sarif_file(*sarif_path, log)) return rc;
     }
     if (db_path && !show_diff) {
       try {
@@ -1193,6 +1319,7 @@ static int run_cli(int argc, char **argv) {
         std::cerr << "lint: run not recorded in DB: " << e.what() << "\n";
       }
     }
+    if (fail_on_new && n_new > 0) return 4;
     return std::cout ? 0 : 4;
   }
   if (argc >= 2 && (std::string(argv[1]) == "metrics" || std::string(argv[1]) == "dup")) {
@@ -1300,15 +1427,26 @@ static int run_cli(int argc, char **argv) {
       argi += 2;
     }
     if (argi + 1 >= argc) { std::cerr << usage; return 2; }
+    // --sarif FILE may appear once among the positionals; the rest are the
+    // bytecode then its input files/dirs.
+    std::optional<std::string> sarif_path;
+    std::vector<std::string> check_inputs;
     for (int i = argi; i < argc; ++i) {
-      if (std::string(argv[i]).empty() || std::string(argv[i]).rfind("--", 0) == 0) { std::cerr << usage; return 2; }
+      const std::string arg = argv[i];
+      if (arg == "--sarif" && !sarif_path && i + 1 < argc && std::string(argv[i + 1]).rfind("--", 0) != 0) {
+        sarif_path = argv[++i];
+        continue;
+      }
+      if (arg.empty() || arg.rfind("--", 0) == 0) { std::cerr << usage; return 2; }
+      check_inputs.push_back(arg);
     }
+    if (check_inputs.size() < 2) { std::cerr << usage; return 2; }
     const std::string schema(reinterpret_cast<const char *>(lmok::embedded_schema), lmok::embedded_schema_size);
     dslvm::Program program;
-    try { program = dslvm::Program::load(read_bytecode(argv[argi++]), schema, reg); }
+    try { program = dslvm::Program::load(read_bytecode(check_inputs[0]), schema, reg); }
     catch (const dslvm::Error &error) { return dslvm::report_error("load", error); }
     std::vector<Target> check_targets;
-    if(const int rc=expand_targets(std::vector<std::string>(argv+argi,argv+argc),0,check_targets,&grammar))return rc;
+    if(const int rc=expand_targets(std::vector<std::string>(check_inputs.begin()+1,check_inputs.end()),0,check_targets,&grammar))return rc;
     std::map<std::string, std::vector<size_t>> by_kind;
     for (size_t i = 0; i < program.entries().size(); ++i) {
       const auto &entry = program.entries()[i];
@@ -1332,9 +1470,15 @@ static int run_cli(int argc, char **argv) {
       std::cout << findings_json(host.findings,host.include_metadata) << "\n" << host.findings.size() << " findings in " << where << lmok::suppressed_suffix(host.suppressed_count()) << "\n";
     };
     const char *where = "body";
+    std::vector<lmok::SarifResult> sarif_results;
+    const auto collect_sarif = [&sarif_path, &sarif_results, &host](const std::string &uri) {
+      if (!sarif_path) return;
+      for (const auto &f : host.findings)
+        sarif_results.push_back({f.rule, f.severity, f.message, uri, f.row, f.col, f.end_row, f.end_col});
+    };
     try {
       program.run(context, reg); // configuration/effects once, not once per node or file
-      if (!host.findings.empty() || host.suppressed_count()) print_group("body");
+      if (!host.findings.empty() || host.suppressed_count()) { collect_sarif(""); print_group("body"); }
       for (const auto &target : check_targets) {
         host.reset(); // transient body/file objects and findings do not escape an input
         where = target.path.c_str();
@@ -1349,6 +1493,7 @@ static int run_cli(int argc, char **argv) {
           const Value handle = host.hold_node(node); // per-file arena; Tree stays alive
           for (size_t entry : found->second) program.call(entry, context, reg, {handle});
         });
+        collect_sarif(target.path);
         print_group(where);
         dslvm::report_ok();
         if (!std::cout) return 4;
@@ -1359,6 +1504,19 @@ static int run_cli(int argc, char **argv) {
     } catch (const std::exception &error) {
       if (where != std::string("body") || !host.findings.empty() || host.suppressed_count()) print_group(where);
       return dslvm::report_error("run", dslvm::Error("RUN_HOST", error.what()));
+    }
+    if (sarif_path) {
+      // driver.rules: distinct rule ids in first-seen order, derived from the
+      // results — lmcode rules carry no pack, and the example script derives
+      // its catalog the same way.
+      std::vector<lmok::SarifRuleMeta> sarif_rules;
+      std::set<std::string> seen_ids;
+      for (const auto &f : sarif_results)
+        if (!f.rule.empty() && seen_ids.insert(f.rule).second)
+          sarif_rules.push_back({f.rule, "rule " + f.rule, ""});
+      if (const int rc = write_sarif_file(*sarif_path,
+                                          lmok::sarif_log(LMOK_VERSION, sarif_rules, sarif_results, json_escape)))
+        return rc;
     }
     return 0;
   }
