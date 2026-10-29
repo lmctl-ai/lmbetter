@@ -67,10 +67,14 @@ add_custom_command(
 )
 add_custom_target(lmok_schema DEPENDS "${GENERATED_SCHEMA}" "${GENERATED_NOTICES}")
 
+add_library(lmok_sqlite OBJECT third_party/sqlite/sqlite3.c)
+
 add_executable(lmok
   cpp/main.cpp
   cpp/host.cpp
   cpp/lint.cpp
+  cpp/db.cpp
+  $<TARGET_OBJECTS:lmok_sqlite>
   ${TS_SOURCES}
   "${GENERATED_SCHEMA}"
   "${GENERATED_NOTICES}"
@@ -79,6 +83,7 @@ add_dependencies(lmok lmok_schema)
 
 target_include_directories(lmok PRIVATE
   cpp
+  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite"
   "${TS_ROOT}/lib/include"
   "${TS_ROOT}/lib/src"
   "${GENERATED_DIR}"
@@ -104,4 +109,25 @@ endif()
 # Use UTF-16 CRT arguments on MinGW, then convert once to the host UTF-8 API.
 if(MINGW)
   target_link_options(lmok PRIVATE -municode)
+endif()
+
+# SQLite is embedded, with FTS5 and serialized connections. Disable extension
+# loading so a static binary never dlopens a runtime library.
+set_source_files_properties(third_party/sqlite/sqlite3.c PROPERTIES
+  COMPILE_DEFINITIONS "SQLITE_ENABLE_FTS5;SQLITE_THREADSAFE=1;SQLITE_OMIT_LOAD_EXTENSION"
+  COMPILE_OPTIONS "-w"
+)
+find_package(Threads REQUIRED)
+target_link_libraries(lmok PRIVATE Threads::Threads)
+if(UNIX)
+  target_link_libraries(lmok PRIVATE m)
+endif()
+
+# Test helper is excluded from the default single-CLI build.
+add_executable(lmok_db_test EXCLUDE_FROM_ALL tests/db-wrapper.cpp cpp/db.cpp $<TARGET_OBJECTS:lmok_sqlite>)
+target_include_directories(lmok_db_test PRIVATE cpp third_party/sqlite)
+target_compile_definitions(lmok_db_test PRIVATE LMOK_VERSION="${PROJECT_VERSION}")
+target_link_libraries(lmok_db_test PRIVATE Threads::Threads)
+if(UNIX)
+  target_link_libraries(lmok_db_test PRIVATE m)
 endif()

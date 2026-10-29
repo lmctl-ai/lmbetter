@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download the pinned tree-sitter core and grammar tarballs and unpack them
+# Download the pinned tree-sitter core/grammars and SQLite archives and unpack them
 # into third_party/ (git-ignored). Idempotent; --verify only checks the pins.
 #
 # Trust model: deps.lock pins the SHA-256 of each upstream archive (trust on
@@ -41,7 +41,24 @@ fetch_one() {
         && -f "$DEST/$dir/.lmok-tree-sha256" ]]; then return; fi
   rm -rf "$DEST/$dir"
   mkdir -p "$DEST/$dir"
-  tar -xzf "$tarball" -C "$DEST/$dir" --strip-components=1
+  if [[ "$archive" == *.zip ]]; then
+    # Python is already required by the test gate; avoid a new unzip dependency.
+    python3 - "$tarball" "$DEST/$dir" <<'PYZIP'
+import pathlib, sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    for entry in archive.infolist():
+        parts = pathlib.PurePosixPath(entry.filename).parts[1:]
+        if not parts or entry.is_dir():
+            continue
+        if any(part in ('..', '.', '') for part in parts):
+            raise SystemExit('unsafe SQLite archive path')
+        target = pathlib.Path(sys.argv[2]).joinpath(*parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(archive.read(entry))
+PYZIP
+  else
+    tar -xzf "$tarball" -C "$DEST/$dir" --strip-components=1
+  fi
   printf '%s\n' "$want" > "$DEST/$dir/.lmok-archive-sha256"
   tree_digest "$DEST/$dir" > "$DEST/$dir/.lmok-tree-sha256"
 }
@@ -52,7 +69,8 @@ if [[ "${1:-}" == "--verify" ]]; then
     'tree_sitter_json tree-sitter-json-254c42a.tar.gz tree-sitter-json' \
     'tree_sitter_c tree-sitter-c-b780e47.tar.gz tree-sitter-c' \
     'tree_sitter_python tree-sitter-python-0.23.6.tar.gz tree-sitter-python' \
-    'tree_sitter_bash tree-sitter-bash-0.25.1.tar.gz tree-sitter-bash'; do
+    'tree_sitter_bash tree-sitter-bash-0.25.1.tar.gz tree-sitter-bash' \
+    'sqlite sqlite-amalgamation-3540100.zip sqlite'; do
     read -r name archive dir <<<"$spec"
     [[ -f "$DEST/$dir/.lmok-archive-sha256" && -f "$DEST/$dir/.lmok-tree-sha256" ]] || { echo "$name missing or synced by an older script; run scripts/sync-deps.sh" >&2; exit 1; }
     [[ -f "$DEST/.$archive" && "$(sha256 "$DEST/.$archive")" == "$(get "$name" sha256)" ]] || { echo "$name cached archive differs from deps.lock" >&2; exit 1; }
@@ -67,4 +85,5 @@ fetch_one tree_sitter_json "$(get tree_sitter_json url)" "$(get tree_sitter_json
 fetch_one tree_sitter_c "$(get tree_sitter_c url)" "$(get tree_sitter_c sha256)" tree-sitter-c-b780e47.tar.gz tree-sitter-c
 fetch_one tree_sitter_python "$(get tree_sitter_python url)" "$(get tree_sitter_python sha256)" tree-sitter-python-0.23.6.tar.gz tree-sitter-python
 fetch_one tree_sitter_bash "$(get tree_sitter_bash url)" "$(get tree_sitter_bash sha256)" tree-sitter-bash-0.25.1.tar.gz tree-sitter-bash
+fetch_one sqlite "$(get sqlite url)" "$(get sqlite sha256)" sqlite-amalgamation-3540100.zip sqlite
 echo "synced pinned lmok dependencies"

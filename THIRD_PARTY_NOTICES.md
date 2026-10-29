@@ -41,3 +41,12 @@ The C grammar compiled into the executable (`third_party/tree-sitter-c`).
 `cpp/std/lmcode-std.schema.json` are vendored from lmcode-cpp (MIT License,
 Lattice Systems LLC), pinned by `sdk.lock` and synced by
 `scripts/sync-sdk.sh`.
+
+## SQLite
+
+The SQLite 3.54.1 amalgamation is compiled into the executable with FTS5.
+
+- Upstream: https://www.sqlite.org/
+- Source: https://www.sqlite.org/2026/sqlite-amalgamation-3540100.zip
+- License: public domain (https://www.sqlite.org/copyright.html)
+- Archive SHA-256 pinned in `deps.lock`; source at `third_party/sqlite/`.

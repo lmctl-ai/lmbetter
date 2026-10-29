@@ -4,6 +4,7 @@
 #include "host.hpp"
 #include "lint.hpp"
 #include "input.hpp"
+#include "db.hpp"
 #include "dslvm.hpp"
 #include "stdlib/string.hpp"
 #include "stdlib/collections.hpp"
@@ -368,11 +369,36 @@ static int run_cli(int argc, char **argv) {
   register_host(reg, host);
   const std::string usage =
       "usage: lmok --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
+      "       lmok status [--db PATH] [--init]\n"
       "       lmok parse [--lang json|c|python|bash] FILE\n"
       "       lmok query [--lang json|c|python|bash] PATTERN FILE\n"
       "       lmok lint RULES.json FILE...\n"
       "       lmok check [--lang json|c|python|bash] RULES.dslb FILE...\n"
       "       lmok --dsl FILE [FILE ...]\n";
+  if (argc >= 2 && std::string(argv[1]) == "status") {
+    std::optional<std::string> path;
+    bool init = false;
+    for (int i = 2; i < argc; ++i) {
+      const std::string arg = argv[i];
+      if (arg == "--db" && !path && i + 1 < argc && std::string(argv[i + 1]).rfind("--", 0) != 0) {
+        path = argv[++i];
+      } else if (arg == "--init" && !init) {
+        init = true;
+      } else { std::cerr << usage; return 2; }
+    }
+    try {
+      const auto resolved = lmok::resolve_db_path(path, init);
+      lmok::Database db(resolved, init ? lmok::Database::Mode::Create : lmok::Database::Mode::ReadOnly);
+      std::cout << lmok::db_status(db, resolved) << std::flush;
+      return std::cout ? 0 : 4;
+    } catch (const lmok::DbError &error) {
+      std::cerr << error.what() << "\n";
+      return error.exit_code;
+    } catch (const std::exception &error) {
+      std::cerr << "DB error: " << error.what() << "\n";
+      return 3;
+    }
+  }
   if (argc == 2 && std::string(argv[1]) == "--version") {
     std::cout << "lmok " LMOK_VERSION "\n";
     return std::cout ? 0 : 4;

@@ -25,7 +25,7 @@ Prerequisites for the commands below (Bash on Linux or macOS):
   Linux builds also need static C/C++ runtime libraries; on Ubuntu these
   come with `build-essential`. On macOS install Xcode Command Line Tools.
 - Node.js >= 24.15.0 and npm for `@lmctl-ai/lmctl@0.2.444`.
-- Python 3 for `./test.sh`, plus the usual Unix shell utilities. The SDK
+- Python 3 for SQLite archive extraction and `./test.sh`, plus the usual Unix shell utilities. The SDK
   headers are already checked in; no sibling `lmcode-cpp` checkout is needed.
 
 On Ubuntu, `sudo apt-get install build-essential cmake ninja-build git curl
@@ -175,6 +175,40 @@ symbol is refused with exit 3 and a `LOAD_UNBOUND` record naming the entry, so a
 silently dead; a rules file is therefore specific to one `--lang`. DSLB v6 is the only accepted runtime
 format, so old bytecode must be recompiled. Install the private compiler with
 `npm install --prefix /tmp/lmok-tools @lmctl-ai/lmctl@0.2.444` when needed.
+
+## Local database status
+
+```sh
+lmok status [--db PATH]
+lmok status --init [--db PATH]
+```
+
+`status` prints the absolute DB path, schema version, row counts for files,
+symbols, refs, edges, runs and findings, and the last run (latest `started_at`,
+then id; `none` for an empty DB). Counts include superseded findings.
+It opens an existing DB read-only. If absent, it exits 2 with
+"run `lmok index` first" and creates neither the DB nor its directory.
+`index` is the next spike stage; it is not implemented by this DB layer.
+
+For now, explicit `status --init` creates the empty schema and prints status.
+It preserves a compatible existing DB and never overwrites an incompatible
+one. This is a bootstrap/diagnostic operation, not an indexing operation.
+
+Paths resolve in order: `--db PATH`, nonempty `LMOK_DB`, `.lmok/lmok.db` at
+the nearest ancestor with `.git` (directory or worktree file) or `.lmok/`,
+then `$XDG_CACHE_HOME/lmok/<sha256-of-absolute-cwd>.db`. Without XDG, use
+`$HOME/.cache` (`USERPROFILE` is a Windows fallback if HOME is unset).
+The hash uses the UTF-8 absolute cwd with forward slashes. Relative explicit
+or environment paths are relative to cwd; their parent directories must
+already exist. Only write operations create automatic project/cache dirs.
+The tool never edits `.gitignore`.
+
+SQLite 3.54.1 is compiled into the binary; no system SQLite or SQLite CLI is
+needed. Writers enable WAL with a five-second busy timeout and foreign-key
+checks. Readers see one transaction snapshot. The [schema](docs/tier3/db-design.md#2-db-schema-sqlite--fts5)
+is embedded verbatim, including its FTS5 default tokenizer; trigram search
+is future work. Schema-version mismatches exit 2 with delete/re-index guidance;
+unreadable/corrupt DBs exit 3, and stdout failures exit 4.
 
 ## Rule packs
 

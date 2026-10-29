@@ -887,4 +887,12 @@ python3 tests/check-native-os.py "$HOST" --prove-controls || fail "native OS con
 ok "native OS byte/path/linkage contracts and negative controls"
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-rules-os.py "$HOST" --prove-controls || fail "rule pack OS oracles"
 ok "rule packs per OS: all twelve converted packs, CRLF/no-newline/unicode fixtures, anonymous kinds, argument order"
+# --- SQLite DB layer (keep additive checks at the end) ---
+cmake --build "$BUILD_DIR" --target lmok_db_test -j2 >"$WORK/db-build.log" 2>&1 ||
+  { cat "$WORK/db-build.log" >&2; fail "DB wrapper test build"; }
+"$BUILD_DIR/lmok_db_test" "$WORK/wrapper.db" || fail "DB wrapper transactions and statements"
+ok "DB wrapper: rollback/commit, prepared bindings, foreign keys"
+python3 tests/check-db.py "$HOST" || fail "DB status and resolution contracts"
+ok "DB status: verbatim schema, FTS5, counts, last run, version guard and path precedence"
+
 echo "PASS: $pass checks"
