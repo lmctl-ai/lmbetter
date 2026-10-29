@@ -52,20 +52,20 @@ with tempfile.TemporaryDirectory(prefix='lmok-db-') as tmp:
         run(*args, code=2)
 
     db = root / 'unicode-é-水.db'
-    expected = f'db: {db.as_posix()}\nschema_version: 1\n' + ''.join(
+    expected = f'db: {db.as_posix()}\nschema_version: 2\n' + ''.join(
         f'{name}: 0\n' for name in ('files', 'symbols', 'refs', 'edges', 'runs', 'findings')) + 'last_run: none\n'
     assert run('--db', db, '--init').stdout == expected
     assert run('--db', db).stdout == expected
     with connect(db) as con:
         assert con.execute('pragma journal_mode').fetchone()[0] == 'wal'
-        assert dict(con.execute('select key,value from meta'))['schema_version'] == '1'
+        assert dict(con.execute('select key,value from meta'))['schema_version'] == '2'
         indexes = {x[0] for x in con.execute("select name from sqlite_master where type='index'")}
         assert set(re.findall(r'CREATE INDEX (\w+)', schema)) <= indexes
         assert 'fts5' in con.execute("select sql from sqlite_master where name='file_text'").fetchone()[0]
         con.execute("insert into files values(1,'x.c','c','hash',0,10,1)")
-        con.execute("insert into symbols values(1,1,'f','function',0,0,0,1,'')")
-        con.execute("insert into refs values(1,1,'f','call',0,0,0,1)")
-        con.execute("insert into edges values(1,'x.h','include',NULL)")
+        con.execute("insert into symbols values(1,1,'f','function',0,0,0,1,'','exact')")
+        con.execute("insert into refs values(1,1,'f','call',0,0,0,1,'exact')")
+        con.execute("insert into edges values(1,'x.h','include',NULL,'exact')")
         con.execute("insert into runs values(10,1,'old')")
         con.execute("insert into runs values(2,20,'new')")
         con.execute("insert into findings values(1,2,1,'X','minor','message',0,0,0,1,0)")

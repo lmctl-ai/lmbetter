@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
     require(options.step() && options.text(0) == "3.54.1" && options.integer(1) == 1 && options.integer(2) == 1);
     auto fk = db.prepare("PRAGMA foreign_keys"); require(fk.step() && fk.integer(0) == 1);
     bool rejected = false;
-    try { db.exec("INSERT INTO symbols VALUES(1,999,'x','function',0,0,0,1,'')"); }
+    try { db.exec("INSERT INTO symbols VALUES(1,999,'x','function',0,0,0,1,'','exact')"); }
     catch (const lmok::DbError &) { rejected = true; }
     require(rejected);
     std::cout << "DB wrapper: rollback, commit, bindings/reset/move/null, foreign keys\n";

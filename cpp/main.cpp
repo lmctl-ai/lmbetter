@@ -21,6 +21,7 @@
 #include <iostream>
 #include <memory>
 #include <map>
+#include <set>
 #include <unordered_map>
 #include <sstream>
 #include <stdexcept>
@@ -377,15 +378,15 @@ bool grammar_for_extension(const std::string &ext, lmok::Grammar &grammar) {
   return false;
 }
 
-// Expands argv[first..argc). Returns 0, or the exit code (2 usage, 3 I/O)
-// after printing the diagnostic. With `only` set, directory expansion keeps
-// that grammar's extensions alone (explicit files are kept regardless).
-int expand_targets(int argc, char **argv, int first, std::vector<Target> &targets,
+// Expands args[first..args.size()). Returns 0, or the exit code (2 usage,
+// 3 I/O) after printing the diagnostic. With `only` set, directory expansion
+// keeps that grammar's extensions alone (explicit files are kept regardless).
+int expand_targets(const std::vector<std::string> &args, size_t first, std::vector<Target> &targets,
                    const lmok::Grammar *only = nullptr) {
   namespace fs = std::filesystem;
-  for (int i = first; i < argc; ++i) {
+  for (size_t i = first; i < args.size(); ++i) {
     std::error_code ec;
-    const fs::path root = fs::u8path(argv[i]);
+    const fs::path root = fs::u8path(args[i]);
     if (fs::is_directory(root, ec)) {
       std::vector<std::string> found;
       const fs::recursive_directory_iterator end;
@@ -416,13 +417,13 @@ int expand_targets(int argc, char **argv, int first, std::vector<Target> &target
         return 3;
       }
       if (found.empty()) {
-        std::cerr << "no lintable files in " << canonical_path(argv[i]) << " (want .c/.h/.json/.py/.sh/.bash)\n";
+        std::cerr << "no lintable files in " << canonical_path(args[i]) << " (want .c/.h/.json/.py/.sh/.bash)\n";
         return 2;
       }
       std::sort(found.begin(), found.end());
       for (auto &f : found) targets.push_back({f, true});
     } else {
-      targets.push_back({canonical_path(argv[i]), false});
+      targets.push_back({canonical_path(args[i]), false});
     }
   }
   return 0;
@@ -435,6 +436,47 @@ bool parse_lang(const std::string &lang, lmok::Grammar &grammar) {
   else if (lang == "bash") grammar = lmok::Grammar::Bash;
   else return false;
   return true;
+}
+
+// ---- index helpers (facts -> DB, wave 2A) ----
+// Edge-like fact kinds land in `edges` under these names (in addition to the
+// refs row every ref.* fact gets).
+std::string edge_kind_of(const std::string &fact_kind) {
+  if (fact_kind == "ref.include") return "include";
+  if (fact_kind == "ref.import") return "import";
+  if (fact_kind == "ref.import_from" || fact_kind == "ref.import_wildcard") return "from_import";
+  if (fact_kind == "ref.source") return "source";
+  return "";
+}
+
+// Join dir + edge target and collapse interior "./" and resolvable ".."
+// components, keeping a leading "./", so the result string-compares against
+// the walked path form expand_targets stores ("./main.c" for root ".").
+std::string normalize_join(const std::string &dir, const std::string &name) {
+  const std::string both = dir.empty() ? name : dir + "/" + name;
+  std::vector<std::string> parts;
+  size_t at = 0;
+  bool first = true;
+  while (at <= both.size()) {
+    const size_t slash = both.find('/', at);
+    const std::string part = both.substr(at, slash == std::string::npos ? std::string::npos : slash - at);
+    if (part == ".") {
+      if (first) parts.push_back(".");
+    } else if (part == "..") {
+      if (!parts.empty() && parts.back() != ".." && parts.back() != ".") parts.pop_back();
+      else if (!parts.empty() && parts.back() == ".") { parts.pop_back(); parts.push_back(".."); }
+      else parts.push_back("..");
+    } else if (!part.empty()) parts.push_back(part);
+    first = false;
+    if (slash == std::string::npos) break;
+    at = slash + 1;
+  }
+  std::string out;
+  for (size_t i = 0; i < parts.size(); ++i) {
+    if (i) out += "/";
+    out += parts[i];
+  }
+  return out;
 }
 
 void print_schema_summary(const dslvm::Registry &reg) {
@@ -454,6 +496,9 @@ static int run_cli(int argc, char **argv) {
   const std::string usage =
       "usage: lmok --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
       "       lmok status [--db PATH] [--init]\n"
+      "       lmok index [--db PATH] [--force] [DIR...]\n"
+      "       lmok symbols [PATTERN] [--lang L] [--kind K] [--db PATH]\n"
+      "       lmok refs NAME [--db PATH]\n"
       "       lmok findings [--rule ID] [--file PATH] [--db PATH]\n"
       "       lmok parse [--lang json|c|python|bash] FILE\n"
       "       lmok query [--lang json|c|python|bash] PATTERN FILE\n"
@@ -476,6 +521,261 @@ static int run_cli(int argc, char **argv) {
       const auto resolved = lmok::resolve_db_path(path, init);
       lmok::Database db(resolved, init ? lmok::Database::Mode::Create : lmok::Database::Mode::ReadOnly);
       std::cout << lmok::db_status(db, resolved) << std::flush;
+      return std::cout ? 0 : 4;
+    } catch (const lmok::DbError &error) {
+      std::cerr << error.what() << "\n";
+      return error.exit_code;
+    } catch (const std::exception &error) {
+      std::cerr << "DB error: " << error.what() << "\n";
+      return 3;
+    }
+  }
+  // Wave 2A: facts -> DB pipeline (docs/tier3/db-design.md §1/§5). Walks like
+  // lint, invalidates by stat (mtime+size) then sha256, re-extracts each
+  // changed file in ONE transaction, and reconciles vanished files under the
+  // indexed roots afterwards.
+  if (argc >= 2 && std::string(argv[1]) == "index") {
+    std::optional<std::string> db_path;
+    bool force = false;
+    std::vector<std::string> roots;
+    for (int i = 2; i < argc; ++i) {
+      const std::string arg = argv[i];
+      if (arg == "--db" && !db_path && i + 1 < argc && std::string(argv[i + 1]).rfind("--", 0) != 0) {
+        db_path = argv[++i];
+      } else if (arg == "--force" && !force) {
+        force = true;
+      } else if (arg.empty() || arg.rfind("--", 0) == 0) {
+        std::cerr << usage; return 2;
+      } else roots.push_back(arg);
+    }
+    if (roots.empty()) roots.push_back(".");
+    std::vector<Target> targets;
+    if (const int rc = expand_targets(roots, 0, targets)) return rc;
+    namespace fs = std::filesystem;
+    try {
+      const auto resolved = lmok::resolve_db_path(db_path, true);
+      lmok::Database db(resolved, lmok::Database::Mode::Create);
+      struct FileRow { int64_t id; std::string sha256; int64_t mtime; int64_t size; };
+      std::map<std::string, FileRow> known;
+      {
+        auto q = db.prepare("SELECT id, path, sha256, mtime, size FROM files");
+        while (q.step()) known.emplace(q.text(1), FileRow{q.integer(0), q.text(2), q.integer(3), q.integer(4)});
+      }
+      const int64_t now = static_cast<int64_t>(std::time(nullptr));
+      int64_t n_indexed = 0, n_unchanged = 0;
+      std::set<std::string> seen;
+      for (const auto &target : targets) {
+        const std::string &path = target.path;
+        seen.insert(path);
+        lmok::Grammar grammar;
+        if (!grammar_for_extension(fs::u8path(path).extension().u8string(), grammar)) {
+          std::cerr << "cannot infer the language of " << path << " from its extension\n";
+          return 3;
+        }
+        std::error_code ec;
+        const auto fsize = fs::file_size(fs::u8path(path), ec);
+        if (ec) { std::cerr << "cannot stat " << path << ": " << ec.message() << "\n"; return 3; }
+        const auto ftime = fs::last_write_time(fs::u8path(path), ec);
+        if (ec) { std::cerr << "cannot stat " << path << ": " << ec.message() << "\n"; return 3; }
+        const int64_t mtime =
+            std::chrono::duration_cast<std::chrono::seconds>(ftime.time_since_epoch()).count();
+        const auto it = known.find(path);
+        if (!force && it != known.end() && it->second.mtime == mtime &&
+            it->second.size == static_cast<int64_t>(fsize)) { ++n_unchanged; continue; }
+        std::string raw;
+        try { raw = read_file(path); }
+        catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
+        const std::string hash = dslvm::hex(dslvm::sha256(raw));
+        if (!force && it != known.end() && it->second.sha256 == hash) {
+          // Stat changed but content did not: refresh the stat fields only.
+          auto upd = db.prepare("UPDATE files SET mtime=?, size=?, indexed_at=? WHERE id=?");
+          upd.bind(1, mtime); upd.bind(2, static_cast<int64_t>(fsize)); upd.bind(3, now);
+          upd.bind(4, it->second.id); upd.step();
+          ++n_unchanged; continue;
+        }
+        std::vector<lmok::Fact> facts;
+        try {
+          const lmok::Tree tree = lmok::parse(grammar, raw);
+          facts = lmok::extract_facts(tree, grammar);
+        } catch (const std::exception &e) {
+          std::cerr << "index " << path << ": " << e.what() << "\n"; return 3;
+        }
+        const std::string lang = lmok::grammar_name(grammar);
+        int64_t file_id = -1;
+        {
+          lmok::Transaction transaction(db);
+          if (it != known.end()) {
+            file_id = it->second.id;
+            auto upd = db.prepare("UPDATE files SET lang=?, sha256=?, mtime=?, size=?, indexed_at=? WHERE id=?");
+            upd.bind(1, lang); upd.bind(2, hash); upd.bind(3, mtime);
+            upd.bind(4, static_cast<int64_t>(fsize)); upd.bind(5, now); upd.bind(6, file_id); upd.step();
+          } else {
+            auto ins = db.prepare("INSERT INTO files(path, lang, sha256, mtime, size, indexed_at) VALUES (?,?,?,?,?,?)");
+            ins.bind(1, path); ins.bind(2, lang); ins.bind(3, hash); ins.bind(4, mtime);
+            ins.bind(5, static_cast<int64_t>(fsize)); ins.bind(6, now); ins.step();
+            auto idq = db.prepare("SELECT id FROM files WHERE path=?");
+            idq.bind(1, path);
+            if (!idq.step()) throw lmok::DbError(3, "index: lost files row for " + path);
+            file_id = idq.integer(0);
+          }
+          const auto del_where = [&](const char *sql) {
+            auto del = db.prepare(sql); del.bind(1, file_id); del.step();
+          };
+          del_where("DELETE FROM symbols WHERE file_id=?");
+          del_where("DELETE FROM refs WHERE file_id=?");
+          del_where("DELETE FROM edges WHERE from_file=?");
+          auto del_text = db.prepare("DELETE FROM file_text WHERE path=?");
+          del_text.bind(1, path); del_text.step();
+          auto ins_sym = db.prepare("INSERT INTO symbols(file_id, name, kind, start_row, start_col, end_row, end_col, scope, confidence) VALUES (?,?,?,?,?,?,?,?,?)");
+          auto ins_ref = db.prepare("INSERT INTO refs(file_id, name, kind, start_row, start_col, end_row, end_col, confidence) VALUES (?,?,?,?,?,?,?,?)");
+          auto ins_edge = db.prepare("INSERT INTO edges(from_file, to_name, kind, resolved_file, confidence) VALUES (?,?,?,NULL,?)");
+          for (const auto &f : facts) {
+            if (f.kind.rfind("def.", 0) == 0) {
+              ins_sym.bind(1, file_id); ins_sym.bind(2, f.name); ins_sym.bind(3, f.kind.substr(4));
+              ins_sym.bind(4, f.row); ins_sym.bind(5, f.col); ins_sym.bind(6, f.end_row);
+              ins_sym.bind(7, f.end_col); ins_sym.bind(8, f.scope); ins_sym.bind(9, f.confidence);
+              ins_sym.step(); ins_sym.reset();
+            } else if (f.kind.rfind("ref.", 0) == 0) {
+              ins_ref.bind(1, file_id); ins_ref.bind(2, f.name); ins_ref.bind(3, f.kind.substr(4));
+              ins_ref.bind(4, f.row); ins_ref.bind(5, f.col); ins_ref.bind(6, f.end_row);
+              ins_ref.bind(7, f.end_col); ins_ref.bind(8, f.confidence);
+              ins_ref.step(); ins_ref.reset();
+              const std::string ek = edge_kind_of(f.kind);
+              if (!ek.empty()) {
+                ins_edge.bind(1, file_id); ins_edge.bind(2, f.name); ins_edge.bind(3, ek);
+                ins_edge.bind(4, f.confidence); ins_edge.step(); ins_edge.reset();
+              }
+            }
+          }
+          auto ins_text = db.prepare("INSERT INTO file_text(path, lang, text) VALUES (?,?,?)");
+          ins_text.bind(1, path); ins_text.bind(2, lang); ins_text.bind(3, raw); ins_text.step();
+          transaction.commit();
+        }
+        ++n_indexed;
+      }
+      // Vanished files: previously indexed rows under an indexed directory
+      // root that the walk did not produce this run. Rows from other roots
+      // are left alone (indexing a subset must not drop the rest).
+      int64_t n_removed = 0;
+      {
+        std::vector<std::string> prefixes;
+        for (const auto &root : roots) {
+          std::error_code ec;
+          if (fs::is_directory(fs::u8path(root), ec)) {
+            std::string prefix = canonical_path(root);
+            if (prefix.empty() || prefix.back() != '/') prefix += "/";
+            prefixes.push_back(prefix);
+          }
+        }
+        lmok::Transaction transaction(db);
+        for (const auto &[path, row] : known) {
+          if (seen.count(path)) continue;
+          bool under = false;
+          for (const auto &prefix : prefixes)
+            if (path.rfind(prefix, 0) == 0) { under = true; break; }
+          if (!under) continue;
+          auto del = db.prepare("DELETE FROM files WHERE id=?"); // CASCADE: symbols/refs/edges
+          del.bind(1, row.id); del.step();
+          auto del_text = db.prepare("DELETE FROM file_text WHERE path=?");
+          del_text.bind(1, path); del_text.step();
+          ++n_removed;
+        }
+        transaction.commit();
+      }
+      // Edge resolution (literal targets only): dir-of-source join first,
+      // then a UNIQUE whole-DB suffix match; ambiguous or absent = NULL
+      // (external/unresolved stays honest, never guessed).
+      {
+        std::map<std::string, int64_t> file_ids;
+        std::map<int64_t, std::string> id_path;
+        auto q = db.prepare("SELECT id, path FROM files");
+        while (q.step()) { file_ids.emplace(q.text(1), q.integer(0)); id_path.emplace(q.integer(0), q.text(1)); }
+        struct EdgeRow { int64_t id; int64_t from; std::string to; };
+        std::vector<EdgeRow> edge_rows;
+        auto eq = db.prepare("SELECT rowid, from_file, to_name FROM edges");
+        while (eq.step()) edge_rows.push_back({eq.integer(0), eq.integer(1), eq.text(2)});
+        lmok::Transaction transaction(db);
+        auto upd = db.prepare("UPDATE edges SET resolved_file=? WHERE rowid=?");
+        for (const auto &e : edge_rows) {
+          const std::string &from = id_path[e.from];
+          const size_t slash = from.rfind('/');
+          const std::string dir = slash == std::string::npos ? "" : from.substr(0, slash);
+          int64_t resolved_id = -1;
+          const auto found = file_ids.find(normalize_join(dir, e.to));
+          if (found != file_ids.end()) resolved_id = found->second;
+          else {
+            const std::string suffix = "/" + e.to;
+            int64_t match = -1;
+            int count = 0;
+            for (const auto &[p, id] : file_ids)
+              if (p.size() >= suffix.size() &&
+                  p.compare(p.size() - suffix.size(), std::string::npos, suffix) == 0) { match = id; ++count; }
+            if (count == 1) resolved_id = match;
+          }
+          if (resolved_id >= 0) upd.bind(1, resolved_id); else upd.bind_null(1);
+          upd.bind(2, e.id); upd.step(); upd.reset();
+        }
+        transaction.commit();
+      }
+      std::cout << "indexed " << n_indexed << " files (" << n_unchanged << " unchanged, "
+                << n_removed << " removed)\n";
+      return std::cout ? 0 : 4;
+    } catch (const lmok::DbError &error) {
+      std::cerr << error.what() << "\n";
+      return error.exit_code;
+    } catch (const std::exception &error) {
+      std::cerr << "index: " << error.what() << "\n";
+      return 3;
+    }
+  }
+  // Read verbs over the facts DB. Output shape mirrors `query`:
+  // `name kind path start_row:start_col-end_row:end_col`, sorted path-then-row.
+  if (argc >= 2 && (std::string(argv[1]) == "symbols" || std::string(argv[1]) == "refs")) {
+    const bool is_refs = std::string(argv[1]) == "refs";
+    std::optional<std::string> db_path, pattern, lang, kind;
+    for (int i = 2; i < argc; ++i) {
+      const std::string arg = argv[i];
+      if (arg == "--db" && !db_path && i + 1 < argc && std::string(argv[i + 1]).rfind("--", 0) != 0) {
+        db_path = argv[++i];
+      } else if (!is_refs && arg == "--lang" && !lang && i + 1 < argc &&
+                 std::string(argv[i + 1]).rfind("--", 0) != 0) {
+        lang = argv[++i];
+      } else if (!is_refs && arg == "--kind" && !kind && i + 1 < argc &&
+                 std::string(argv[i + 1]).rfind("--", 0) != 0) {
+        kind = argv[++i];
+      } else if (!arg.empty() && arg.rfind("--", 0) == 0) {
+        std::cerr << usage; return 2;
+      } else if (!pattern) pattern = arg;
+      else { std::cerr << usage; return 2; }
+    }
+    if (is_refs && !pattern) { std::cerr << usage; return 2; }
+    if (lang) {
+      lmok::Grammar g;
+      if (!parse_lang(*lang, g)) {
+        std::cerr << "unknown language '" << *lang << "' (known: json, c, python, bash)\n";
+        return 2;
+      }
+    }
+    try {
+      const auto resolved = lmok::resolve_db_path(db_path, false);
+      lmok::Database db(resolved, lmok::Database::Mode::ReadOnly);
+      std::string sql = is_refs
+          ? "SELECT r.name, r.kind, f.path, r.start_row, r.start_col, r.end_row, r.end_col"
+            " FROM refs r JOIN files f ON f.id = r.file_id WHERE r.name = ?"
+          : "SELECT s.name, s.kind, f.path, s.start_row, s.start_col, s.end_row, s.end_col"
+            " FROM symbols s JOIN files f ON f.id = s.file_id WHERE s.name LIKE ?";
+      if (lang) sql += " AND f.lang = ?";
+      if (kind && !is_refs) sql += " AND s.kind = ?";
+      sql += is_refs ? " ORDER BY f.path, r.start_row, r.start_col, r.kind"
+                     : " ORDER BY f.path, s.start_row, s.start_col, s.name, s.kind";
+      auto q = db.prepare(sql);
+      int at = 1;
+      q.bind(at++, pattern ? *pattern : "%"); // refs requires NAME; symbols defaults to %
+      if (lang) q.bind(at++, *lang);
+      if (kind && !is_refs) q.bind(at++, *kind);
+      while (q.step())
+        std::cout << q.text(0) << " " << q.text(1) << " " << q.text(2) << " "
+                  << q.integer(3) << ":" << q.integer(4) << "-" << q.integer(5) << ":" << q.integer(6) << "\n";
       return std::cout ? 0 : 4;
     } catch (const lmok::DbError &error) {
       std::cerr << error.what() << "\n";
@@ -650,11 +950,8 @@ static int run_cli(int argc, char **argv) {
       else json_rules.push_back(rule);
     }
     namespace fs = std::filesystem;
-    std::vector<char *> target_argv;
-    target_argv.reserve(target_args.size());
-    for (auto &arg : target_args) target_argv.push_back(arg.data());
     std::vector<Target> targets;
-    if (const int rc = expand_targets(static_cast<int>(target_argv.size()), target_argv.data(), 0, targets)) return rc;
+    if (const int rc = expand_targets(target_args, 0, targets)) return rc;
     // With --db the run is recorded only after EVERY target linted cleanly: a
     // failed/interrupted scan must never look like a successful empty result,
     // so findings are collected per file and written in one transaction at
@@ -747,7 +1044,8 @@ static int run_cli(int argc, char **argv) {
     }
     if (argi >= argc) { std::cerr << usage; return 2; }
     std::vector<Target> targets;
-    if (const int rc = expand_targets(argc, argv, argi, targets, forced ? &forced_grammar : nullptr)) return rc;
+    if (const int rc = expand_targets(std::vector<std::string>(argv + argi, argv + argc), 0, targets,
+                                      forced ? &forced_grammar : nullptr)) return rc;
     for (const auto &target : targets) {
       lmok::Grammar grammar = forced_grammar;
       if (!forced || target.from_dir) {

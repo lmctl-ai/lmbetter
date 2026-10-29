@@ -1005,4 +1005,70 @@ set +e; "$HOST" lint rules/c-tier1.json --db >/dev/null 2>&1; code=$?; set -e
 [ "$code" = 2 ] || fail "lint --db without a value exits 2 (got $code)"
 ok "lint --db: recording failure never fails the lint (stderr note); findings on a missing DB exits 2"
 
+# --- index/symbols/refs: facts -> DB pipeline (wave 2A) ---
+HOST_ABS="$HERE/$HOST"
+DBFIX="$WORK/dbcopy"
+mkdir -p "$DBFIX" && cp tests/fixtures/db/index/* "$DBFIX/"
+out="$(cd "$DBFIX" && "$HOST_ABS" index --db "$WORK/test.db" .)"
+[ "$out" = "indexed 5 files (0 unchanged, 0 removed)" ] || fail "index fresh: $out"
+(cd "$DBFIX" && "$HOST_ABS" symbols --db "$WORK/test.db") >"$WORK/db-symbols.out" || fail "symbols run"
+cat >"$WORK/db-symbols.expected" <<'EXPECTED_DBSYM'
+server key ./config.json 0:1-0:25
+port key ./config.json 0:12-0:24
+debug key ./config.json 0:27-0:41
+helper function ./main.c 2:0-2:42
+a parameter ./main.c 2:18-2:23
+main function ./main.c 4:0-4:36
+deploy function ./script.sh 1:0-3:1
+os import ./tool.py 0:7-0:9
+build function ./tool.py 3:0-4:34
+path parameter ./tool.py 3:10-3:14
+add prototype ./util.h 0:0-0:22
+a parameter ./util.h 0:8-0:13
+b parameter ./util.h 0:15-0:20
+EXPECTED_DBSYM
+cmp "$WORK/db-symbols.expected" "$WORK/db-symbols.out" || { diff "$WORK/db-symbols.expected" "$WORK/db-symbols.out" >&2; fail "symbols output"; }
+out="$(cd "$DBFIX" && "$HOST_ABS" refs helper --db "$WORK/test.db")"
+[ "$out" = 'helper call ./main.c 4:24-4:33' ] || fail "refs helper: $out"
+out="$(cd "$DBFIX" && "$HOST_ABS" symbols --lang python --kind function --db "$WORK/test.db")"
+[ "$out" = 'build function ./tool.py 3:0-4:34' ] || fail "symbols --lang/--kind filter: $out"
+ok "index: fixture tree indexed; symbols/refs byte-exact, filters work"
+
+touch "$DBFIX"/*
+out="$(cd "$DBFIX" && "$HOST_ABS" index --db "$WORK/test.db" .)"
+[ "$out" = "indexed 0 files (5 unchanged, 0 removed)" ] || fail "index touch-only: $out"
+printf '\n\ndef ship(path):\n    return build(path)\n' >> "$DBFIX/tool.py"
+out="$(cd "$DBFIX" && "$HOST_ABS" index --db "$WORK/test.db" .)"
+[ "$out" = "indexed 1 files (4 unchanged, 0 removed)" ] || fail "index after edit: $out"
+out="$(cd "$DBFIX" && "$HOST_ABS" symbols ship --db "$WORK/test.db")"
+[ "$out" = 'ship function ./tool.py 10:0-11:22' ] || fail "edited file re-extracted: $out"
+rm "$DBFIX/script.sh"
+out="$(cd "$DBFIX" && "$HOST_ABS" index --db "$WORK/test.db" .)"
+[ "$out" = "indexed 0 files (4 unchanged, 1 removed)" ] || fail "index after delete: $out"
+out="$(cd "$DBFIX" && "$HOST_ABS" refs deploy --db "$WORK/test.db")"
+[ -z "$out" ] || fail "removed file's refs must be gone: $out"
+(cd "$DBFIX" && "$HOST_ABS" symbols --db "$WORK/test.db") | grep -q 'script.sh' && fail "removed file still in symbols"
+out="$(cd "$DBFIX" && "$HOST_ABS" index --force --db "$WORK/test.db" .)"
+[ "$out" = "indexed 4 files (0 unchanged, 0 removed)" ] || fail "index --force: $out"
+ok "index: stat/hash invalidation, per-file re-extract, vanished removal, --force"
+
+python3 - "$WORK/test.db" <<'PY'
+import sqlite3, sys
+con = sqlite3.connect(sys.argv[1])
+rows = con.execute('select e.to_name, e.kind, e.confidence, f.path from edges e '
+                   'left join files f on f.id = e.resolved_file order by e.to_name').fetchall()
+assert rows == [('os', 'import', 'exact', None), ('util.h', 'include', 'exact', './util.h')], rows
+conf = {r[0] for r in con.execute('select distinct confidence from symbols')}
+assert conf <= {'exact', 'candidate', 'unresolved', 'external'}, conf
+assert con.execute("select count(*) from file_text where file_text match 'helper'").fetchone()[0] == 1
+print('edges resolve literal targets; confidence stored; FTS mirror populated')
+PY
+set +e; out="$("$HOST" symbols --db "$WORK/no-such.db" 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *'run `lmok index` first'* ]] || fail "symbols missing DB (exit $code): $out"
+set +e; "$HOST" refs >/dev/null 2>&1; code=$?; set -e
+[ "$code" = 2 ] || fail "refs without NAME exits 2 (got $code)"
+set +e; out="$(cd "$DBFIX" && "$HOST_ABS" symbols --lang rust --db "$WORK/test.db" 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust'"* ]] || fail "symbols unknown --lang (exit $code): $out"
+ok "index: edges resolve (include hits ./util.h, import os external); missing DB refused (exit 2)"
+
 echo "PASS: $pass checks"

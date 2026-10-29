@@ -78,7 +78,7 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
--- rows: schema_version (=1), lmok_version, created_at
+-- rows: schema_version (=2), lmok_version, created_at
 
 CREATE TABLE files (
   id         INTEGER PRIMARY KEY,
@@ -91,24 +91,26 @@ CREATE TABLE files (
 );
 
 CREATE TABLE symbols (
-  id        INTEGER PRIMARY KEY,
-  file_id   INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  name      TEXT NOT NULL,
-  kind      TEXT NOT NULL,           -- function|class|variable|macro|struct|key
-  start_row INTEGER NOT NULL, start_col INTEGER NOT NULL,
-  end_row   INTEGER NOT NULL, end_col INTEGER NOT NULL,
-  scope     TEXT NOT NULL DEFAULT '' -- enclosing path, e.g. "Server.handle"; '' = top level
+  id         INTEGER PRIMARY KEY,
+  file_id    INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  kind       TEXT NOT NULL,           -- function|class|variable|macro|struct|key
+  start_row  INTEGER NOT NULL, start_col INTEGER NOT NULL,
+  end_row    INTEGER NOT NULL, end_col INTEGER NOT NULL,
+  scope      TEXT NOT NULL DEFAULT '', -- enclosing path, e.g. "Server.handle"; '' = top level
+  confidence TEXT NOT NULL DEFAULT 'exact' -- exact|candidate|unresolved|external
 );
 CREATE INDEX idx_symbols_name ON symbols(name);
 CREATE INDEX idx_symbols_file ON symbols(file_id);
 
 CREATE TABLE refs (
-  id        INTEGER PRIMARY KEY,
-  file_id   INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  name      TEXT NOT NULL,           -- identifier being referenced
-  kind      TEXT NOT NULL,           -- call|read|write|include|import
-  start_row INTEGER NOT NULL, start_col INTEGER NOT NULL,
-  end_row   INTEGER NOT NULL, end_col INTEGER NOT NULL
+  id         INTEGER PRIMARY KEY,
+  file_id    INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,           -- identifier being referenced
+  kind       TEXT NOT NULL,           -- call|read|write|include|import
+  start_row  INTEGER NOT NULL, start_col INTEGER NOT NULL,
+  end_row    INTEGER NOT NULL, end_col INTEGER NOT NULL,
+  confidence TEXT NOT NULL DEFAULT 'exact'
 );
 CREATE INDEX idx_refs_name ON refs(name);
 
@@ -116,7 +118,8 @@ CREATE TABLE edges (                 -- import/include graph
   from_file     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
   to_name       TEXT NOT NULL,       -- as written: "util.h", "os.path", "./lib.sh"
   kind          TEXT NOT NULL,       -- include|import|from_import|source
-  resolved_file INTEGER REFERENCES files(id)  -- NULL = external/unresolved
+  resolved_file INTEGER REFERENCES files(id),  -- NULL = external/unresolved
+  confidence    TEXT NOT NULL DEFAULT 'exact'
 );
 
 CREATE TABLE runs (
@@ -147,6 +150,10 @@ CREATE VIRTUAL TABLE file_text USING fts5(
 
 Notes:
 
+- Wave 2A added the `confidence` column to symbols/refs/edges
+  (schema_version 2; a v1 DB is refused with exit 2 — delete + re-index).
+  `files.path` stores the path AS WALKED (cwd-relative, forward slashes —
+  `./main.c` for `index .`), matching what `lint` prints for the same run.
 - All ranges stay 0-based tree-sitter points, identical to every other
   surface (parse/query/lint) — no 1-based conversion anywhere in the DB.
 - `file_text` doubles the DB size (source is on disk AND in FTS). That is the

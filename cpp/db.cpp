@@ -14,7 +14,7 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
--- rows: schema_version (=1), lmok_version, created_at
+-- rows: schema_version (=2), lmok_version, created_at
 
 CREATE TABLE files (
   id         INTEGER PRIMARY KEY,
@@ -27,24 +27,26 @@ CREATE TABLE files (
 );
 
 CREATE TABLE symbols (
-  id        INTEGER PRIMARY KEY,
-  file_id   INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  name      TEXT NOT NULL,
-  kind      TEXT NOT NULL,           -- function|class|variable|macro|struct|key
-  start_row INTEGER NOT NULL, start_col INTEGER NOT NULL,
-  end_row   INTEGER NOT NULL, end_col INTEGER NOT NULL,
-  scope     TEXT NOT NULL DEFAULT '' -- enclosing path, e.g. "Server.handle"; '' = top level
+  id         INTEGER PRIMARY KEY,
+  file_id    INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  kind       TEXT NOT NULL,           -- function|class|variable|macro|struct|key
+  start_row  INTEGER NOT NULL, start_col INTEGER NOT NULL,
+  end_row    INTEGER NOT NULL, end_col INTEGER NOT NULL,
+  scope      TEXT NOT NULL DEFAULT '', -- enclosing path, e.g. "Server.handle"; '' = top level
+  confidence TEXT NOT NULL DEFAULT 'exact' -- exact|candidate|unresolved|external
 );
 CREATE INDEX idx_symbols_name ON symbols(name);
 CREATE INDEX idx_symbols_file ON symbols(file_id);
 
 CREATE TABLE refs (
-  id        INTEGER PRIMARY KEY,
-  file_id   INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  name      TEXT NOT NULL,           -- identifier being referenced
-  kind      TEXT NOT NULL,           -- call|read|write|include|import
-  start_row INTEGER NOT NULL, start_col INTEGER NOT NULL,
-  end_row   INTEGER NOT NULL, end_col INTEGER NOT NULL
+  id         INTEGER PRIMARY KEY,
+  file_id    INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,           -- identifier being referenced
+  kind       TEXT NOT NULL,           -- call|read|write|include|import
+  start_row  INTEGER NOT NULL, start_col INTEGER NOT NULL,
+  end_row    INTEGER NOT NULL, end_col INTEGER NOT NULL,
+  confidence TEXT NOT NULL DEFAULT 'exact'
 );
 CREATE INDEX idx_refs_name ON refs(name);
 
@@ -52,7 +54,8 @@ CREATE TABLE edges (                 -- import/include graph
   from_file     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
   to_name       TEXT NOT NULL,       -- as written: "util.h", "os.path", "./lib.sh"
   kind          TEXT NOT NULL,       -- include|import|from_import|source
-  resolved_file INTEGER REFERENCES files(id)  -- NULL = external/unresolved
+  resolved_file INTEGER REFERENCES files(id),  -- NULL = external/unresolved
+  confidence    TEXT NOT NULL DEFAULT 'exact'
 );
 
 CREATE TABLE runs (
@@ -101,7 +104,7 @@ std::string env(const char *name) {
 #endif
 }
 [[noreturn]] void schema_error() {
-  throw DbError(2, "DB schema mismatch (expected schema_version=1); delete the DB and re-index with `lmok index`");
+  throw DbError(2, "DB schema mismatch (expected schema_version=2); delete the DB and re-index with `lmok index`");
 }
 } // namespace
 
@@ -215,7 +218,7 @@ Database::Database(const std::filesystem::path &path, Mode mode) {
       if (empty) {
         exec(schema_sql);
         auto insert = prepare("INSERT INTO meta(key,value) VALUES (?,?)");
-        for (const auto &entry : {std::pair<std::string, std::string>{"schema_version", "1"},
+        for (const auto &entry : {std::pair<std::string, std::string>{"schema_version", "2"},
                                   {"lmok_version", LMOK_VERSION},
                                   {"created_at", std::to_string(std::time(nullptr))}}) {
           insert.bind(1, entry.first); insert.bind(2, entry.second); insert.step(); insert.reset();
@@ -227,7 +230,7 @@ Database::Database(const std::filesystem::path &path, Mode mode) {
       if (meta.integer(0) != 1) schema_error();
       meta.step();
       auto version = prepare("SELECT value FROM meta WHERE key='schema_version'");
-      if (!version.step() || version.text(0) != "1") schema_error();
+      if (!version.step() || version.text(0) != "2") schema_error();
       version.step();
       transaction.commit();
       exec("PRAGMA journal_mode=WAL");
@@ -236,7 +239,7 @@ Database::Database(const std::filesystem::path &path, Mode mode) {
       meta.step();
       if (meta.integer(0) != 1) schema_error();
       auto version = prepare("SELECT value FROM meta WHERE key='schema_version'");
-      if (!version.step() || version.text(0) != "1") schema_error();
+      if (!version.step() || version.text(0) != "2") schema_error();
     }
   } catch (...) {
     sqlite3_close_v2(db_);
@@ -259,7 +262,9 @@ void Transaction::commit() { db_.exec("COMMIT"); active_ = false; }
 std::string db_status(Database &db, const std::filesystem::path &path) {
   Transaction snapshot(db, false);
   std::ostringstream out;
-  out << "db: " << path.generic_u8string() << "\nschema_version: 1\n";
+  auto version = db.prepare("SELECT value FROM meta WHERE key='schema_version'");
+  version.step();
+  out << "db: " << path.generic_u8string() << "\nschema_version: " << version.text(0) << "\n";
   for (const char *table : {"files", "symbols", "refs", "edges", "runs", "findings"}) {
     auto count = db.prepare(std::string("SELECT count(*) FROM ") + table);
     count.step();
