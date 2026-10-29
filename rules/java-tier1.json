@@ -55,6 +55,7 @@
     },
     {
       "id": "LJV005",
+      "redact": true,
       "text_matches": "=\\s*\"[^\"\\r\\n]+\"",
       "message": "credential-looking field initialized in source",
       "severity": "critical",

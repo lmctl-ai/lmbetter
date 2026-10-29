@@ -223,7 +223,7 @@ out="$("$HOST" lint examples/rules/c-security.json examples/data/sample.c)"
 ok "lint: c-security pack over sample.c (query + text_matches)"
 
 out="$("$HOST" lint examples/rules/json-config.json examples/data/bad-config.json)"
-[ "$out" = '{"row":2,"col":3,"end_row":2,"end_col":11,"rule":"LBJ001","severity":"critical","message":"password key \"password\""}
+[ "$out" = '{"row":2,"col":3,"end_row":2,"end_col":11,"rule":"LBJ001","severity":"critical","message":"password key \"pass[REDACTED]\"","snippet":"sha256:5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"}
 {"row":3,"col":13,"end_row":3,"end_col":17,"rule":"LBJ002","severity":"minor","message":"placeholder string TODO"}
 2 findings in examples/data/bad-config.json' ] || fail "lint json-config: $out"
 ok "lint: json-config pack over bad-config.json (sorted by row, col)"
@@ -309,17 +309,17 @@ ok "lint: c-tier1 pack, all 11 rules fire on violations, clean fixture silent"
 "$HOST" lint rules/json-tier1.json tests/fixtures/json-tier1-violations.json >"$WORK/json-tier1.out" || fail "lint json-tier1 violations run"
 cat >"$WORK/json-tier1.expected" <<'EXPECTED_J'
 {"row":1,"col":3,"end_row":1,"end_col":14,"rule":"LBJ004","severity":"minor","message":"key not snake_case: ServiceName"}
-{"row":3,"col":5,"end_row":3,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"password\""}
-{"row":3,"col":5,"end_row":3,"end_col":13,"rule":"LBJ104","severity":"critical","message":"exact password key"}
-{"row":5,"col":3,"end_row":5,"end_col":16,"rule":"LBJ001","severity":"critical","message":"credential key \"password_hint\""}
-{"row":6,"col":3,"end_row":6,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"api_secret\""}
+{"row":3,"col":5,"end_row":3,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"pass[REDACTED]\"","snippet":"sha256:5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"}
+{"row":3,"col":5,"end_row":3,"end_col":13,"rule":"LBJ104","severity":"critical","message":"exact password key","snippet":"sha256:5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"}
+{"row":5,"col":3,"end_row":5,"end_col":16,"rule":"LBJ001","severity":"critical","message":"credential key \"pass[REDACTED]\"","snippet":"sha256:8225f9a40596dbdf5e29ec9f0aecf137b72b57f48afa01d3c2296f1896972b40"}
+{"row":6,"col":3,"end_row":6,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"api_[REDACTED]\"","snippet":"sha256:87fd0842be8454da3063361d336189da097ae5830cded00c2c42a6fc39e9f188"}
 {"row":7,"col":13,"end_row":7,"end_col":17,"rule":"LBJ002","severity":"minor","message":"placeholder string TODO"}
 {"row":8,"col":11,"end_row":8,"end_col":15,"rule":"LBJ003","severity":"minor","message":"null value present"}
 {"row":9,"col":11,"end_row":9,"end_col":15,"rule":"LBJ005","severity":"minor","message":"number encoded as string: 8080"}
-{"row":10,"col":2,"end_row":10,"end_col":14,"rule":"LBJ006","severity":"critical","message":"sensitive credential key \"aws_secret\""}
-{"row":10,"col":3,"end_row":10,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"aws_secret\""}
-{"row":11,"col":2,"end_row":11,"end_col":15,"rule":"LBJ006","severity":"critical","message":"sensitive credential key \"private_key\""}
-{"row":12,"col":2,"end_row":12,"end_col":11,"rule":"LBJ006","severity":"critical","message":"sensitive credential key \"api_key\""}
+{"row":10,"col":2,"end_row":10,"end_col":14,"rule":"LBJ006","severity":"critical","message":"sensitive credential key aws_[REDACTED]","snippet":"sha256:d96aaff5bffd28ff4cdb78f4a58ebea96ac69c476b4a1910a4736bb77d3c0e74"}
+{"row":10,"col":3,"end_row":10,"end_col":13,"rule":"LBJ001","severity":"critical","message":"credential key \"aws_[REDACTED]\"","snippet":"sha256:4f85c7065125d71388d2c77489418da49369e932afcf70bd4662752be2a5ac6e"}
+{"row":11,"col":2,"end_row":11,"end_col":15,"rule":"LBJ006","severity":"critical","message":"sensitive credential key priv[REDACTED]","snippet":"sha256:cb75d3f6e6085a723a4e08a49f2350189566164f2413fe54563d52be07b7c55f"}
+{"row":12,"col":2,"end_row":12,"end_col":11,"rule":"LBJ006","severity":"critical","message":"sensitive credential key api_[REDACTED]","snippet":"sha256:de9685549b5f39b6143a1c1504d0b3940ec3b87ef03d8572df6333412fbd1fdb"}
 {"row":13,"col":14,"end_row":13,"end_col":35,"rule":"LBJ007","severity":"major","message":"insecure HTTP URL"}
 {"row":15,"col":4,"end_row":15,"end_col":24,"rule":"LBJ007","severity":"major","message":"insecure HTTP URL"}
 {"row":17,"col":13,"end_row":17,"end_col":16,"rule":"LBJ008","severity":"minor","message":"unpinned version \"*\""}
@@ -1242,5 +1242,8 @@ ok "token duplication ranges, normalization and controls"
 # --- baseline / new-code-only + host SARIF (roadmap wave 1) ---
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-baseline-sarif.py "$HOST" || fail "baseline/new-code and SARIF contracts"
 ok "baseline: --new-since/--baseline/--changed/--fail-on-new keying (moved finding stays baseline), controls proven; SARIF: lint/check/ci"
+
+python3 tests/check-review-security.py "$HOST" || fail "review credential boundaries"
+ok "review credential previews, Java storage, safe baseline rotation and diff flags"
 
 echo "PASS: $pass checks"

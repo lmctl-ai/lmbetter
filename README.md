@@ -277,8 +277,10 @@ lmok lint rules/c-tier1.json . --changed=HEAD~3
   (rule, file, message) alone — the documented fallback.
 - `--baseline FILE` uses a previous lint JSON-lines output file instead of the
   DB (finding lines attach to the file named by their following `N findings
-  in PATH` line; such files carry no snippets, so the (rule, file, message)
-  fallback applies). An unreadable file is exit 3; lines that lack the key
+  in PATH` line). Credential findings include a safe `snippet: "sha256:..."`
+  identity, so rotations remain new without exporting source. Ordinary legacy
+  lines use the (rule, file, message) fallback. Credential findings never use
+  snippet-less fallback entries; regenerate old credential baselines. An unreadable file is exit 3; lines that lack the key
   fields simply never match, so their findings report as new. `--baseline`
   and `--new-since` are mutually exclusive (exit 2).
 - `--changed[=REV]` restricts the targets to the files `git diff --name-only
@@ -644,6 +646,7 @@ above 4.3 bits/byte; random ordinary strings alone are not credentials.
 
 Pack field `"redact": true` replaces `{text}` with the first four content bytes
 plus `[REDACTED]` before findings reach stdout, SQLite or downstream formats.
+Redacted rules refuse replacement text (`fix`) before output.
 Baseline snippets for redacted rules store a SHA-256 digest rather than source
 content, so changing a same-prefix credential still becomes new. Do not put
 literal credentials in rule messages. Query predicate
@@ -677,8 +680,13 @@ keeps its line endings, including newlines inside replacement text. Repeating a
 fix run makes no further changes to an already-fixed file.
 
 `--diff` previews the same verified batch without writing source or recording a
-DB run; it wins when combined with `--fix`. Stdout is a unified full-file hunk,
-with the fixed count on stderr. Files with no edits produce no diff. Overlap or
+DB run; it wins when combined with `--fix`. Stdout shows full-file hunk ranges
+with **all source and replacement lines replaced by `[source omitted]`**; the
+fixed count goes to stderr. This text-free preview policy also protects
+credentials outside edited ranges, suppressed credentials and files scanned
+with an autofix-only pack. The preview is informational, not an applyable patch.
+`--diff` refuses `--baseline`, `--new-since`, `--fail-on-new` and `--sarif`
+(exit 2), rather than silently bypassing those consumers. Files with no edits produce no diff. Overlap or
 unsafe parse/shape changes refuse the entire file's batch (exit 3), leaving its
 bytes untouched. Whole-file/root replacements, empty/deleting replacements that
 cannot form a syntax node, and mixed-grammar edit batches are conservatively

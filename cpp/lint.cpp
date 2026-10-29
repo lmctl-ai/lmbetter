@@ -78,7 +78,7 @@ void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding>
                       // Preserve baseline identity without retaining a secret.
                       // Hash the normalized value, since the four-byte display
                       // prefix cannot distinguish credential rotations.
-                      rule.redact ? "sha256:" + dslvm::hex(dslvm::sha256(normalize_snippet(text))) : normalize_snippet(text)});
+                      rule.redact ? "sha256:" + dslvm::hex(dslvm::sha256(normalize_snippet(text))) : normalize_snippet(text), rule.redact});
 }
 
 } // namespace
@@ -171,6 +171,10 @@ std::vector<LintRule> load_rule_pack(const std::string &path) {
     }
     if (const JsonNode *fix = member(entry, "fix")) {
       if (fix->kind != JsonNode::Kind::String) fail("'fix' must be a plain replacement string");
+      // Replacements are public JSON in normal lint output. Redacted rules
+      // cannot safely certify arbitrary replacement text, so refuse it before
+      // any finding, error, preview or DB sink can expose the value.
+      if (rule.redact) fail("'fix' is not supported for redacted rules");
       rule.fix = fix->text;
     }
     if (const JsonNode *severity = member(entry, "severity")) {

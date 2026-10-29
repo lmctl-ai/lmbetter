@@ -3,6 +3,7 @@
   "rules": [
     {
       "id": "LBJ001",
+      "redact": true,
       "query": "(pair key: (string (string_content) @key))",
       "text_matches": "password|secret",
       "message": "credential key \"{text}\"",
@@ -70,6 +71,7 @@
     },
     {
       "id": "LBJ104",
+      "redact": true,
       "query": "((pair key: (string (string_content) @k)) (#eq? @k \"password\"))",
       "message": "exact password key",
       "severity": "critical",
@@ -85,6 +87,7 @@
     },
     {
       "id": "LBJ006",
+      "redact": true,
       "query": "(pair key: (string) @key)",
       "text_matches": "^\"(aws_secret|aws_secret_access_key|private_key|api_key)\"$",
       "message": "sensitive credential key {text}",

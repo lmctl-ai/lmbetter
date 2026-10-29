@@ -1149,6 +1149,12 @@ static int run_cli(int argc, char **argv) {
       std::cerr << "lint: --fail-on-new needs --new-since or --baseline\n";
       return 2;
     }
+    // Preview output has a distinct, text-free format. Refuse combinations
+    // whose gate or SARIF results would otherwise be silently skipped.
+    if (show_diff && (baseline_path || new_since || sarif_path || fail_on_new)) {
+      std::cerr << "lint: --diff cannot be combined with baseline gating or --sarif\n";
+      return 2;
+    }
     const int64_t started_at = std::time(nullptr);
     std::string command;
     for (int i = 1; i < argc; ++i) {
@@ -1290,6 +1296,10 @@ static int run_cli(int argc, char **argv) {
                   << ",\"rule\":\"" << json_escape(f.rule)
                   << "\",\"severity\":\"" << json_escape(f.severity)
                   << "\",\"message\":\"" << json_escape(f.message) << "\"";
+        // Only safe digests cross the JSON-lines baseline boundary. Ordinary
+        // findings retain their established byte format and legacy fallback.
+        if (f.redacted)
+          std::cout << ",\"snippet\":\"" << json_escape(f.snippet) << "\"";
         if (f.fix) std::cout << ",\"fix\":{\"start_byte\":" << f.fix->start_byte << ",\"end_byte\":" << f.fix->end_byte << ",\"text\":\"" << json_escape(f.fix->text) << "\"}";
         std::cout << lmok::metadata_suffix(f.metadata,host.include_metadata) << "}\n";
         if (sarif_path)

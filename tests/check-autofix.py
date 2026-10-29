@@ -103,7 +103,7 @@ class Autofix(unittest.TestCase):
         self.assertEqual(source.read_bytes(), after)
         self.assertIn(b"0 fixed", again.stdout)
 
-    def test_diff_prints_unified_patch_without_writing(self):
+    def test_diff_prints_text_free_preview_without_writing(self):
         source = self.work / "diff.c"
         before = b"int f() { gets(x); }\n"
         source.write_bytes(before)
@@ -112,8 +112,8 @@ class Autofix(unittest.TestCase):
         self.assertEqual(source.read_bytes(), before)
         self.assertIn(b"--- ", result.stdout)
         self.assertIn(b"+++ ", result.stdout)
-        self.assertIn(b"-int f() { gets(x); }", result.stdout)
-        self.assertIn(b"+int f() { safe_gets(x); }", result.stdout)
+        self.assertIn(b"-[source omitted]", result.stdout)
+        self.assertIn(b"+[source omitted]", result.stdout)
         preview = self.lint(self.cpack, source, "--fix", "--diff")
         self.assertEqual(preview.returncode, 0, preview.stdout + preview.stderr)
         self.assertEqual(source.read_bytes(), before)

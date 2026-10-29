@@ -3,6 +3,7 @@
   "rules": [
     {
       "id": "LBJ001",
+      "redact": true,
       "query": "(pair key: (string (string_content) @key))",
       "text_matches": "password",
       "message": "password key \"{text}\"",

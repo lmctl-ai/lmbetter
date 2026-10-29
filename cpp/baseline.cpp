@@ -77,7 +77,12 @@ bool Baseline::match(const std::string &rule, const std::string &file, const std
     if (entry.consumed) continue;
     if (entry.has_snippet) {
       if (entry.snippet == snippet) { entry.consumed = true; return true; }
-    } else if (fallback == found->second.size()) fallback = i;
+    } else if (snippet.rfind("sha256:", 0) != 0 && fallback == found->second.size()) {
+      // Legacy baselines have no safe identity for credential findings. Treat
+      // a redacted current snippet as new rather than allowing a plaintext-
+      // unaware fallback to hide rotation or reintroduction.
+      fallback = i;
+    }
   }
   if (fallback < found->second.size()) {
     found->second[fallback].consumed = true;

@@ -49,6 +49,7 @@ struct LintFinding {
   // in the findings table as the position-independent baseline key part.
   // Redacted rules store sha256:<digest> of that normalized value instead.
   std::string snippet;
+  bool redacted = false; // Only identities hashed at the rule boundary may be exported.
 };
 
 // Parse and validate a rule pack file. Throws dslvm::Error (plain message,

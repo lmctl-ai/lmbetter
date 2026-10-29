@@ -1,7 +1,8 @@
 #pragma once
 // Binary file I/O and a dependency-free unified preview. Verification happens
 // before this layer: neither a rejected batch nor a preview opens the target
-// for writing. Full-file hunks keep diff generation deterministic and linear.
+// for writing. Previews omit all source and replacement text: a fix pack
+// cannot establish that unrelated or suppressed source contains no credentials.
 #include "input.hpp"
 #include <fstream>
 #include <sstream>
@@ -30,7 +31,8 @@ inline std::string unified_fix_diff(const std::string &path, const std::string &
       << (new_lines.empty() ? 0 : 1) << "," << new_lines.size() << " @@\n";
   for (const auto &side : {std::make_pair('-', &old_lines), std::make_pair('+', &new_lines)}) {
     for (const auto &line : *side.second) {
-      out << side.first << line;
+      out << side.first << "[source omitted]";
+      if (!line.empty() && line.back() == '\n') out << "\n";
       if (line.empty() || line.back() != '\n') out << "\n\\ No newline at end of file\n";
     }
   }
