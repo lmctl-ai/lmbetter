@@ -2,7 +2,7 @@
 
 Research date: 2026-10-28. Scope: a local, statically linked CLI, with no server,
 platform account, background indexer, or daemon required. The repository is
-**lmok**; its executable is still **lmbetter**. This is a design proposal, not a
+**lmok**; its executable is **lmok**. This is a design proposal, not a
 claim that the commands or database described below already exist.
 
 **Recommendation:** embed SQLite for versioned per-file facts and lint history;

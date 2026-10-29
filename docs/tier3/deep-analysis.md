@@ -1,7 +1,7 @@
 # Tier 3 — deep analysis for lmok: stack graphs, CST facts, incremental indexes
 
 Status: design exploration, 2026-10-28. Author: Fable (lmok team). Scope:
-what lmok (binary `lmbetter`, tree-sitter 0.27.1 + JSON/C/Python/Bash) can
+what lmok (binary `lmok`, tree-sitter 0.27.1 + JSON/C/Python/Bash) can
 extract *efficiently* that approximates deep semantic knowledge for an
 AI-driven CLI — half exact knowledge tree, half search. Not a plan for
 SonarQube parity; SonarQube is static too and does not own exact symbol
@@ -193,7 +193,7 @@ pass that turns captures into records and computes scope paths.
 
 ### 2.2 Per-language inventory
 
-Node shapes below were confirmed with `lmbetter parse --lang …` on small
+Node shapes below were confirmed with `lmok parse --lang …` on small
 probes in this clone.
 
 **C.** Exact: function definitions and prototypes
@@ -355,7 +355,7 @@ class/struct/function), and byte/row/col ranges. One record per fact:
 ```
 
 `top` is the enclosing top-level node's range — the invalidation unit from
-section 3. Output: JSON Lines on stdout (`lmbetter facts [--lang L] FILE|DIR…`),
+section 3. Output: JSON Lines on stdout (`lmok facts [--lang L] FILE|DIR…`),
 one line per fact, files in the same sorted/forward-slash order as `lint`.
 No database inside the binary: JSONL is the contract, and SQLite/DuckDB/a
 vector store/whatever the agent uses ingests it. (An optional `--sqlite
@@ -417,7 +417,7 @@ and `facts.where("ref.call","")`), `c-cross-file.lms` (LBC110), and both
 
 ### E9 — `outline` verb (the AI-facing half)
 
-`lmbetter outline FILE|DIR… [--budget N]` prints definitions grouped by file
+`lmok outline FILE|DIR… [--budget N]` prints definitions grouped by file
 with their signature line and container — the "repo map" aider builds with
 tree-sitter tags (aider: "the most important classes and functions along
 with their types and call signatures", ranked on "a graph where each source

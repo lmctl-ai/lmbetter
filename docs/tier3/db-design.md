@@ -8,7 +8,7 @@ static binary, no server/platform/daemon**. Tier 1 (packs) and tier 2
 a per-file fact extraction from CSTs, persisted in a local DB, chained
 cross-file by name, plus a full-text search half.
 
-The product shape: `lmbetter` becomes the CLI front-end to a project-scale
+The product shape: `lmok` becomes the CLI front-end to a project-scale
 knowledge base. Half the value is the exact "deep knowledge tree" (every def,
 call, import, key path, with exact ranges), half is search (FTS5 over the same
 files). lmcode snippets stay the policy layer and gain DB access.
@@ -18,13 +18,13 @@ files). lmcode snippets stay the policy layer and gain DB access.
 New/changed verbs (existing parse/query/lint/--dsl behavior unchanged):
 
 ```
-lmbetter index [DIR...] [--db PATH] [--force]
-lmbetter symbols [PATTERN] [--lang L] [--kind K] [--db PATH]
-lmbetter refs NAME [--db PATH]
-lmbetter find PATTERN [--lang L] [--db PATH]        # the search half (FTS5)
-lmbetter findings [--rule ID] [--file PATH] [--db PATH]
-lmbetter status [--db PATH]
-lmbetter lint RULES.json FILE... [--db PATH]        # also writes findings
+lmok index [DIR...] [--db PATH] [--force]
+lmok symbols [PATTERN] [--lang L] [--kind K] [--db PATH]
+lmok refs NAME [--db PATH]
+lmok find PATTERN [--lang L] [--db PATH]        # the search half (FTS5)
+lmok findings [--rule ID] [--file PATH] [--db PATH]
+lmok status [--db PATH]
+lmok lint RULES.json FILE... [--db PATH]        # also writes findings
 ```
 
 - `index` walks DIR (default `.`) with the SAME expansion rules lint uses
@@ -47,7 +47,7 @@ lmbetter lint RULES.json FILE... [--db PATH]        # also writes findings
   schema version, last run.
 - Exit codes reuse the existing vocabulary: 2 usage/DB-schema error,
   3 unreadable file/DB, 4 stdout failure. A missing DB on a read verb is
-  exit 2 with "run `lmbetter index` first".
+  exit 2 with "run `lmok index` first".
 
 ### Where the DB lives
 
@@ -58,7 +58,7 @@ Resolution order (first hit wins):
 3. `.lmok/lmok.db` at the project root — walk up from cwd for a `.git` dir
    or an existing `.lmok/`; `index` creates `.lmok/` there.
 4. Fallback outside a repo: `$XDG_CACHE_HOME/lmok/<sha256-of-abs-cwd>.db`
-   (so `lmbetter index /tmp/thing` still works without polluting it).
+   (so `lmok index /tmp/thing` still works without polluting it).
 
 `.lmok/` holds ONLY the DB (and SQLite's `-wal`/`-shm` sidecars). Users add
 `.lmok/` to `.gitignore` themselves — we never write into VCS files. The DB
@@ -216,15 +216,15 @@ tree treats key paths as structure:
   pointers stay invisible — documented, matching the tier-3 philosophy of
   never faking semantics.
 - The tree shape consumers see: file → scope path → symbol → refs (same
-  name, all files) → files. `lmbetter symbols` / `refs` are the two
+  name, all files) → files. `lmok symbols` / `refs` are the two
   navigation primitives; lmcode composes the rest.
 
 ## 4. lmcode integration
 
-Scripts run under `lmbetter --dsl rule.dslb`; the DB is opened from the same
+Scripts run under `lmok --dsl rule.dslb`; the DB is opened from the same
 resolution chain (`--db` flag added to `--dsl`, then `LMOK_DB`, then
 `.lmok/`). New builtins are methods on the existing `Ts` context, declared in
-`schema/lmbetter.host.json` and registered with `reg.method` in
+`schema/lmok.host.json` and registered with `reg.method` in
 `cpp/main.cpp` — same style as `ts.query_c`. Structured results come back as
 JSON ARRAY STRINGS (the `ts.report_json` / `ts.changed_ranges` precedent —
 lmcode has no record type, `json_parse` is the decoder):
@@ -251,7 +251,7 @@ repo-wide in three lines of lmcode: `json_parse(ts.db_symbols("%"))` for the
 defined set, `json_parse(ts.db_refs(...))` per call name for the used set,
 StrMap difference as today — the E3 set-algebra pattern, just fed from disk
 instead of re-parsing. A DB miss (no `.lmok/`) is a located run-time error
-naming the fix ("run `lmbetter index` first"), exit 3.
+naming the fix ("run `lmok index` first"), exit 3.
 
 ## 5. Incrementality
 
