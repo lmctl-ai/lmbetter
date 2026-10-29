@@ -208,6 +208,17 @@ parent navigation, edit/reparse).
 
 ## Tier 3 — deferred (real semantics)
 
+Re-scoped in `docs/tier3/` (knowledge tree + local DB). Landed from that plan:
+
+- **E6: per-file facts extraction — LANDED.** `lmok facts FILE|DIR...` emits
+  JSON Lines records (definitions, references, include/import/source edges;
+  dotted scope chains; `exact|candidate|unresolved|external` confidence) for
+  C, Python, Bash and JSON, driven by embedded `queries/<lang>/facts.scm`
+  files evaluated through the same `node_query` predicate path as rule packs
+  (`cpp/facts.cpp`). Fixtures: `tests/fixtures/facts/`.
+
+Still deferred (needs a compiler, not a parser):
+
 - Type-aware rules (wrong argument types, format-string type mismatches):
   need a type system and symbol resolution.
 - Null dereference: needs CFG construction and path-sensitive analysis.

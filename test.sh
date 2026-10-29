@@ -895,4 +895,60 @@ ok "DB wrapper: rollback/commit, prepared bindings, foreign keys"
 python3 tests/check-db.py "$HOST" || fail "DB status and resolution contracts"
 ok "DB status: verbatim schema, FTS5, counts, last run, version guard and path precedence"
 
+# --- facts (E6: per-file knowledge-tree records as JSON Lines; cpp/facts.cpp, queries/<lang>/facts.scm) ---
+for f in sample.c sample.json sample.py sample.sh; do
+  "$HOST" facts "tests/fixtures/facts/$f" >"$WORK/facts-$f.out" || fail "facts $f run"
+  cmp "tests/fixtures/facts/expected/$f.jsonl" "$WORK/facts-$f.out" || { diff "tests/fixtures/facts/expected/$f.jsonl" "$WORK/facts-$f.out" >&2; fail "facts $f output"; }
+done
+ok "facts: byte-exact JSONL for the C, JSON, Python and Bash fixtures"
+
+cat tests/fixtures/facts/expected/sample.c.jsonl tests/fixtures/facts/expected/sample.json.jsonl \
+    tests/fixtures/facts/expected/sample.py.jsonl tests/fixtures/facts/expected/sample.sh.jsonl >"$WORK/facts-dir.expected"
+"$HOST" facts tests/fixtures/facts >"$WORK/facts-dir.out" || fail "facts dir run"
+cmp "$WORK/facts-dir.expected" "$WORK/facts-dir.out" || { diff "$WORK/facts-dir.expected" "$WORK/facts-dir.out" >&2; fail "facts dir output"; }
+ok "facts: directory expansion (sorted, non-source files skipped) equals the per-file records"
+
+python3 - <<'PY_FACTS'
+import json
+keys = ["file","lang","kind","name","scope","confidence","row","col","end_row","end_col","start_byte","end_byte","name_row","name_col"]
+want = {
+  "c": {"def.function","def.prototype","def.macro","def.struct","def.union","def.enum","def.enumerator","def.typedef",
+        "def.variable","def.parameter","def.field","def.label","ref.call","ref.include"},
+  "python": {"def.class","def.function","def.method","def.variable","def.parameter","def.import",
+             "ref.call","ref.read","ref.import","ref.import_from","ref.import_wildcard"},
+  "bash": {"def.function","def.variable","ref.call","ref.read","ref.source"},
+  "json": {"def.key"},
+}
+confidences = {"c": {"exact","candidate","external"}, "python": {"exact","candidate"},
+               "bash": {"exact","candidate","unresolved"}, "json": {"exact"}}
+scopes = {"c": {"", "point", "u", "color", "helper", "main"}, "python": {"", "af", "C", "C.m", "C.n"},
+          "bash": {"", "local_fn", "f2"}, "json": {"", "server", "server.tls", "server.hosts"}}
+for lang, ext in (("c","c"),("python","py"),("bash","sh"),("json","json")):
+    seen_kinds, seen_conf, seen_scopes = set(), set(), set()
+    for line in open(f"tests/fixtures/facts/expected/sample.{ext}.jsonl", encoding="utf-8"):
+        rec = json.loads(line)
+        assert list(rec) == keys, (lang, list(rec))
+        assert rec["lang"] == lang and rec["file"] == f"tests/fixtures/facts/sample.{ext}", rec
+        assert rec["start_byte"] < rec["end_byte"] and rec["row"] <= rec["name_row"] <= rec["end_row"], rec
+        seen_kinds.add(rec["kind"]); seen_conf.add(rec["confidence"]); seen_scopes.add(rec["scope"])
+    assert seen_kinds == want[lang], (lang, seen_kinds ^ want[lang])
+    assert seen_conf == confidences[lang], (lang, seen_conf)
+    assert seen_scopes == scopes[lang], (lang, seen_scopes)
+PY_FACTS
+ok "facts: valid JSON, fixed key order, every kind/confidence/scope chain per language exercised"
+
+cp tests/fixtures/facts/sample.c "$WORK/noext.txt"
+set +e; out="$("$HOST" facts "$WORK/noext.txt" 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *'cannot infer the language of '*'noext.txt from its extension (use --lang)'* ]] || fail "facts unknown extension (exit $code): $out"
+"$HOST" facts --lang c "$WORK/noext.txt" | sed "s|$WORK/noext.txt|tests/fixtures/facts/sample.c|" >"$WORK/facts-forced.out" || fail "facts --lang run"
+cmp tests/fixtures/facts/expected/sample.c.jsonl "$WORK/facts-forced.out" || fail "facts --lang c on .txt differs from sample.c"
+"$HOST" facts --lang python tests/fixtures/facts >"$WORK/facts-py-only.out" || fail "facts --lang dir run"
+cmp tests/fixtures/facts/expected/sample.py.jsonl "$WORK/facts-py-only.out" || fail "facts --lang python DIR must keep .py only"
+set +e; "$HOST" facts >/dev/null 2>&1; code=$?; set -e; [ "$code" = 2 ] || fail "facts without arguments exits 2 (got $code)"
+set +e; out="$("$HOST" facts --lang rust "$WORK/noext.txt" 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust'"* ]] || fail "facts unknown --lang (exit $code): $out"
+set +e; out="$("$HOST" facts "$WORK/no-such.c" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *'cannot read'* ]] || fail "facts missing file (exit $code): $out"
+ok "facts: --lang forces explicit files and filters directories; unknown extension/--lang exit 2; unreadable file exit 3"
+
 echo "PASS: $pass checks"

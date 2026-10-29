@@ -297,6 +297,45 @@ The framework, inventory, and extension plan: [rule tiers](docs/rule-tiers.md).
 lmok lint rules/c-tier1.json examples/data/sample.c
 ```
 
+## Facts (knowledge tree, tier 3 / E6)
+
+```sh
+lmok facts [--lang json|c|python|bash] FILE|DIR...
+```
+
+Prints one JSON Lines record per definition, reference or edge found in each
+file — the per-file half of the tier-3 knowledge tree
+(`docs/tier3/deep-analysis.md` §4). Extraction is driven by the embedded
+`queries/<lang>/facts.scm` files (tree-sitter query vocabulary:
+`@def.<kind>` / `@ref.<kind>` on the fact node, `@name` on the name node,
+`(#set! confidence "...")` per pattern) plus the little host logic queries
+cannot express: the dotted **scope** chain of enclosing definitions
+(`server.tls` for a JSON key, `C.m` for a Python parameter), Python
+`def.function` → `def.method` inside a class, and include/source target
+normalisation. Record keys, in order: `file, lang, kind, name, scope,
+confidence, row, col, end_row, end_col, start_byte, end_byte, name_row,
+name_col` (positions 0-based; the extent is the whole fact node, `name_*` is
+where the name starts). `confidence` is the honesty contract: `exact`
+(definitions, literal edges), `candidate` (name-matched references: calls,
+reads), `unresolved` (a `source "$DIR/x.sh"` target), `external`
+(`#include <stdio.h>`). Kinds per language:
+
+- C: `def.function def.prototype def.macro def.struct def.union def.enum
+  def.enumerator def.typedef def.variable def.parameter def.field def.label
+  ref.call ref.include`
+- Python: `def.class def.function def.method def.variable def.parameter
+  def.import ref.call ref.read ref.import ref.import_from ref.import_wildcard`
+- Bash: `def.function def.variable ref.call ref.read ref.source`
+- JSON: `def.key` (every object key; scope = enclosing key chain, arrays
+  transparent)
+
+Targets expand like `lint` (directories recursive and sorted, hidden entries
+below the argument skipped, fail-fast exit 3). `--lang` forces the grammar of
+explicitly named files and filters a directory to that language; without it
+the extension decides and an unknown extension is a usage error (exit 2).
+Nothing here infers types, expands macros or evaluates `#if`: a reference is
+a candidate set, never a resolution.
+
 ## Scripting
 
 Save this as `build/show.lms` after the setup above, run
@@ -368,6 +407,7 @@ runnable scripts.
 ## Repository layout
 
 - `cpp/` — the CLI host: DSL VM integration plus the tree-sitter wrapper
+- `queries/<lang>/facts.scm` — the embedded facts-extraction queries behind `lmok facts`
 - `docs/` — design documents (e.g. `rule-snippets.md`: analysis rules as lmscript snippets)
 - `schema/lmok.host.json` — the host-only DSL schema (copied to `schema/lmok.dsl.json` and embedded into the binary; `lmscript` >= 0.2.444 supplies the built-in standard library implicitly)
 - `examples/` — lmscript examples (plus `examples/rules/` demo packs)

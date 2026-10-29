@@ -265,6 +265,8 @@ int64_t node_start_row(const Node &node) { return ts_node_start_point(ts(node)).
 int64_t node_start_col(const Node &node) { return ts_node_start_point(ts(node)).column; }
 int64_t node_end_row(const Node &node) { return ts_node_end_point(ts(node)).row; }
 int64_t node_end_col(const Node &node) { return ts_node_end_point(ts(node)).column; }
+int64_t node_start_byte(const Node &node) { return ts_node_start_byte(ts(node)); }
+int64_t node_end_byte(const Node &node) { return ts_node_end_byte(ts(node)); }
 
 int64_t node_child_count(const Node &node) {
   return static_cast<int64_t>(ts_node_named_child_count(ts(node)));
@@ -361,9 +363,12 @@ std::string capture_name(const TSQuery *query, uint32_t id) {
   return std::string(p, len);
 }
 
-std::vector<std::vector<Predicate>> compile_predicates(const TSQuery *query) {
+using PatternProperties = std::vector<std::map<std::string, std::string>>;
+
+std::vector<std::vector<Predicate>> compile_predicates(const TSQuery *query, PatternProperties *properties = nullptr) {
   const uint32_t patterns = ts_query_pattern_count(query);
   std::vector<std::vector<Predicate>> out(patterns);
+  if (properties) properties->assign(patterns, {});
   for (uint32_t pattern = 0; pattern < patterns; ++pattern) {
     uint32_t step_count = 0;
     const TSQueryPredicateStep *steps = ts_query_predicates_for_pattern(query, pattern, &step_count);
@@ -386,7 +391,11 @@ std::vector<std::vector<Predicate>> compile_predicates(const TSQuery *query) {
       };
       const auto is_capture = [](const TSQueryPredicateStep *s) { return s->type == TSQueryPredicateStepTypeCapture; };
       if (op.empty()) fail("has no operator name");
-      if (op.back() == '!') continue; // directive (#set! ...): accepted, ignored
+      if (op == "set!" && properties && args.size() == 2 && !is_capture(args[0]) && !is_capture(args[1])) {
+        (*properties)[pattern][string_value(query, args[0]->value_id)] = string_value(query, args[1]->value_id);
+        continue;
+      }
+      if (op.back() == '!') continue; // other directives: accepted, ignored
       if (op == "is?" || op == "is-not?") continue; // property predicates: not evaluated here (nor by the tree-sitter CLI)
       Predicate p;
       if (op == "eq?" || op == "not-eq?" || op == "any-eq?" || op == "any-not-eq?") {
@@ -487,7 +496,11 @@ bool satisfies(const Predicate &p, const TSQueryMatch &match, const Tree *owner)
 
 } // namespace
 
-NodeList node_query(const Node &root_node, const std::string &pattern, Grammar grammar) {
+// Shared query runner: nesting bound, compile, predicates; `on_match` sees
+// every match that passed its pattern's predicates.
+template <class OnMatch>
+static void run_query(const Node &root_node, const std::string &pattern, Grammar grammar,
+                      PatternProperties *properties, const OnMatch &on_match) {
   // tree-sitter's query compiler recurses on nested patterns. Bound nesting
   // before calling it, ignoring delimiters inside strings and comments.
   size_t depth = 0;
@@ -516,10 +529,9 @@ NodeList node_query(const Node &root_node, const std::string &pattern, Grammar g
   if (!query.q)
     throw QueryError("query error at byte offset " + std::to_string(error_offset) +
                      ": " + query_error_word(error_type));
-  const std::vector<std::vector<Predicate>> predicates = compile_predicates(query.q);
+  const std::vector<std::vector<Predicate>> predicates = compile_predicates(query.q, properties);
   RaiiCursor cursor{ts_query_cursor_new()};
   ts_query_cursor_exec(cursor.c, query.q, ts(root_node));
-  NodeList list;
   TSQueryMatch match;
   while (ts_query_cursor_next_match(cursor.c, &match)) {
     bool ok = true;
@@ -530,10 +542,30 @@ NodeList node_query(const Node &root_node, const std::string &pattern, Grammar g
       throw QueryError(e.what()); // plain "regex work limit exceeded (65536)"
     }
     if (!ok) continue;
+    on_match(query.q, match);
+  }
+}
+
+NodeList node_query(const Node &root_node, const std::string &pattern, Grammar grammar) {
+  NodeList list;
+  run_query(root_node, pattern, grammar, nullptr, [&](const TSQuery *, const TSQueryMatch &match) {
     for (uint16_t i = 0; i < match.capture_count; ++i)
       list.items.push_back(wrap_node(root_node.owner, match.captures[i].node));
-  }
+  });
   return list;
+}
+
+QueryMatches query_matches(const Node &root_node, const std::string &pattern, Grammar grammar) {
+  QueryMatches out;
+  run_query(root_node, pattern, grammar, &out.properties, [&](const TSQuery *query, const TSQueryMatch &match) {
+    QueryMatch m;
+    m.pattern = match.pattern_index;
+    for (uint16_t i = 0; i < match.capture_count; ++i)
+      m.captures.push_back({capture_name(query, match.captures[i].index),
+                            wrap_node(root_node.owner, match.captures[i].node)});
+    out.matches.push_back(std::move(m));
+  });
+  return out;
 }
 
 } // namespace lmok

@@ -16,6 +16,7 @@ Repository: https://github.com/lmctl-ai/lmok.
 | [06-realworld-validation.md](06-realworld-validation.md) | c-tier1 validated against real-world C codebases (sds, kilo, cJSON) |
 | [07-robustness.md](07-robustness.md) | Bounded queries/regexes, input hardening, finding output escaping |
 | [08-v6-entry-dispatch.md](08-v6-entry-dispatch.md) | v6 lmcode entry loading, CST dispatch, findings and CLI contract |
+| [09-facts-layer.md](09-facts-layer.md) | E6 facts extraction: facts.scm vocabulary, query_matches, scope chains, confidence, known edges |
 
 Operational name: **lmok** (binary, schemas, CMake and install paths). Tier-3
 proposal documents are owned by the other team and were intentionally retained

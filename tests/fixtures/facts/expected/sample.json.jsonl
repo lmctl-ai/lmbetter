@@ -1,0 +1,6 @@
+{"file":"tests/fixtures/facts/sample.json","lang":"json","kind":"def.key","name":"server","scope":"","confidence":"exact","row":1,"col":2,"end_row":1,"end_col":65,"start_byte":4,"end_byte":67,"name_row":1,"name_col":3}
+{"file":"tests/fixtures/facts/sample.json","lang":"json","kind":"def.key","name":"tls","scope":"server","confidence":"exact","row":1,"col":13,"end_row":1,"end_col":33,"start_byte":15,"end_byte":35,"name_row":1,"name_col":14}
+{"file":"tests/fixtures/facts/sample.json","lang":"json","kind":"def.key","name":"port","scope":"server.tls","confidence":"exact","row":1,"col":21,"end_row":1,"end_col":32,"start_byte":23,"end_byte":34,"name_row":1,"name_col":22}
+{"file":"tests/fixtures/facts/sample.json","lang":"json","kind":"def.key","name":"hosts","scope":"server","confidence":"exact","row":1,"col":35,"end_row":1,"end_col":64,"start_byte":37,"end_byte":66,"name_row":1,"name_col":36}
+{"file":"tests/fixtures/facts/sample.json","lang":"json","kind":"def.key","name":"name","scope":"server.hosts","confidence":"exact","row":1,"col":46,"end_row":1,"end_col":57,"start_byte":48,"end_byte":59,"name_row":1,"name_col":47}
+{"file":"tests/fixtures/facts/sample.json","lang":"json","kind":"def.key","name":"k2","scope":"","confidence":"exact","row":3,"col":2,"end_row":3,"end_col":14,"start_byte":80,"end_byte":92,"name_row":3,"name_col":3}

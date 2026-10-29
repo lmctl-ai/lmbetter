@@ -3,6 +3,7 @@
 // subcommand (JSON grammar).
 #include "host.hpp"
 #include "lint.hpp"
+#include "facts.hpp"
 #include "input.hpp"
 #include "db.hpp"
 #include "dslvm.hpp"
@@ -353,6 +354,87 @@ void register_host(dslvm::Registry &reg, Host &host) {
   });
 }
 
+// ---- FILE|DIR target expansion shared by `lint` and `facts` ----
+// Directory args expand RECURSIVELY to their regular files: hidden files and
+// dirs BELOW the argument are skipped (a project under ~/.local or passed as
+// ./.proj is still processed), only known extensions (.c/.h -> c, .json ->
+// json, .py -> python, .sh/.bash -> bash) are kept, and paths are sorted for
+// byte-stable output. An explicit file keeps its argument order. All printed
+// paths use forward slashes (fs::path::generic_u8string) on every OS.
+struct Target { std::string path; bool from_dir; };
+
+std::string canonical_path(const std::string &path) {
+  return std::filesystem::u8path(path).generic_u8string();
+}
+
+bool grammar_for_extension(const std::string &ext, lmok::Grammar &grammar) {
+  if (ext == ".c" || ext == ".h") { grammar = lmok::Grammar::C; return true; }
+  if (ext == ".json") { grammar = lmok::Grammar::Json; return true; }
+  if (ext == ".py") { grammar = lmok::Grammar::Python; return true; }
+  if (ext == ".sh" || ext == ".bash") { grammar = lmok::Grammar::Bash; return true; }
+  return false;
+}
+
+// Expands argv[first..argc). Returns 0, or the exit code (2 usage, 3 I/O)
+// after printing the diagnostic. With `only` set, directory expansion keeps
+// that grammar's extensions alone (explicit files are kept regardless).
+int expand_targets(int argc, char **argv, int first, std::vector<Target> &targets,
+                   const lmok::Grammar *only = nullptr) {
+  namespace fs = std::filesystem;
+  for (int i = first; i < argc; ++i) {
+    std::error_code ec;
+    const fs::path root = fs::u8path(argv[i]);
+    if (fs::is_directory(root, ec)) {
+      std::vector<std::string> found;
+      const fs::recursive_directory_iterator end;
+      // Iterator errors (an unreadable subdirectory, a vanished entry) must
+      // not end the walk silently with a partial file list: that is the
+      // same fail-fast contract as an unreadable file (exit 3).
+      fs::recursive_directory_iterator it(root, ec);
+      fs::path failed_at = root;
+      for (; !ec && it != end; failed_at = it->path(), it.increment(ec)) {
+        const fs::path &p = it->path();
+        // Hidden check FIRST: directories must be pruned (never descended
+        // into) before the regular-file filter would skip them.
+        bool hidden = false;
+        for (const auto &part : p.lexically_relative(root)) {
+          const std::string name = part.u8string();
+          if (name != "." && name != ".." && name.rfind(".", 0) == 0) hidden = true; // C++17: no starts_with
+        }
+        if (hidden) { it.disable_recursion_pending(); continue; } // prune hidden dirs
+        std::error_code file_ec;
+        if (!it->is_regular_file(file_ec)) continue;
+        lmok::Grammar grammar;
+        if (!grammar_for_extension(p.extension().u8string(), grammar)) continue;
+        if (only && grammar != *only) continue;
+        found.push_back(canonical_path(p.u8string()));
+      }
+      if (ec) {
+        std::cerr << "cannot read " << canonical_path(failed_at.u8string()) << ": " << ec.message() << "\n";
+        return 3;
+      }
+      if (found.empty()) {
+        std::cerr << "no lintable files in " << canonical_path(argv[i]) << " (want .c/.h/.json/.py/.sh/.bash)\n";
+        return 2;
+      }
+      std::sort(found.begin(), found.end());
+      for (auto &f : found) targets.push_back({f, true});
+    } else {
+      targets.push_back({canonical_path(argv[i]), false});
+    }
+  }
+  return 0;
+}
+
+bool parse_lang(const std::string &lang, lmok::Grammar &grammar) {
+  if (lang == "json") grammar = lmok::Grammar::Json;
+  else if (lang == "c") grammar = lmok::Grammar::C;
+  else if (lang == "python") grammar = lmok::Grammar::Python;
+  else if (lang == "bash") grammar = lmok::Grammar::Bash;
+  else return false;
+  return true;
+}
+
 void print_schema_summary(const dslvm::Registry &reg) {
   for (const auto &line : reg.signatures()) std::cout << line << "\n";
 }
@@ -373,6 +455,7 @@ static int run_cli(int argc, char **argv) {
       "       lmok parse [--lang json|c|python|bash] FILE\n"
       "       lmok query [--lang json|c|python|bash] PATTERN FILE\n"
       "       lmok lint RULES.json FILE...\n"
+      "       lmok facts [--lang json|c|python|bash] FILE|DIR...\n"
       "       lmok check [--lang json|c|python|bash] RULES.dslb FILE...\n"
       "       lmok --dsl FILE [FILE ...]\n";
   if (argc >= 2 && std::string(argv[1]) == "status") {
@@ -498,62 +581,9 @@ static int run_cli(int argc, char **argv) {
       else if (rule.grammar == lmok::Grammar::Bash) bash_rules.push_back(rule);
       else json_rules.push_back(rule);
     }
-    // Directory args expand RECURSIVELY to their regular files: hidden files
-    // and dirs are skipped, only known extensions (.c/.h -> c, .json -> json,
-    // .py -> python, .sh/.bash -> bash) are lintable, and paths are sorted for
-    // byte-stable output. An explicit file keeps its argument order.
-    // Output canonicalization: all printed paths use forward slashes
-    // (fs::path::generic_u8string), on every OS — pinned outputs are
-    // platform-independent.
     namespace fs = std::filesystem;
-    const auto canonical = [](const std::string &path) {
-      return fs::u8path(path).generic_u8string();
-    };
-    struct Target { std::string path; bool from_dir; };
     std::vector<Target> targets;
-    for (int i = 3; i < argc; ++i) {
-      std::error_code ec;
-      const fs::path root = fs::u8path(argv[i]);
-      if (fs::is_directory(root, ec)) {
-        std::vector<std::string> found;
-        const fs::recursive_directory_iterator end;
-        // Iterator errors (an unreadable subdirectory, a vanished entry) must
-        // not end the walk silently with a partial file list: that is the
-        // same fail-fast contract as an unreadable file (exit 3).
-        fs::recursive_directory_iterator it(root, ec);
-        fs::path failed_at = root;
-        for (; !ec && it != end; failed_at = it->path(), it.increment(ec)) {
-          const fs::path &p = it->path();
-          // Hidden check FIRST: directories must be pruned (never descended
-          // into) before the regular-file filter would skip them.
-          // Hidden means a dot-component BELOW the argument root: a project
-          // living under ~/.local or passed as ./.proj is still lintable.
-          bool hidden = false;
-          for (const auto &part : p.lexically_relative(root)) {
-            const std::string name = part.u8string();
-            if (name != "." && name != ".." && name.rfind(".", 0) == 0) hidden = true; // C++17: no starts_with
-          }
-          if (hidden) { it.disable_recursion_pending(); continue; } // prune hidden dirs
-          std::error_code file_ec;
-          if (!it->is_regular_file(file_ec)) continue;
-          const std::string ext = p.extension().u8string();
-          if (ext == ".c" || ext == ".h" || ext == ".json" || ext == ".py" ||
-              ext == ".sh" || ext == ".bash") found.push_back(canonical(p.u8string()));
-        }
-        if (ec) {
-          std::cerr << "cannot read " << canonical(failed_at.u8string()) << ": " << ec.message() << "\n";
-          return 3;
-        }
-        if (found.empty()) {
-          std::cerr << "no lintable files in " << canonical(argv[i]) << " (want .c/.h/.json/.py/.sh/.bash)\n";
-          return 2;
-        }
-        std::sort(found.begin(), found.end());
-        for (auto &f : found) targets.push_back({f, true});
-      } else {
-        targets.push_back({canonical(argv[i]), false});
-      }
-    }
+    if (const int rc = expand_targets(argc, argv, 3, targets)) return rc;
     // Fail fast: the first unreadable file aborts the whole run (exit 3);
     // earlier files' findings were already printed.
     for (const auto &target : targets) {
@@ -586,6 +616,56 @@ static int run_cli(int argc, char **argv) {
                   << "\",\"severity\":\"" << json_escape(f.severity)
                   << "\",\"message\":\"" << json_escape(f.message) << "\"}\n";
       std::cout << findings.size() << " findings in " << target.path << "\n";
+    }
+    return std::cout ? 0 : 4;
+  }
+  // E6: per-file facts as JSON Lines (one record per definition / reference /
+  // edge; see cpp/facts.hpp and docs/tier3/deep-analysis.md §4). Shares
+  // lint's target expansion. `--lang` forces the grammar of explicitly named
+  // files and filters directory expansion to that language; without it the
+  // extension decides, and an explicit file with an unknown extension is a
+  // usage error.
+  if (argc >= 2 && std::string(argv[1]) == "facts") {
+    int argi = 2;
+    bool forced = false;
+    lmok::Grammar forced_grammar = lmok::Grammar::Json;
+    if (argi < argc && std::string(argv[argi]) == "--lang") {
+      if (argi + 1 >= argc) { std::cerr << "--lang needs a value (json|c|python|bash)\n" << usage; return 2; }
+      if (!parse_lang(argv[argi + 1], forced_grammar)) {
+        std::cerr << "unknown language '" << argv[argi + 1] << "' (known: json, c, python, bash)\n" << usage;
+        return 2;
+      }
+      forced = true;
+      argi += 2;
+    }
+    if (argi >= argc) { std::cerr << usage; return 2; }
+    std::vector<Target> targets;
+    if (const int rc = expand_targets(argc, argv, argi, targets, forced ? &forced_grammar : nullptr)) return rc;
+    for (const auto &target : targets) {
+      lmok::Grammar grammar = forced_grammar;
+      if (!forced || target.from_dir) {
+        const std::string ext = std::filesystem::u8path(target.path).extension().u8string();
+        if (!grammar_for_extension(ext, grammar)) {
+          std::cerr << "cannot infer the language of " << target.path << " from its extension (use --lang)\n";
+          return 2;
+        }
+      }
+      std::string raw;
+      try { raw = read_file(target.path); }
+      catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
+      std::vector<lmok::Fact> facts;
+      try {
+        const lmok::Tree tree = lmok::parse(grammar, raw);
+        facts = lmok::extract_facts(tree, grammar);
+      } catch (const lmok::QueryError &e) {
+        std::cerr << "facts " << target.path << ": " << e.what() << "\n";
+        return 3;
+      } catch (const std::exception &e) { // oversized input, allocation
+        std::cerr << "facts " << target.path << ": " << e.what() << "\n";
+        return 3;
+      }
+      const std::string lang = lmok::grammar_name(grammar);
+      for (const auto &f : facts) std::cout << lmok::fact_json(f, target.path, lang, json_escape) << "\n";
     }
     return std::cout ? 0 : 4;
   }

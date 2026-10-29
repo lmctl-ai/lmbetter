@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <regex>
 #include <string>
 #include <stdexcept>
@@ -154,6 +155,25 @@ struct QueryError : std::runtime_error {
 // `?`-predicate throws QueryError — silently ignoring one would over-match.
 NodeList node_query(const Node &root, const std::string &pattern, Grammar grammar);
 
+// A query match with its capture NAMES preserved (node_query drops them).
+// `properties` is indexed by pattern and holds the `(#set! key "value")`
+// directives of that pattern — the tree-sitter convention for attaching data
+// to a pattern, used by facts.scm for per-pattern confidence. Predicates are
+// evaluated exactly as in node_query; non-matching matches are dropped.
+struct QueryCapture {
+  std::string name; // capture name without the '@'
+  Node node;
+};
+struct QueryMatch {
+  uint32_t pattern = 0;
+  std::vector<QueryCapture> captures; // in pattern order
+};
+struct QueryMatches {
+  std::vector<QueryMatch> matches;                            // cursor order
+  std::vector<std::map<std::string, std::string>> properties; // per pattern
+};
+QueryMatches query_matches(const Node &root, const std::string &pattern, Grammar grammar);
+
 // Regex matching over node text is bounded: std::regex (libstdc++ and libc++)
 // backtracks recursively, so a long node text (a 40 KB comment with the
 // shipped LBC010 rule, a few KB on a 1 MB Windows stack) overflows the stack
@@ -183,6 +203,9 @@ int64_t node_start_row(const Node &node);
 int64_t node_start_col(const Node &node);
 int64_t node_end_row(const Node &node);
 int64_t node_end_col(const Node &node);
+// Byte extent of the node (0-based, end exclusive).
+int64_t node_start_byte(const Node &node);
+int64_t node_end_byte(const Node &node);
 
 // Number of NAMED children (anonymous tokens are not counted).
 int64_t node_child_count(const Node &node);

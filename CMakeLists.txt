@@ -65,7 +65,24 @@ add_custom_command(
   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_schema.cmake"
   COMMENT "Embedding THIRD_PARTY_NOTICES.md"
 )
-add_custom_target(lmok_schema DEPENDS "${GENERATED_SCHEMA}" "${GENERATED_NOTICES}")
+# ---- embedded facts.scm query files (E6, cpp/facts.cpp) ---------------------
+set(GENERATED_FACTS)
+foreach(lang c python bash json)
+  set(_facts_out "${GENERATED_DIR}/facts_${lang}_embedded.hpp")
+  add_custom_command(
+    OUTPUT "${_facts_out}"
+    COMMAND "${CMAKE_COMMAND}"
+      -DINPUT="${CMAKE_CURRENT_SOURCE_DIR}/queries/${lang}/facts.scm"
+      -DOUTPUT="${_facts_out}"
+      -DNAME=embedded_facts_${lang}
+      -DCOMMENT=queries/${lang}/facts.scm
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_schema.cmake"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/queries/${lang}/facts.scm" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_schema.cmake"
+    COMMENT "Embedding queries/${lang}/facts.scm"
+  )
+  list(APPEND GENERATED_FACTS "${_facts_out}")
+endforeach()
+add_custom_target(lmok_schema DEPENDS "${GENERATED_SCHEMA}" "${GENERATED_NOTICES}" ${GENERATED_FACTS})
 
 add_library(lmok_sqlite OBJECT third_party/sqlite/sqlite3.c)
 
@@ -75,9 +92,11 @@ add_executable(lmok
   cpp/lint.cpp
   cpp/db.cpp
   $<TARGET_OBJECTS:lmok_sqlite>
+  cpp/facts.cpp
   ${TS_SOURCES}
   "${GENERATED_SCHEMA}"
   "${GENERATED_NOTICES}"
+  ${GENERATED_FACTS}
 )
 add_dependencies(lmok lmok_schema)
 
