@@ -5,42 +5,78 @@
       "id": "GOS001",
       "query": "((call_expression function: (selector_expression) @callee arguments: (argument_list (identifier))) (#eq? @callee \"exec.Command\"))",
       "severity": "major",
-      "message": "exec.Command uses a variable argument; review the command and arguments"
+      "message": "exec.Command uses a variable argument; review the command and arguments",
+      "tags": [
+        "go",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "GOS002",
       "query": "(import_spec path: (interpreted_string_literal) @path)\n(import_spec path: (raw_string_literal) @path)",
       "text_matches": "^(?:\"unsafe\"|`unsafe`)$",
       "severity": "critical",
-      "message": "unsafe package imported"
+      "message": "unsafe package imported",
+      "tags": [
+        "go",
+        "security"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "GOS003",
       "query": "(import_spec path: (interpreted_string_literal) @path)\n(import_spec path: (raw_string_literal) @path)",
       "text_matches": "^(?:\"crypto/(?:md5|sha1|des|rc4)\"|`crypto/(?:md5|sha1|des|rc4)`)$",
       "severity": "major",
-      "message": "weak cryptographic package imported"
+      "message": "weak cryptographic package imported",
+      "tags": [
+        "go",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "GOS004",
       "on": "int_literal",
       "text_matches": "^(?:0777|0[oO]777)$",
       "severity": "major",
-      "message": "world-writable file mode 0777"
+      "message": "world-writable file mode 0777",
+      "tags": [
+        "go",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "GOS005",
       "on": "assignment_statement",
       "text_matches": "(^|,)\\s*_\\s*(,|=)",
       "severity": "minor",
-      "message": "blank identifier discards an assignment result; review returned errors"
+      "message": "blank identifier discards an assignment result; review returned errors",
+      "tags": [
+        "go",
+        "maintainability"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     },
     {
       "id": "GOS006",
       "on": "keyed_element",
       "text_matches": "^InsecureSkipVerify\\s*:\\s*true$",
       "severity": "critical",
-      "message": "TLS certificate verification is disabled"
+      "message": "TLS certificate verification is disabled",
+      "tags": [
+        "go",
+        "security"
+      ],
+      "confidence": "medium",
+      "url": "https://github.com/lmctl-ai/lmok#rule-packs"
     }
   ]
 }
