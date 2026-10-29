@@ -102,6 +102,24 @@
             "returns": "NodeList"
           }
         ],
+        "match_c": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "NodeList"
+          }
+        ],
+        "match_python": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "NodeList"
+          }
+        ],
         "reparse": [
           {
             "params": [

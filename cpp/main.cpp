@@ -79,6 +79,7 @@ struct Host {
     return it == parent_of.end() ? nullptr : &it->second;
   }
   std::vector<std::unique_ptr<lmok::NodeList>> node_lists;
+  std::map<std::string, lmok::CompiledPattern> compiled_patterns; // "<grammar>\n<pattern>" -> compiled (ts.match_*)
   // Findings collected via ts.report; reset per --dsl file (see the run loop).
   std::vector<Finding> findings;
   template <class T>
@@ -251,6 +252,26 @@ void register_host(dslvm::Registry &reg, Host &host) {
   query_method("query_c", lmok::Grammar::C);
   query_method("query_python", lmok::Grammar::Python);
   query_method("query_bash", lmok::Grammar::Bash);
+  // ts.match_c / ts.match_python: code-shaped patterns (pattern.hpp), compiled once per distinct
+  // pattern text per run and cached, so a rule calling match in a loop pays the parse once.
+  const auto match_method = [&reg, &host](const char *name, lmok::Grammar grammar) {
+    reg.method("Ts", name, {"Node", "string"}, "NodeList", [&host, grammar](void *, Args &args) {
+      try {
+        auto &cache = host.compiled_patterns;
+        const std::string key = std::string(lmok::grammar_name(grammar)) + "\n" + args[1].s;
+        auto it = cache.find(key);
+        if (it == cache.end()) it = cache.emplace(key, lmok::compile_pattern(grammar, args[1].s)).first;
+        return host.hold(host.node_lists, "NodeList",
+                         lmok::pattern_matches(*node_of(args[0].obj, "match"), it->second, grammar));
+      } catch (const lmok::PatternError &error) {
+        throw dslvm::Error(error.what());
+      } catch (const lmok::QueryError &error) {
+        throw dslvm::Error(error.what());
+      }
+    });
+  };
+  match_method("match_c", lmok::Grammar::C);
+  match_method("match_python", lmok::Grammar::Python);
   const auto reparse_method = [&reg, &host](const char *name, lmok::Grammar grammar) {
     reg.method("Ts", name, {"Tree", "string"}, "Tree", [&host, grammar](void *, Args &args) {
       try {

@@ -1,0 +1,43 @@
+# Chapter: Rules - semgrep-style code patterns from lmcode (ts.match_c / ts.match_python)
+# Shows: ts.match_c(root, "strcpy($DST, $SRC)") and ts.match_python(root, "eval($X)") return the matched
+#        nodes (the whole call), so a rule needs no S-expression; metavariables bind any one node.
+# Run: lmscript examples/pattern-rules.lms      (then: build/lmok --dsl build/pattern-rules.dslb)
+# Needs: README setup; repo root, build/ present, lmok on PATH; offline after setup.
+# Data: the C and Python sources are embedded below.
+# exit: 0
+# expect:
+#|[{"row":3,"col":2,"end_row":3,"end_col":20,"rule":"LBC001","severity":"critical","message":"unsafe copy: strcpy(buf, input)"},{"row":4,"col":2,"end_row":4,"end_col":15,"rule":"LBC004","severity":"critical","message":"command exec: system"},{"row":1,"col":4,"end_row":1,"end_col":17,"rule":"LBP003","severity":"critical","message":"dynamic code: eval(request)"},{"row":2,"col":0,"end_row":2,"end_col":32,"rule":"LBP004","severity":"critical","message":"shell=True: subprocess.call(cmd, shell=True)"}]
+#|4 findings
+p = _lmcode_ cli="lmok" install="github:lmctl-ai/lmok@latest";
+
+# The same tier-1 rules as lint-c.lms, written as code-shaped patterns: the
+# pattern is parsed with the target grammar and compiled to a tree-sitter query
+# by the host (`lmok query --pattern` prints that query). `$NAME` matches any
+# one node, `...` any arguments. A pattern that does not parse is a runtime
+# error naming the fragment (exit 3).
+
+let c = ts.parse_c("#include <string.h>\nvoid login(char *input) {\n  char buf[16];\n  strcpy(buf, input);\n  system(input);\n}\n");
+for (m in ts.match_c(c.root(), "strcpy($DST, $SRC)")) {
+  ts.report(m, "unsafe copy: " + m.text(), "LBC001", "critical");
+}
+# `$F(...)`: every call; the callee is the first child of the call node.
+for (m in ts.match_c(c.root(), "$F(...)")) {
+  let callee = m.child(0).text();
+  if (callee == "system" || callee == "popen") {
+    ts.report(m, "command exec: " + callee, "LBC004", "critical");
+  }
+}
+
+let py = ts.parse_python("import subprocess\nx = eval(request)\nsubprocess.call(cmd, shell=True)\n");
+for (m in ts.match_python(py.root(), "eval($X)")) {
+  ts.report(m, "dynamic code: " + m.text(), "LBP003", "critical");
+}
+for (m in ts.match_python(py.root(), "subprocess.call(..., shell=True)")) {
+  ts.report(m, "shell=True: " + m.text(), "LBP004", "critical");
+}
+
+println(ts.report_json());
+println(str(ts.report_count()) + " findings");
+
+end _lmcode_
+savedsl(p, "build/pattern-rules.dslb");

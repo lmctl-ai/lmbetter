@@ -443,7 +443,13 @@ second grammar is vendored: tree-sitter-c (pinned in `deps.lock`) with
 follow the same pattern: tree-sitter-python (`ts.parse_python` /
 `ts.query_python`) and tree-sitter-bash (`ts.parse_bash` / `ts.query_bash`),
 both pinned in `deps.lock` — these are the first grammars with an external
-scanner (`src/scanner.c`), wired into the CMake source list. See `examples/` for
+scanner (`src/scanner.c`), wired into the CMake source list. `ts.match_c(root,
+pattern)` / `ts.match_python(root, pattern)` take a code-shaped pattern instead
+of an S-expression (`strcpy($DST, $SRC)`, `$F(...)`, the same compiler as
+`lmok query --pattern` and the pack `pattern` field) and return the matched
+nodes; the pattern is compiled once per run and cached, and an unparseable one
+is a runtime error naming the fragment (exit 3) — see
+[examples/pattern-rules.lms](examples/pattern-rules.lms). See `examples/` for
 runnable scripts.
 
 ## Repository layout

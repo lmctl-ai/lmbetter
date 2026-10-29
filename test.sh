@@ -360,6 +360,18 @@ set +e; out="$("$HOST" --dsl "$WORK/oob.dslb" 2>&1)"; code=$?; set -e
 [ "$code" = 3 ] && [[ "$out" == *'out of range'* ]] || fail "StrList.at bounds (exit $code): $out"
 ok "StrList.at bounds refused at runtime (exit 3)"
 
+cat > "$WORK/bad-pattern.lms" <<EOF
+p = _lmcode_ cli="lmok" install="github:lmctl-ai/lmok@latest";
+let c = ts.parse_c("int x;\\n");
+ts.match_c(c.root(), "strcpy(\$A");
+end _lmcode_
+savedsl(p, "$WORK/bad-pattern.dslb");
+EOF
+"$LMSCRIPT" "$WORK/bad-pattern.lms" "$WORK/bad-pattern.dslb" >/dev/null || fail "bad-pattern compile"
+set +e; out="$("$HOST" --dsl "$WORK/bad-pattern.dslb" 2>&1)"; code=$?; set -e
+[ "$code" = 3 ] && [[ "$out" == *"pattern 'strcpy(\$A' does not parse as c"* ]] || fail "ts.match_c bad pattern (exit $code): $out"
+ok "bytecode: ts.match_c with an unparseable pattern is a runtime error naming the fragment (exit 3)"
+
 cat > "$WORK/root-parent.lms" <<EOF
 p = _dsl_ cli="lmok" install="github:lmctl-ai/lmok@latest";
 let r = ts.parse("{}").root();
@@ -386,7 +398,7 @@ ok "multiple bytecode files run sequentially"
 
 # --- examples compile and run ---
 mkdir -p build
-for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json lint-c rule-catalog suppress-findings sarif-report incremental-reparse; do
+for f in parse-string parse-file detect-error cst-rules lint-json report-json query-json lint-c rule-catalog suppress-findings sarif-report incremental-reparse pattern-rules; do
   "$LMSCRIPT" "examples/$f.lms" "build/$f.dslb" >"$WORK/$f.compile.log" 2>&1 || fail "$f example compile"
   "$HOST" --dsl "build/$f.dslb" >"$WORK/$f.out" || fail "$f example run"
   # every '# expect:' line must appear in the program output

@@ -59,6 +59,9 @@ nonzero process exit status.
   `ts.parse_c` + `ts.query_c`, flagging `gets`/`strcpy`/`sprintf` calls and
   FIXME comments, with rule keys + severities (`LBC001` critical,
   `LBC002` minor)
+- `pattern-rules.lms` — the same rules as code-shaped patterns:
+  `ts.match_c(root, "strcpy($DST, $SRC)")`, `ts.match_python(root, "eval($X)")`,
+  `$F(...)` for any call; no S-expression in the script
 - `rule-catalog.lms` — user-side policy: parse `ts.report_json()` back with
   the std json functions, summarize by severity, and apply a quality gate
   (`critical > 0` → `gate=FAIL`) as a plain script-side `if`
