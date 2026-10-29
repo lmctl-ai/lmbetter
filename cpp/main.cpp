@@ -577,7 +577,7 @@ static int run_cli(int argc, char **argv) {
 #endif
   Host host;
   std::vector<char *> metadata_argv;
-  const bool metadata_verb=argc>=2&&(std::string(argv[1])=="lint"||std::string(argv[1])=="check"||std::string(argv[1])=="--dsl");
+  const bool metadata_verb=argc>=2&&(std::string(argv[1])=="lint"||std::string(argv[1])=="ci"||std::string(argv[1])=="check"||std::string(argv[1])=="--dsl");
   for(int i=0;i<argc;++i){if(metadata_verb&&i>=2&&std::string(argv[i])=="--metadata")host.include_metadata=true;else metadata_argv.push_back(argv[i]);}
   argc=static_cast<int>(metadata_argv.size());argv=metadata_argv.data();
   dslvm::Registry reg;
@@ -658,7 +658,7 @@ static int run_cli(int argc, char **argv) {
       const int rc = lmok::run_project_ci<Target>(config, root, no_suppress,
         [](const std::vector<std::string> &roots, std::vector<Target> &out, const std::vector<std::string> &ignore) {
           return expand_targets(roots, 0, out, nullptr, ignore);
-        }, grammar_for_extension, read_file, json_escape, parse_lang, sarif_path ? &sarif_sink : nullptr);
+        }, grammar_for_extension, read_file, json_escape, parse_lang, sarif_path ? &sarif_sink : nullptr, host.include_metadata);
       // The SARIF artifact is written once the run completed (even with
       // findings); rc 1 (threshold hit) still counts as a completed run.
       if (sarif_path && (rc == 0 || rc == 1)) {

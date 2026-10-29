@@ -586,7 +586,7 @@ severity and metadata. Duplicate language/id pairs are refused. Packs may add
 and `confidence` (`low`, `medium`, `high`) to each rule. Lists are sorted and
 deduplicated. Metadata is classification guidance, not proof of exploitability.
 
-`lmok lint PACK FILE --metadata` and `lmok check --lang c RULES.dslb FILE --metadata`
+`lmok lint PACK FILE --metadata`, `lmok ci --metadata`, and `lmok check --lang c RULES.dslb FILE --metadata`
 include a `metadata` object on findings that declare it. Without the flag,
 existing JSON bytes remain unchanged. Entry rules use
 `ts.report_meta(node, message, id, severity, metadata_json_string)`; the JSON

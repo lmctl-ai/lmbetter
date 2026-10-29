@@ -25,6 +25,13 @@ class Contracts(unittest.TestCase):
         listing=self.run_host('rules',self.pack);self.assertEqual(listing.returncode,0,listing.stderr)
         rows=[json.loads(line) for line in listing.stdout.splitlines()];self.assertEqual(rows[0]['id'],'R');self.assertEqual(rows[0]['severity'],'major');self.assertEqual(rows[0]['metadata'],meta)
         self.assertEqual(listing.stdout,self.run_host('rules',self.pack).stdout)
+    def test_ci_metadata_uses_the_same_opt_in_contract(self):
+        self.file('int f(){foo();}\n')
+        config=self.work/'config.json';config.write_text(json.dumps(dict(version=1,packs={'c':['pack.json']},fail_on='none')))
+        plain=self.run_host('ci','--config',config,self.work);self.assertEqual(plain.returncode,0,plain.stderr)
+        finding=next(json.loads(line) for line in plain.stdout.splitlines() if '"rule"' in line);self.assertNotIn('metadata',finding)
+        rich=self.run_host('ci','--config',config,self.work,'--metadata');self.assertEqual(rich.returncode,0,rich.stderr)
+        finding=next(json.loads(line) for line in rich.stdout.splitlines() if '"rule"' in line);self.assertEqual(finding['metadata']['tags'],['a','z'])
     def test_catalog_sort_order_is_independent_of_pack_order(self):
         other=self.work/'second.json';other.write_text(json.dumps(dict(lang='c',rules=[dict(self.rule,id='A')])))
         first=self.run_host('rules',self.pack,other);second=self.run_host('rules',other,self.pack)

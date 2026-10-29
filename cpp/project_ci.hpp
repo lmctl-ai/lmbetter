@@ -38,7 +38,7 @@ template <class Target, class Expand, class GrammarForExtension, class ReadFile,
 int run_project_ci(const ProjectConfig &config, const std::string &root,
                    bool no_suppress, Expand expand,
                    GrammarForExtension grammar_for_extension, ReadFile read_file, Escape json_escape,
-                   ParseLanguage parse_language, SarifSink *sarif = nullptr) {
+                   ParseLanguage parse_language, SarifSink *sarif = nullptr, bool include_metadata = false) {
   if (config.baseline) {
     // Item 3 owns baseline comparison.  Keep the field in the versioned
     // format, but refuse it here so CI cannot silently claim a baseline was
@@ -116,7 +116,7 @@ int run_project_ci(const ProjectConfig &config, const std::string &root,
                 << ",\"end_row\":" << finding.end_row << ",\"end_col\":" << finding.end_col
                 << ",\"rule\":\"" << json_escape(finding.rule)
                 << "\",\"severity\":\"" << json_escape(finding.severity)
-                << "\",\"message\":\"" << json_escape(finding.message) << "\"}\n";
+                << "\",\"message\":\"" << json_escape(finding.message) << "\"" << metadata_suffix(finding.metadata,include_metadata) << "}\n";
       if (sarif && sarif->results)
         sarif->results->push_back({finding.rule, finding.severity, finding.message, path,
                                    finding.row, finding.col, finding.end_row, finding.end_col});
