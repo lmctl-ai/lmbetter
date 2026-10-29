@@ -72,7 +72,7 @@ class RulePacksOS(unittest.TestCase):
                     count = lines.pop().decode()
                     findings = json.loads(lines[0])
                     self.assertEqual(len(lines), 1, lines)  # one findings group, one count line
-                    self.assertEqual(count, f'{len(findings)} findings in {fixture}')
+                    self.assertEqual(count, f'{len(findings)} findings in {Path(fixture).as_posix()}')
                     self.assertGreater(len(findings), 0, pack.name)
                     for finding in findings:
                         self.assertEqual(sorted(finding), ['col', 'end_col', 'end_row', 'message', 'row', 'rule', 'severity'], finding)
@@ -98,7 +98,7 @@ class RulePacksOS(unittest.TestCase):
             self.assertEqual(lines.pop(), b'')
             self.assertEqual(lines.pop(), b'{"ok": true, "result": null}')  # run-protocol line
             count = lines.pop()
-            self.assertEqual(count, ('2 findings in ' + str(source)).encode())
+            self.assertEqual(count, ('2 findings in ' + source.as_posix()).encode())
             groups.append(lines[0])
         self.assertEqual(groups[0], groups[1], 'CRLF moved the findings')
         self.assertEqual(groups[0], groups[2], 'missing trailing newline moved the findings')
@@ -121,7 +121,7 @@ class RulePacksOS(unittest.TestCase):
                 match = [f for f in findings if f['message'] == name]
                 self.assertEqual(len(match), 1, findings)
                 self.assertEqual(match[0]['end_col'] - match[0]['col'], len(name.encode('utf-8')), match)
-                self.assertTrue(result.stdout.endswith((' findings in ' + str(source) + '\n{"ok": true, "result": null}\n').encode()), result.stdout)
+                self.assertTrue(result.stdout.endswith((' findings in ' + source.as_posix() + '\n{"ok": true, "result": null}\n').encode()), result.stdout)
 
     def test_anonymous_kind_annotations_dispatch_on_every_grammar(self):
         # Anonymous (unnamed) node kinds are legal annotation values (R47 keeps
@@ -143,7 +143,7 @@ class RulePacksOS(unittest.TestCase):
                 self.assertEqual((result.returncode, result.stderr), (0, b''), result)
                 findings = json.loads(result.stdout.split(b'\n')[0])
                 self.assertEqual([(f['message'], f['rule']) for f in findings], [(want_text, 'KW')] * want_count, findings)
-                self.assertTrue(result.stdout.endswith((f'{want_count} findings in {source}\n' + '{"ok": true, "result": null}\n').encode()), result.stdout)
+                self.assertTrue(result.stdout.endswith((f'{want_count} findings in {source.as_posix()}\n' + '{"ok": true, "result": null}\n').encode()), result.stdout)
 
     def test_multi_file_groups_follow_argument_order(self):
         # Group order is argument order (never sorted, never walked order) and
@@ -158,7 +158,7 @@ class RulePacksOS(unittest.TestCase):
         lines = result.stdout.split(b'\n')
         self.assertEqual(lines.pop(), b'')
         counts = [line.decode() for line in lines if b' findings in ' in line]
-        self.assertEqual(counts, [f'{i + 1} findings in {paths[i]}' for i in range(3)])
+        self.assertEqual(counts, [f'{i + 1} findings in {paths[i].as_posix()}' for i in range(3)])
         groups = [json.loads(line) for line in lines if line.startswith(b'[')]
         self.assertEqual([[int(f['message']) for f in group] for group in groups], [[1], [2, 2], [3, 3, 3]])
 

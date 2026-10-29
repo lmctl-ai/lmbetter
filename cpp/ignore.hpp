@@ -112,7 +112,7 @@ class IgnoreRules {
       } else if (token == '[') {
         for (size_t j = 1; j <= text.size(); ++j) {
           size_t end = i;
-          if (row[j - 1]) next[j] = static_cast<unsigned char>(class_matches(pattern, end, text[j - 1]));
+          if (row[j - 1] && text[j - 1] != '/') next[j] = static_cast<unsigned char>(class_matches(pattern, end, text[j - 1]));
         }
         size_t end = i;
         (void)class_matches(pattern, end, '\0');
@@ -194,16 +194,14 @@ class IgnoreRules {
       return false;
     }
     std::vector<std::string> candidates;
-    if (rule.directory) {
-      size_t end = 0;
-      for (size_t n = 0; n < parts.size(); ++n) {
-        end = (n ? end + 1 : 0) + parts[n].size();
-        candidates.push_back(candidate.substr(0, end));
-      }
-      if (!directory && !candidates.empty()) candidates.pop_back();
-    } else {
-      candidates.push_back(candidate);
+    // A pattern matching a directory excludes its descendants even without
+    // a trailing slash. Slash-containing patterns stay rooted at the scan root.
+    size_t end = 0;
+    for (size_t n = 0; n < parts.size(); ++n) {
+      end = (n ? end + 1 : 0) + parts[n].size();
+      candidates.push_back(candidate.substr(0, end));
     }
+    if (rule.directory && !directory && !candidates.empty()) candidates.pop_back();
     for (const auto &text : candidates) {
       if (glob(rule.pattern, text)) return true;
     }

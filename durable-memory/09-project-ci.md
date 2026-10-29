@@ -19,6 +19,8 @@ lint entry point. The default root is `.`, and the default configuration is
 are json, c, python, and bash. `ignore` extends the root `.lmokignore`
 rules for this invocation. The severity floor is one of info, minor, major,
 or critical; findings below it remain in output but do not fail the gate.
+CI refuses rules with other severity names, even though standalone lint
+allows pack-owned severity strings.
 `fail_on` is `findings` or `none`. The baseline field is reserved for the
 baseline owner (item 3); a non-null value is currently rejected explicitly.
 
@@ -41,5 +43,6 @@ on its line or the immediately preceding source line; `lmok-disable: ID1,ID2`
 limits suppression to those rule ids. Token boundaries prevent accidental
 matches, but strings count just like comments. Lint knows its pack ids and
 warns for typos; check can warn only for ids not observed dynamically. The
+Printed paths in lint/check use forward slashes on Windows as well. The
 summary line from lint/check appends ` (N suppressed)` when N is nonzero.
 `--no-suppress` restores all findings for lint, check, and ci.

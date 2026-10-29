@@ -20,45 +20,15 @@
 #include <vector>
 
 namespace lmok {
-namespace project_ci_detail {
-
-inline std::string json_escape(const std::string &s) {
-  std::string out;
-  out.reserve(s.size() + 8);
-  for (const unsigned char c : s) {
-    switch (c) {
-    case '"': out += "\\\""; break;
-    case '\\': out += "\\\\"; break;
-    case '\n': out += "\\n"; break;
-    case '\r': out += "\\r"; break;
-    case '\t': out += "\\t"; break;
-    default:
-      if (c < 0x20) {
-        static constexpr char hex[] = "0123456789abcdef";
-        out += "\\u00";
-        out += hex[c >> 4];
-        out += hex[c & 15];
-      } else out.push_back(static_cast<char>(c));
-    }
-  }
-  return out;
-}
-
-inline const char *language_name(const Grammar grammar) {
-  return grammar_name(grammar);
-}
-
-} // namespace project_ci_detail
-
 // Target must expose `path` and `from_dir`.  Expand must have the shape:
 //   int expand(vector<string> roots, vector<Target>& out, vector<string> ignore)
 // and return the normal lmok CLI status (0, 2, or 3).  GrammarForExtension
 // has the shape bool(string extension, Grammar& out).  ReadFile returns the
 // source bytes and may throw dslvm::Error.
-template <class Target, class Expand, class GrammarForExtension, class ReadFile>
+template <class Target, class Expand, class GrammarForExtension, class ReadFile, class Escape>
 int run_project_ci(const ProjectConfig &config, const std::string &root,
                    bool no_suppress, Expand expand,
-                   GrammarForExtension grammar_for_extension, ReadFile read_file) {
+                   GrammarForExtension grammar_for_extension, ReadFile read_file, Escape json_escape) {
   if (config.baseline) {
     // Item 3 owns baseline comparison.  Keep the field in the versioned
     // format, but refuse it here so CI cannot silently claim a baseline was
@@ -129,20 +99,20 @@ int run_project_ci(const ProjectConfig &config, const std::string &root,
     suppressed_count += suppression.suppressed;
     findings_count += findings.size();
     for (const auto &finding : findings) {
-      std::cout << "{\"path\":\"" << project_ci_detail::json_escape(path)
+      std::cout << "{\"path\":\"" << json_escape(path)
                 << "\",\"row\":" << finding.row << ",\"col\":" << finding.col
                 << ",\"end_row\":" << finding.end_row << ",\"end_col\":" << finding.end_col
-                << ",\"rule\":\"" << project_ci_detail::json_escape(finding.rule)
-                << "\",\"severity\":\"" << project_ci_detail::json_escape(finding.severity)
-                << "\",\"message\":\"" << project_ci_detail::json_escape(finding.message) << "\"}\n";
+                << ",\"rule\":\"" << json_escape(finding.rule)
+                << "\",\"severity\":\"" << json_escape(finding.severity)
+                << "\",\"message\":\"" << json_escape(finding.message) << "\"}\n";
       if (config.fail_on == "findings" && severity_rank(finding.severity) >= floor)
         threshold_hit = true;
     }
   }
   std::cout << "{\"summary\":{\"findings\":" << findings_count
             << ",\"suppressed\":" << suppressed_count
-            << ",\"severity_floor\":\"" << project_ci_detail::json_escape(config.severity_floor)
-            << "\",\"fail_on\":\"" << project_ci_detail::json_escape(config.fail_on)
+            << ",\"severity_floor\":\"" << json_escape(config.severity_floor)
+            << "\",\"fail_on\":\"" << json_escape(config.fail_on)
             << "\"}}\n";
   if (!std::cout) return 4;
   return threshold_hit ? 1 : 0;

@@ -77,6 +77,17 @@ class ProjectTests(unittest.TestCase):
         self.source('.lmokignore','root/a.c\n')
         r=self.run_host('lint',self.pack,'.');self.assertEqual(len(self.findings(r)),6)
         self.assertIn(b'nest/root/a.c',r.stdout)
+    def test_ci_json_replaces_invalid_utf8_in_findings(self):
+        self.pack.write_text(json.dumps({'lang':'c','rules':[{'id':'BAD','on':'comment','message':'{text}','severity':'major'}]}))
+        self.config();(self.root/'invalid.c').write_bytes(b'// bad \xff\n')
+        r=self.run_host('ci');self.assertEqual(r.returncode,1,r.stderr)
+        rows=[json.loads(line) for line in r.stdout.splitlines()]
+        self.assertEqual(rows[0]['message'],'// bad \ufffd')
+    def test_slash_pattern_also_excludes_directory_descendants(self):
+        self.source('a/b/child.c','int hidden;');self.source('nested/a/b/child.c','int kept;')
+        self.source('.lmokignore','a/b\n')
+        r=self.run_host('lint',self.pack,'.');self.assertEqual(len(self.findings(r)),2)
+        self.assertIn(b'nested/a/b/child.c',r.stdout)
     def test_multiple_packs_languages_and_config_path(self):
         self.source('second.json',json.dumps({'lang':'python','rules':[{'id':'P','on':'identifier','message':'python','severity':'critical'}]}))
         self.config(packs={'c':['pack.json'],'python':['second.json']})
