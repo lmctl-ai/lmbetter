@@ -27,7 +27,8 @@ file untouched.
 The source must already parse cleanly. The verifier masks the reported node in
 both CSTs and compares the full remaining topology, including anonymous tokens,
 ancestor kinds and unaffected leaf bytes. Every new range must be exactly a
-syntax node. Root/full-file and mixed-grammar replacements are refused in this
+unambiguous syntax node; equal-range wrappers are refused rather than masked as
+an ancestor. Root/full-file and mixed-grammar replacements are refused in this
 slice. CRLF normalization precedes both offset mapping and no-op detection.
 Unsafe or overlapping batches fail with exit 3 before a write. This is syntax
 safety, not a semantic proof for arbitrary custom rules.

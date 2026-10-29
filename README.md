@@ -595,7 +595,8 @@ with the fixed count on stderr. Files with no edits produce no diff. Overlap or
 unsafe parse/shape changes refuse the entire file's batch (exit 3), leaving its
 bytes untouched. Whole-file/root replacements, empty/deleting replacements that
 cannot form a syntax node, and mixed-grammar edit batches are conservatively
-refused. The guard verifies syntax boundaries, not program behavior; only the
+refused, as are byte ranges shared by multiple wrapper nodes. The guard verifies
+syntax boundaries, not program behavior; only the
 four narrow shipped rules claim their documented semantics.
 
 The initial packs cover exact Bash `` `date` `` / `` `pwd` `` substitutions and C

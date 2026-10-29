@@ -199,6 +199,18 @@ class Autofix(unittest.TestCase):
         self.assertEqual(source.read_bytes(), before)
         self.assertIn(b"0 fixed", result.stdout)
 
+    def test_equal_range_wrapper_nodes_cannot_hide_an_ancestor_change(self):
+        source = self.work / "wrapper.sh"
+        before = b"foo\necho done\n"
+        source.write_bytes(before)
+        pack = self.work / "wrapper.json"
+        pack.write_text(json.dumps({"lang": "bash", "rules": [
+            {"id": "BAD", "on": "word", "text_matches": "^foo$", "message": "bad", "fix": "if true; then :; fi"},
+        ]}), encoding="utf-8")
+        result = self.lint(pack, source, "--fix")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(source.read_bytes(), before)
+
     def test_invalid_fix_type_is_a_pack_error_and_metavariables_are_plain_text(self):
         bad = self.work / "bad-fix.json"
         bad.write_text(json.dumps({"lang": "c", "rules": [

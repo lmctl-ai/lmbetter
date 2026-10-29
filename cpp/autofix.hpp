@@ -120,11 +120,11 @@ inline Tree verify_tree(const std::string &old_text, const std::string &new_text
   // full-tree signatures.
   const auto new_shapes = masked_shape(new_tree, mapped);
   for (const auto &edit : mapped) {
-    bool found = false;
+    size_t found = 0;
     walk_nodes(new_tree, [&](const Node &node, const std::vector<Node> &) {
-      if (node_start_byte(node) == edit.start_byte && node_end_byte(node) == edit.end_byte) found = true;
+      if (node_start_byte(node) == edit.start_byte && node_end_byte(node) == edit.end_byte) ++found;
     });
-    if (!found) throw std::runtime_error("autofix refused: replacement is not one syntax node");
+    if (found != 1) throw std::runtime_error("autofix refused: replacement is not one unambiguous syntax node");
   }
   const auto old_shapes = masked_shape(old_tree, edits);
   if (old_shapes.size() != new_shapes.size())
@@ -180,13 +180,16 @@ inline FixResult apply_fixes(const std::string &source, const std::vector<FixEdi
         nodes.push_back({node_start_byte(node), node_end_byte(node)});
     });
     for (const auto &edit : grammar_edits) {
-      bool exact = false;
+      size_t exact = 0;
       for (const auto &node : nodes) if (node.start == edit.start_byte && node.end == edit.end_byte) {
         if (node.start == 0 && node.end == static_cast<int64_t>(source.size()))
           throw std::runtime_error("autofix refused: whole-file replacement is not token-safe");
-        exact = true; break;
+        ++exact;
       }
-      if (!exact) throw std::runtime_error("autofix refused: fix range is not an exact syntax node");
+      // Equal-range wrappers (Bash command/command_name/word, for example)
+      // cannot be distinguished by a byte-only fix. Masking their outermost
+      // node would conceal ancestor changes, so refuse ambiguous ranges.
+      if (exact != 1) throw std::runtime_error("autofix refused: fix range is not one unambiguous syntax node");
     }
   }
 
