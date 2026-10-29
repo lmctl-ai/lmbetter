@@ -103,6 +103,9 @@ int run_project_ci(const ProjectConfig &config, const std::string &root,
     std::string source;
     try { source = read_file(path); }
     catch (const dslvm::Error &e) { std::cerr << e.what() << "\n"; return 3; }
+    const auto sarif_source = (sarif && sarif->results)
+        ? std::make_shared<const std::string>(source)
+        : std::shared_ptr<const std::string>{};
     Suppression suppression(source);
     std::vector<LintFinding> findings;
     try { findings = lint_text(file_rules, source, &suppression, no_suppress); }
@@ -119,7 +122,8 @@ int run_project_ci(const ProjectConfig &config, const std::string &root,
                 << "\",\"message\":\"" << json_escape(finding.message) << "\"" << metadata_suffix(finding.metadata,include_metadata) << "}\n";
       if (sarif && sarif->results)
         sarif->results->push_back({finding.rule, finding.severity, finding.message, path,
-                                   finding.row, finding.col, finding.end_row, finding.end_col, finding.metadata});
+                                   finding.row, finding.col, finding.end_row, finding.end_col,
+                                   finding.metadata, sarif_source});
       if (config.fail_on == "findings" && severity_rank(finding.severity) >= floor)
         threshold_hit = true;
     }

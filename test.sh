@@ -1247,5 +1247,7 @@ python3 tests/check-review-security.py "$HOST" || fail "review credential bounda
 ok "review credential previews, Java storage, safe baseline rotation and diff flags"
 python3 tests/check-review-baseline.py "$HOST" || fail "review baseline snapshots and Git filenames"
 ok "review baseline snapshots and Git filenames"
+LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-review-sarif.py "$HOST" || fail "review SARIF Unicode and URIs"
+ok "review SARIF Unicode and URIs"
 
 echo "PASS: $pass checks"

@@ -61,7 +61,11 @@ tests/check-db.py's positional findings insert gained the NULL).
 - Straight port of examples/sarif-report.lms: version 2.1.0 + schemastore
   `$schema`, one run, driver "lmok" (version = LMOK_VERSION), results with
   ruleId / level / message.text / physicalLocation; 0-based → 1-based
-  (endColumn 1-based exclusive after +1). Level map identical to the example:
+  (endColumn 1-based exclusive after +1). Source byte columns first convert
+  to Unicode code points; `columnKind: unicodeCodePoints` belongs to the run.
+  All located lint/check/CI producers share one immutable source per file;
+  source contents never enter SARIF. Paths percent-encode reserved/UTF-8 bytes,
+  and Windows drive paths use `file:///C:/...`. Level map matches the example:
   critical → error, minor → note, everything else → warning.
 - driver.rules: lint/ci take pack metadata (id; shortDescription = pack
   message; helpUri from the rule's top-level `url`, the wp18a metadata

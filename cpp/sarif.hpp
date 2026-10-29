@@ -5,13 +5,15 @@
 // tool.driver is "lmok", results carry ruleId/level/message and a
 // physicalLocation whose region converts the host's 0-based positions to
 // SARIF's 1-based startLine/startColumn (endColumn 1-based exclusive,
-// matching the 0-based exclusive end_col after +1). The severity -> level
+// matching the exclusive end position). Byte columns convert to Unicode
+// code points, declared on the run; artifact paths are URI encoded. The severity -> level
 // mapping is the example's: critical -> error, minor -> note, everything
 // else (the free-form vocabulary is pack-owned) -> warning.
 
 #include "rule_metadata.hpp"
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -30,6 +32,9 @@ struct SarifResult {
                    // (check "body" findings: no locations member is emitted)
   int64_t row = 0, col = 0, end_row = 0, end_col = 0; // 0-based
   RuleMetadata metadata{};
+  // Original UTF-8 source for converting tree-sitter byte columns at the
+  // SARIF boundary. Located producers share one immutable copy per file.
+  std::shared_ptr<const std::string> source;
 };
 
 // `escape` is the host JSON string escaper WITHOUT surrounding quotes (the

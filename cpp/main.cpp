@@ -1289,6 +1289,7 @@ static int run_cli(int argc, char **argv) {
       const bool explicit_file = suppression.suppressed > 0 ||
           target.path.find_first_of("\r\n") != std::string::npos ||
           (target.path.size() >= 12 && target.path.compare(target.path.size() - 12, 12, " suppressed)") == 0);
+      const auto sarif_source = sarif_path ? std::make_shared<const std::string>(raw) : nullptr;
       for (const auto &f : findings) {
         // Suppressed findings never reach this loop, so they can never become
         // "new". Under --new-since/--baseline only NEW findings print (the
@@ -1313,7 +1314,7 @@ static int run_cli(int argc, char **argv) {
         std::cout << lmok::metadata_suffix(f.metadata,host.include_metadata) << "}\n";
         if (sarif_path)
           sarif_results.push_back({f.rule, f.severity, f.message, target.path,
-                                   f.row, f.col, f.end_row, f.end_col, f.metadata});
+                                   f.row, f.col, f.end_row, f.end_col, f.metadata, sarif_source});
       }
       std::cout << printed << " findings in " << target.path << lmok::suppressed_suffix(suppression.suppressed) << "\n";
       if (db_path) {
@@ -1505,10 +1506,10 @@ static int run_cli(int argc, char **argv) {
     };
     const char *where = "body";
     std::vector<lmok::SarifResult> sarif_results;
-    const auto collect_sarif = [&sarif_path, &sarif_results, &host](const std::string &uri) {
+    const auto collect_sarif = [&sarif_path, &sarif_results, &host](const std::string &uri, std::shared_ptr<const std::string> source = {}) {
       if (!sarif_path) return;
       for (const auto &f : host.findings)
-        sarif_results.push_back({f.rule, f.severity, f.message, uri, f.row, f.col, f.end_row, f.end_col, f.metadata});
+        sarif_results.push_back({f.rule, f.severity, f.message, uri, f.row, f.col, f.end_row, f.end_col, f.metadata, source});
     };
     try {
       program.run(context, reg); // configuration/effects once, not once per node or file
@@ -1527,7 +1528,7 @@ static int run_cli(int argc, char **argv) {
           const Value handle = host.hold_node(node); // per-file arena; Tree stays alive
           for (size_t entry : found->second) program.call(entry, context, reg, {handle});
         });
-        collect_sarif(target.path);
+        collect_sarif(target.path, sarif_path ? std::make_shared<const std::string>(tree.source()) : nullptr);
         print_group(where);
         dslvm::report_ok();
         if (!std::cout) return 4;

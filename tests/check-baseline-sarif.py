@@ -8,6 +8,8 @@ really moves it and only position-independent keying passes), a baseline file
 with the key fields stripped MUST misclassify everything as new, and the SARIF
 validator MUST reject a 0-based (unconverted) region row."""
 import copy
+import re
+from urllib.parse import quote
 import json
 import os
 from pathlib import Path
@@ -65,7 +67,10 @@ def validate_sarif(doc, want_rules, want_results):
             assert 'locations' not in result, result
             continue
         location = result['locations'][0]['physicalLocation']
-        assert location['artifactLocation']['uri'] == uri, location
+        expected_uri = quote(uri, safe='/')
+        if re.match(r'^[A-Za-z]:/', uri):
+            expected_uri = 'file:///' + uri[:2] + quote(uri[2:], safe='/')
+        assert location['artifactLocation']['uri'] == expected_uri, location
         region = location['region']
         assert (region['startLine'], region['startColumn']) == (row + 1, col + 1), region
         assert (region['endLine'], region['endColumn']) == (end_row + 1, end_col + 1), region
