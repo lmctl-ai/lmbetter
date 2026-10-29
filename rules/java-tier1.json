@@ -24,10 +24,10 @@
     },
     {
       "id": "LJV004",
-      "on": "method_invocation",
-      "text_matches": "printStackTrace\\s*\\(",
+      "text_matches": "\\)\\s*$",
       "message": "printStackTrace leaks diagnostics",
-      "severity": "major"
+      "severity": "major",
+      "query": "((method_invocation name: (identifier) @method) @site (#eq? @method \"printStackTrace\"))"
     },
     {
       "id": "LJV005",
@@ -45,10 +45,10 @@
     },
     {
       "id": "LJV007",
-      "on": "method_invocation",
-      "text_matches": "MessageDigest\\.getInstance\\s*\\(\\s*\\\"(?:MD5|SHA-?1)\\\"",
+      "text_matches": "^\"(?:MD5|SHA-?1)\"$",
       "message": "weak MD5/SHA-1 digest",
-      "severity": "major"
+      "severity": "major",
+      "query": "((method_invocation object: (identifier) @type name: (identifier) @method arguments: (argument_list (string_literal) @algorithm)) (#eq? @type \"MessageDigest\") (#eq? @method \"getInstance\"))"
     },
     {
       "id": "LJV008",

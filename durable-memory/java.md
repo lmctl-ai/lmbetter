@@ -20,3 +20,5 @@ Java uses tree-sitter-java v0.23.5 (MIT, archive hash in deps.lock). Classes, re
 Native Java oracles run from test.sh through tests/check-java-os.py: parse/query byte positions with CRLF and Unicode paths, extension-based facts, nine rule counts and zero clean findings, and compiled annotated method dispatch. Output-corruption controls must fail before the normal oracles pass.
 
 String comparisons cover literal operands only, not inferred String variables. println is one finding per non-main method (name-only exemption). Runtime.exec covers direct Runtime.getRuntime().exec(identifier), not aliased receivers; credential fields require string literals and recognized key spellings. Rules are LJV001–LJV009 to avoid collisions with JSON LBJ identifiers.
+
+Each of the nine rule-omission controls removes that production rule from a scratch pack and requires the full expected finding oracle to reject it. Stack-trace and digest checks use invocation structure to avoid matching text inside unrelated call arguments.

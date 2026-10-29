@@ -10,6 +10,6 @@ class Clean {
     try { work(); } catch (java.io.IOException e) { recover(e); }
     // ordinary documentation comment
   }
-  void work() { }
+  void work() throws java.io.IOException { }
   void recover(Exception e) { }
 }

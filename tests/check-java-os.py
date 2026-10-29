@@ -42,6 +42,16 @@ class JavaOS(unittest.TestCase):
   counts=collections.Counter(r['rule'] for r in rows)
   self.assertEqual(counts,{**{'LJV%03d'%i:1 for i in range(1,10)},'LJV008':2})
   self.assertEqual(self.run_host('lint',pack,ROOT/'tests/fixtures/java-tier1-clean.java'),b'0 findings in '+(ROOT/'tests/fixtures/java-tier1-clean.java').as_posix().encode()+b'\n')
+ def test_rule_omission_controls(self):
+  pack=json.loads((ROOT/'rules/java-tier1.json').read_text(encoding='utf-8'))
+  expected=collections.Counter({**{'LJV%03d'%i:1 for i in range(1,10)},'LJV008':2})
+  for rule in pack['rules']:
+   mutant=self.work/(rule['id']+'.json');mutant.write_text(json.dumps({**pack,'rules':[r for r in pack['rules'] if r['id']!=rule['id']]}),encoding='utf-8')
+   lines=self.run_host('lint',mutant,ROOT/'tests/fixtures/java-tier1-violations.java').splitlines()
+   actual=collections.Counter(json.loads(line)['rule'] for line in lines[:-1])
+   with self.assertRaises(AssertionError):self.assertEqual(actual,expected)
+   self.assertEqual(actual[rule['id']],0)
+   print('CAUGHT Java rule omission '+rule['id'])
  def test_check_java_annotation(self):
   compiler=os.environ.get('LMSCRIPT_BIN','lmscript')
   if os.name=='nt' and not compiler.lower().endswith(('.cmd','.exe','.bat')):compiler=shutil.which(compiler+'.cmd') or compiler+'.cmd'
