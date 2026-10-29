@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory(prefix='lmok-db-') as tmp:
         con.execute("insert into edges values(1,'x.h','include',NULL,'exact')")
         con.execute("insert into runs values(10,1,'old')")
         con.execute("insert into runs values(2,20,'new')")
-        con.execute("insert into findings values(1,2,1,'X','minor','message',0,0,0,1,0)")
+        con.execute("insert into findings values(1,2,1,'X','minor','message',0,0,0,1,0,NULL)")
         con.execute("insert into file_text values('x.c','c','needle')")
         assert con.execute("select path from file_text where file_text match 'needle'").fetchall() == [('x.c',)]
     output = run('--db', db).stdout

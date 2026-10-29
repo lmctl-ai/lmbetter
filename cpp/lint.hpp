@@ -44,6 +44,10 @@ struct LintFinding {
   std::string rule, severity, message;
   RuleMetadata metadata;
   std::optional<FixEdit> fix;
+  // The matched node's source text with whitespace runs collapsed to one
+  // space (lmok::normalize_snippet). Never printed in lint output; recorded
+  // in the findings table as the position-independent baseline key part.
+  std::string snippet;
 };
 
 // Parse and validate a rule pack file. Throws dslvm::Error (plain message,
@@ -85,5 +89,11 @@ struct LintFileRecord {
 // Throws DbError.
 void record_lint_run(Database &db, int64_t started_at, const std::string &command,
                      const std::vector<LintFileRecord> &files);
+
+// Whitespace-collapsed source text: every run of ASCII whitespace becomes
+// one space, ends trimmed. This is the position-independent part of the
+// baseline key (lint --new-since/--baseline), so edits ABOVE a finding do
+// not change its key.
+std::string normalize_snippet(const std::string &text);
 
 } // namespace lmok

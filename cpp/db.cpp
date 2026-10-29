@@ -73,7 +73,8 @@ CREATE TABLE findings (
   message    TEXT NOT NULL,
   start_row  INTEGER NOT NULL, start_col INTEGER NOT NULL,
   end_row    INTEGER NOT NULL, end_col INTEGER NOT NULL,
-  superseded INTEGER NOT NULL DEFAULT 0
+  superseded INTEGER NOT NULL DEFAULT 0,
+  snippet    TEXT                      -- whitespace-collapsed node text (baseline key); NULL in pre-baseline rows
 );
 CREATE INDEX idx_findings_file ON findings(file_id, superseded);
 CREATE INDEX idx_findings_rule ON findings(rule, superseded);
@@ -232,6 +233,11 @@ Database::Database(const std::filesystem::path &path, Mode mode) {
       auto version = prepare("SELECT value FROM meta WHERE key='schema_version'");
       if (!version.step() || version.text(0) != "2") schema_error();
       version.step();
+      // Additive in-version migration: findings.snippet (baseline key part,
+      // lmok 0.7). Nullable, so old DBs keep working and old rows stay NULL
+      // (the baseline falls back to keying on rule/file/message for them).
+      if (!db_has_column(*this, "findings", "snippet"))
+        exec("ALTER TABLE findings ADD COLUMN snippet TEXT");
       transaction.commit();
       exec("PRAGMA journal_mode=WAL");
     } else {
@@ -258,6 +264,13 @@ Transaction::~Transaction() {
   if (active_) sqlite3_exec(db_.handle(), "ROLLBACK", nullptr, nullptr, nullptr);
 }
 void Transaction::commit() { db_.exec("COMMIT"); active_ = false; }
+
+bool db_has_column(Database &db, const std::string &table, const std::string &column) {
+  auto info = db.prepare("PRAGMA table_info(" + table + ")");
+  while (info.step())
+    if (info.text(1) == column) return true;
+  return false;
+}
 
 std::string db_status(Database &db, const std::filesystem::path &path) {
   Transaction snapshot(db, false);

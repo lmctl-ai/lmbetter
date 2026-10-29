@@ -68,4 +68,8 @@ public:
 // Stable text report from one read transaction (no torn row-count snapshots).
 std::string db_status(Database &db, const std::filesystem::path &path);
 
+// True when `table` has a column named `column` (schema additions within one
+// schema_version are optional: readers must tolerate their absence).
+bool db_has_column(Database &db, const std::string &table, const std::string &column);
+
 } // namespace lmok

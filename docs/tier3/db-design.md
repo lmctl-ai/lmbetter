@@ -137,7 +137,8 @@ CREATE TABLE findings (
   message    TEXT NOT NULL,
   start_row  INTEGER NOT NULL, start_col INTEGER NOT NULL,
   end_row    INTEGER NOT NULL, end_col INTEGER NOT NULL,
-  superseded INTEGER NOT NULL DEFAULT 0
+  superseded INTEGER NOT NULL DEFAULT 0,
+  snippet    TEXT                      -- whitespace-collapsed node text (baseline key); NULL in pre-baseline rows
 );
 CREATE INDEX idx_findings_file ON findings(file_id, superseded);
 CREATE INDEX idx_findings_rule ON findings(rule, superseded);
@@ -154,6 +155,11 @@ Notes:
   (schema_version 2; a v1 DB is refused with exit 2 — delete + re-index).
   `files.path` stores the path AS WALKED (cwd-relative, forward slashes —
   `./main.c` for `index .`), matching what `lint` prints for the same run.
+- The baseline wave (lmok 0.7) added `findings.snippet` (nullable) WITHIN
+  schema_version 2: an additive nullable column is compatible both ways, so
+  writers `ALTER TABLE` it in when missing and readers tolerate its absence
+  (`PRAGMA table_info`). Rows recorded before the column existed keep NULL
+  and the baseline matcher falls back to keying on (rule, file, message).
 - All ranges stay 0-based tree-sitter points, identical to every other
   surface (parse/query/lint) — no 1-based conversion anywhere in the DB.
 - `file_text` doubles the DB size (source is on disk AND in FTS). That is the

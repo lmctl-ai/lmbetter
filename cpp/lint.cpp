@@ -71,7 +71,11 @@ void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding>
   findings.push_back({node_start_row(node), node_start_col(node),
                       node_end_row(node), node_end_col(node),
                       rule.id, rule.severity, expand_message(rule.message, display), rule.metadata,
-                      rule.fix ? std::optional<FixEdit>(FixEdit{node_start_byte(node), node_end_byte(node), *rule.fix, rule.grammar}) : std::nullopt});
+                      rule.fix ? std::optional<FixEdit>(FixEdit{node_start_byte(node), node_end_byte(node), *rule.fix, rule.grammar}) : std::nullopt,
+                      // The snippet keys on the raw node text, not the
+                      // redacted display form: redaction must not make the
+                      // same finding look different across baseline runs.
+                      normalize_snippet(text)});
 }
 
 } // namespace
@@ -300,6 +304,21 @@ std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std
   return findings;
 }
 
+std::string normalize_snippet(const std::string &text) {
+  std::string out;
+  bool pending_space = false;
+  for (const char c : text) {
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' || c == '\v') {
+      pending_space = !out.empty();
+    } else {
+      if (pending_space) out += ' ';
+      pending_space = false;
+      out += c;
+    }
+  }
+  return out;
+}
+
 void record_lint_run(Database &db, int64_t started_at, const std::string &command,
                      const std::vector<LintFileRecord> &files) {
   Transaction transaction(db); // rolls back on any DbError: no partial runs
@@ -317,8 +336,8 @@ void record_lint_run(Database &db, int64_t started_at, const std::string &comman
                                 " VALUES (?,?,?,?,?,?)");
   auto supersede = db.prepare("UPDATE findings SET superseded = 1 WHERE file_id = ? AND superseded = 0");
   auto finding_insert = db.prepare(
-      "INSERT INTO findings(run_id,file_id,rule,severity,message,start_row,start_col,end_row,end_col,superseded)"
-      " VALUES (?,?,?,?,?,?,?,?,?,0)");
+      "INSERT INTO findings(run_id,file_id,rule,severity,message,start_row,start_col,end_row,end_col,superseded,snippet)"
+      " VALUES (?,?,?,?,?,?,?,?,?,0,?)");
   for (const auto &file : files) {
     file_insert.bind(1, file.path);
     file_insert.bind(2, file.lang);
@@ -345,6 +364,7 @@ void record_lint_run(Database &db, int64_t started_at, const std::string &comman
       finding_insert.bind(7, f.col);
       finding_insert.bind(8, f.end_row);
       finding_insert.bind(9, f.end_col);
+      finding_insert.bind(10, f.snippet);
       finding_insert.step();
       finding_insert.reset();
     }
