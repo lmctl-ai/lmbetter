@@ -3,7 +3,8 @@
 `lmok metrics [--lang L] FILE|DIR...` emits one JSON line per file with `file`,
 `lines`, `functions`, `max_nesting`. Physical lines count LF terminators plus an
 unterminated final line (empty input 0, a trailing LF adds no phantom line).
-C/Python function definitions and Java methods/constructors are counted. Nesting
+Named function definitions/declarations (including Go), methods and constructors
+are counted. Nesting
 counts control structures, including loops, if, switch and try/catch, excluding
 else-if as an additional level. It is syntactic nesting across the file; it is
 not execution or semantic complexity. Existing target expansion handles paths,

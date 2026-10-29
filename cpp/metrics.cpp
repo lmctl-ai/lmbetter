@@ -76,7 +76,8 @@ FileMetrics measure_file(const Tree &tree, const std::string &source) {
   std::vector<int64_t> depths;
   walk_nodes(tree, [&](const Node &node, const std::vector<Node> &ancestors) {
     const auto kind = node_kind(node);
-    if (kind == "function_definition" || kind == "method_declaration" || kind == "constructor_declaration") ++metrics.functions;
+    if (kind == "function_definition" || kind == "function_declaration" || kind == "generator_function_declaration" ||
+        kind == "method_definition" || kind == "method_declaration" || kind == "constructor_declaration") ++metrics.functions;
     depths.resize(ancestors.size());
     const bool else_if = kind == "if_statement" && !ancestors.empty() && node_kind(ancestors.back()) == "else_clause";
     const int64_t depth = (depths.empty() ? 0 : depths.back()) + (control(kind) && !else_if ? 1 : 0);

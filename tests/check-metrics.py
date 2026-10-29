@@ -85,4 +85,8 @@ with tempfile.TemporaryDirectory(prefix='metrics os ',dir=ROOT/'build') as tmp:
             boundary.write_bytes(data)
             assert json.loads(run('metrics','--lang',lang,boundary))['lines']==lines
         print('ok -',lang,'ten cognitive/nesting hand values, strict threshold and physical-line boundaries')
-print('ok - metrics and cognitive complexity')
+    go=tmp/'go-count.go'
+    go.write_bytes(b'package main\nfunc one() {}\nfunc (r R) two() { if true {} }\n')
+    m=json.loads(run('metrics',go))
+    assert (m['lines'],m['functions'],m['max_nesting'])==(3,2,1),m
+print('ok - metrics and cognitive complexity, including newly registered Go definitions')
