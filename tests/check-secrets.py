@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Secrets are generated at runtime so the repository itself stays clean."""
 import json
+import hashlib
 import random
 import sqlite3
 import subprocess
@@ -67,14 +68,39 @@ with tempfile.TemporaryDirectory(prefix='secrets os ', dir=ROOT / 'build') as tm
             reject(raw, 'AWS secret ' + samples[0][1][:4] + '[REDACTED]')
             print('ok - executed failing controls: omitted detector and disabled redaction')
         db = tmp / (lang + '.db')
-        fs, result = findings(pack, source, '--db', db)
+        sarif = tmp/(lang+'.sarif')
+        fs, result = findings(pack, source, '--db', db, '--sarif', sarif)
         assert len(fs) == len(samples), (lang, fs, result.stderr)
         for (name, secret), finding in zip(samples, fs):
             assert finding['rule'].startswith('SEC_' + name), (lang, finding)
             assert finding['message'].endswith(secret[:4] + '[REDACTED]'), finding
             assert secret.encode() not in result.stdout + result.stderr, (lang, finding)
-        stored = sqlite3.connect(db).execute('select message from findings').fetchall()
+        con = sqlite3.connect(db)
+        try: stored = con.execute('select message, snippet from findings order by id').fetchall()
+        finally: con.close()
         assert [x[0] for x in stored] == [f['message'] for f in fs]
+        for (_,secret), (_,snippet) in zip(samples,stored):
+            raw = "'"+secret+"'" if lang=='bash' else secret
+            assert snippet == 'sha256:'+hashlib.sha256(raw.encode()).hexdigest(), (lang,'raw secret persisted in baseline snippet')
+        for recorded in tmp.glob(lang+'.db*'):
+            blob=recorded.read_bytes()
+            for _,secret in samples: assert secret.encode() not in blob, 'plaintext in SQLite/WAL'
+        sarif_bytes=sarif.read_bytes()
+        for _,secret in samples: assert secret.encode() not in sarif_bytes
+        assert [r['message']['text'] for r in json.loads(sarif_bytes)['runs'][0]['results']] == [f['message'] for f in fs]
+        # The digest preserves baseline identity when a secret changes but its
+        # visible four-character prefix remains the same.
+        if lang=='json':
+            baseline = run('lint',pack,source,'--db',db,'--new-since','last')
+            assert baseline.returncode==0 and not any(line.startswith(b'{') for line in baseline.stdout.splitlines()), baseline
+            rotated=samples[0][1][:-1]+'9'
+            text=source.read_text().replace(samples[0][1],rotated)
+            source.write_bytes(text.encode())
+            changed=run('lint',pack,source,'--db',db,'--new-since','last')
+            fs_changed=[json.loads(line) for line in changed.stdout.splitlines() if line.startswith(b'{')]
+            assert rotated.encode() not in changed.stdout+changed.stderr
+            assert changed.returncode==0 and len(fs_changed)==1 and fs_changed[0]['rule']=='SEC_AWS',changed
+            write([('long_credential_assignment_password' if name == 'ENTROPY' else 'value'+str(i), value) for i,(name,value) in enumerate(samples)])
         # Random ordinary strings are not credentials; entropy needs a sensitive assignment key.
         write([('value'+str(i), ''.join(rng.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=48))) for i in range(1000)])
         fs, _ = findings(pack, source)

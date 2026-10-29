@@ -625,7 +625,9 @@ above 4.3 bits/byte; random ordinary strings alone are not credentials.
 
 Pack field `"redact": true` replaces `{text}` with the first four content bytes
 plus `[REDACTED]` before findings reach stdout, SQLite or downstream formats.
-Do not put literal credentials in rule messages. Query predicate
+Baseline snippets for redacted rules store a SHA-256 digest rather than source
+content, so changing a same-prefix credential still becomes new. Do not put
+literal credentials in rule messages. Query predicate
 `(#entropy-gt? @capture "4.3")` computes byte Shannon entropy with a strict
 threshold (finite 0–8); empty or over-16-KiB captures do not match. Quantified
 captures must all exceed the threshold. No network checks are made. See

@@ -72,10 +72,10 @@ void maybe_emit(const LintRule &rule, const Node &node, std::vector<LintFinding>
                       node_end_row(node), node_end_col(node),
                       rule.id, rule.severity, expand_message(rule.message, display), rule.metadata,
                       rule.fix ? std::optional<FixEdit>(FixEdit{node_start_byte(node), node_end_byte(node), *rule.fix, rule.grammar}) : std::nullopt,
-                      // The snippet keys on the raw node text, not the
-                      // redacted display form: redaction must not make the
-                      // same finding look different across baseline runs.
-                      normalize_snippet(text)});
+                      // Preserve baseline identity without retaining a secret.
+                      // Hash the normalized value, since the four-byte display
+                      // prefix cannot distinguish credential rotations.
+                      rule.redact ? "sha256:" + dslvm::hex(dslvm::sha256(normalize_snippet(text))) : normalize_snippet(text)});
 }
 
 } // namespace

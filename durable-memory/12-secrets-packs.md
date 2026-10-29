@@ -25,3 +25,12 @@ fakes assembled at runtime, plaintext-redaction/DB checks, low-entropy negative,
 1000 seeded random ordinary strings per language, query threshold/domain/limit
 checks and a tracked-repository zero-finding scan. Tests avoid checking in
 real-shaped fake credentials so repository scans remain a useful oracle.
+
+Baseline integration: a redacted finding's persisted `snippet` is
+`sha256:<digest>` of the normalized node content, using the existing SDK SHA-256.
+A raw snippet would bypass message redaction; using only the visible four-byte
+prefix would hide a rotated credential from new-code detection. Normal findings
+retain ordinary normalized snippets. Tests scan SQLite/WAL bytes for complete
+secrets, pin the digest, and verify a same-prefix rotation becomes new. Native
+SARIF messages are also checked for plaintext absence. Older raw-snippet rows are
+not rewritten automatically by this change.

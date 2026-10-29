@@ -47,6 +47,7 @@ struct LintFinding {
   // The matched node's source text with whitespace runs collapsed to one
   // space (lmok::normalize_snippet). Never printed in lint output; recorded
   // in the findings table as the position-independent baseline key part.
+  // Redacted rules store sha256:<digest> of that normalized value instead.
   std::string snippet;
 };
 
