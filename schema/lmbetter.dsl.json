@@ -1,0 +1,259 @@
+{
+  "dsl.schema": 2,
+  "name": "lmbetter",
+  "types": {
+    "Ts": {
+      "methods": {
+        "parse": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
+        "parse_c": [
+          {
+            "params": [
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
+        "report": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "void"
+          },
+          {
+            "params": [
+              "Node",
+              "string",
+              "string",
+              "string"
+            ],
+            "returns": "void"
+          }
+        ],
+        "report_count": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "report_json": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ],
+        "query": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "NodeList"
+          }
+        ],
+        "query_c": [
+          {
+            "params": [
+              "Node",
+              "string"
+            ],
+            "returns": "NodeList"
+          }
+        ],
+        "reparse": [
+          {
+            "params": [
+              "Tree",
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
+        "reparse_c": [
+          {
+            "params": [
+              "Tree",
+              "string"
+            ],
+            "returns": "Tree"
+          }
+        ],
+        "changed_ranges": [
+          {
+            "params": [
+              "Tree",
+              "Tree"
+            ],
+            "returns": "string"
+          }
+        ]
+      }
+    },
+    "Tree": {
+      "methods": {
+        "sexp": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ],
+        "has_error": [
+          {
+            "params": [],
+            "returns": "bool"
+          }
+        ],
+        "node_count": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "root": [
+          {
+            "params": [],
+            "returns": "Node"
+          }
+        ],
+        "nodes": [
+          {
+            "params": [],
+            "returns": "NodeList"
+          }
+        ],
+        "edit": [
+          {
+            "params": [
+              "int",
+              "int",
+              "int"
+            ],
+            "returns": "void"
+          }
+        ]
+      }
+    },
+    "Node": {
+      "methods": {
+        "kind": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ],
+        "text": [
+          {
+            "params": [],
+            "returns": "string"
+          }
+        ],
+        "is_named": [
+          {
+            "params": [],
+            "returns": "bool"
+          }
+        ],
+        "start_row": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "start_col": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "end_row": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "end_col": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "child_count": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "child": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "Node"
+          }
+        ],
+        "has_parent": [
+          {
+            "params": [],
+            "returns": "bool"
+          }
+        ],
+        "parent": [
+          {
+            "params": [],
+            "returns": "Node"
+          }
+        ]
+      }
+    },
+    "NodeList": {
+      "methods": {
+        "len": [
+          {
+            "params": [],
+            "returns": "int"
+          }
+        ],
+        "at": [
+          {
+            "params": [
+              "int"
+            ],
+            "returns": "Node"
+          }
+        ]
+      }
+    }
+  },
+  "functions": {
+    "println": [
+      {
+        "params": [
+          "string"
+        ],
+        "returns": "void"
+      }
+    ]
+  },
+  "context": {
+    "ts": "Ts"
+  },
+  "interfaces": {
+    "Rule": {
+      "params": [
+        {
+          "name": "n",
+          "type": "Node"
+        }
+      ],
+      "returns": "void"
+    }
+  }
+}

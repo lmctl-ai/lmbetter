@@ -45,4 +45,27 @@ std::vector<LintRule> load_rule_pack(const std::string &path);
 // throws QueryError with the rule id prepended.
 std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std::string &text);
 
+class Database;
+
+// One linted file's contribution to a recorded run (lint --db). `path` is the
+// path exactly as printed in lint output (forward slashes); `sha256` is the
+// lowercase hex content hash of the linted bytes.
+struct LintFileRecord {
+  std::string path;
+  std::string lang; // grammar name from the extension, "unknown" if not inferable
+  std::string sha256;
+  int64_t mtime = 0, size = 0;
+  std::vector<LintFinding> findings;
+};
+
+// Record one completed lint run (docs/tier3/db-design.md §1/§5): insert a
+// runs row, then per file mark that file's old findings superseded=1 and
+// insert the fresh set superseded=0. A file with no files row yet gets a
+// minimal one (real content hash/mtime/size) so findings never dangle. All
+// in ONE transaction — a failure rolls back and no partial run is ever
+// visible (a failed/interrupted scan must never look like a clean result).
+// Throws DbError.
+void record_lint_run(Database &db, int64_t started_at, const std::string &command,
+                     const std::vector<LintFileRecord> &files);
+
 } // namespace lmok

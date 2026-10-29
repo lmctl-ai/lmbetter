@@ -13,6 +13,8 @@
 #include "notices_embedded.hpp"
 
 #include <cstdio>
+#include <chrono>
+#include <ctime>
 #include <deque>
 #include <filesystem>
 #include <fstream>
@@ -452,9 +454,10 @@ static int run_cli(int argc, char **argv) {
   const std::string usage =
       "usage: lmok --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
       "       lmok status [--db PATH] [--init]\n"
+      "       lmok findings [--rule ID] [--file PATH] [--db PATH]\n"
       "       lmok parse [--lang json|c|python|bash] FILE\n"
       "       lmok query [--lang json|c|python|bash] PATTERN FILE\n"
-      "       lmok lint RULES.json FILE...\n"
+      "       lmok lint RULES.json FILE... [--db PATH]\n"
       "       lmok facts [--lang json|c|python|bash] FILE|DIR...\n"
       "       lmok check [--lang json|c|python|bash] RULES.dslb FILE...\n"
       "       lmok --dsl FILE [FILE ...]\n";
@@ -564,6 +567,49 @@ static int run_cli(int argc, char **argv) {
                 << "-" << lmok::node_end_row(node) << ":" << lmok::node_end_col(node) << "\n";
     return std::cout ? 0 : 4;
   }
+  if (argc >= 2 && std::string(argv[1]) == "findings") {
+    std::optional<std::string> db_path, rule, file;
+    for (int i = 2; i < argc; ++i) {
+      const std::string arg = argv[i];
+      std::optional<std::string> *slot = nullptr;
+      if (arg == "--db") slot = &db_path;
+      else if (arg == "--rule") slot = &rule;
+      else if (arg == "--file") slot = &file;
+      if (!slot || *slot || i + 1 >= argc || std::string(argv[i + 1]).rfind("--", 0) == 0) {
+        std::cerr << usage;
+        return 2;
+      }
+      *slot = argv[++i];
+    }
+    try {
+      // ReadOnly: a missing DB is exit 2 with "run `lmok index` first".
+      const auto resolved = lmok::resolve_db_path(db_path);
+      lmok::Database db(resolved, lmok::Database::Mode::ReadOnly);
+      std::string sql =
+          "SELECT f.start_row,f.start_col,f.end_row,f.end_col,f.rule,f.severity,f.message,files.path"
+          " FROM findings f JOIN files ON files.id = f.file_id WHERE f.superseded = 0";
+      if (rule) sql += " AND f.rule = ?";
+      if (file) sql += " AND files.path = ?";
+      sql += " ORDER BY files.path,f.start_row,f.start_col,f.end_row,f.end_col,f.rule";
+      auto query = db.prepare(sql);
+      int bind_at = 1;
+      if (rule) query.bind(bind_at++, *rule);
+      if (file) query.bind(bind_at++, *file);
+      // Same JSON-lines shape lint prints, plus the one deliberate extension:
+      // a "path" field, since findings outlive a single run.
+      while (query.step())
+        std::cout << "{\"row\":" << query.integer(0) << ",\"col\":" << query.integer(1)
+                  << ",\"end_row\":" << query.integer(2) << ",\"end_col\":" << query.integer(3)
+                  << ",\"rule\":\"" << json_escape(query.text(4))
+                  << "\",\"severity\":\"" << json_escape(query.text(5))
+                  << "\",\"message\":\"" << json_escape(query.text(6))
+                  << "\",\"path\":\"" << json_escape(query.text(7)) << "\"}\n";
+      return std::cout ? 0 : 4;
+    } catch (const lmok::DbError &error) {
+      std::cerr << error.what() << "\n";
+      return error.exit_code;
+    }
+  }
   if (argc >= 2 && std::string(argv[1]) == "lint") {
     if (argc < 4) { std::cerr << usage; return 2; }
     std::vector<lmok::LintRule> rules;
@@ -572,6 +618,28 @@ static int run_cli(int argc, char **argv) {
     } catch (const dslvm::Error &e) {
       std::cerr << e.what() << "\n";
       return 2;
+    }
+    // `--db PATH` may appear anywhere after the pack; the rest are targets.
+    std::optional<std::string> db_path;
+    std::vector<std::string> target_args;
+    for (int i = 3; i < argc; ++i) {
+      const std::string arg = argv[i];
+      if (arg == "--db") {
+        if (db_path || i + 1 >= argc || std::string(argv[i + 1]).rfind("--", 0) == 0) {
+          std::cerr << usage;
+          return 2;
+        }
+        db_path = argv[++i];
+      } else {
+        target_args.push_back(arg);
+      }
+    }
+    if (target_args.empty()) { std::cerr << usage; return 2; }
+    const int64_t started_at = std::time(nullptr);
+    std::string command;
+    for (int i = 1; i < argc; ++i) {
+      if (i > 1) command += ' ';
+      command += argv[i];
     }
     // Per-grammar rule lists for extension-based filtering.
     std::vector<lmok::LintRule> c_rules, json_rules, python_rules, bash_rules;
@@ -582,8 +650,16 @@ static int run_cli(int argc, char **argv) {
       else json_rules.push_back(rule);
     }
     namespace fs = std::filesystem;
+    std::vector<char *> target_argv;
+    target_argv.reserve(target_args.size());
+    for (auto &arg : target_args) target_argv.push_back(arg.data());
     std::vector<Target> targets;
-    if (const int rc = expand_targets(argc, argv, 3, targets)) return rc;
+    if (const int rc = expand_targets(static_cast<int>(target_argv.size()), target_argv.data(), 0, targets)) return rc;
+    // With --db the run is recorded only after EVERY target linted cleanly: a
+    // failed/interrupted scan must never look like a successful empty result,
+    // so findings are collected per file and written in one transaction at
+    // the end (docs/tier3/local-index-survey.md §4).
+    std::vector<lmok::LintFileRecord> records;
     // Fail fast: the first unreadable file aborts the whole run (exit 3);
     // earlier files' findings were already printed.
     for (const auto &target : targets) {
@@ -616,6 +692,37 @@ static int run_cli(int argc, char **argv) {
                   << "\",\"severity\":\"" << json_escape(f.severity)
                   << "\",\"message\":\"" << json_escape(f.message) << "\"}\n";
       std::cout << findings.size() << " findings in " << target.path << "\n";
+      if (db_path) {
+        lmok::LintFileRecord record;
+        record.path = target.path;
+        lmok::Grammar file_grammar;
+        record.lang = grammar_for_extension(ext, file_grammar) ? lmok::grammar_name(file_grammar) : "unknown";
+        record.sha256 = dslvm::hex(dslvm::sha256(raw));
+        record.size = static_cast<int64_t>(raw.size());
+        std::error_code mtime_ec;
+        const auto written = fs::last_write_time(fs::u8path(target.path), mtime_ec);
+        if (!mtime_ec)
+          record.mtime = std::chrono::duration_cast<std::chrono::seconds>(written.time_since_epoch()).count();
+        record.findings = std::move(findings);
+        records.push_back(std::move(record));
+      }
+    }
+    if (db_path) {
+      try {
+        // Same resolution chain as `index` (docs/tier3/db-design.md §1): the
+        // DB is CREATED when missing — lint --db is an explicit recording
+        // request and a write operation, so automatic project/cache paths may
+        // be created (explicit paths still require an existing parent).
+        const auto resolved = lmok::resolve_db_path(db_path, /*write=*/true);
+        lmok::Database db(resolved, lmok::Database::Mode::Create);
+        lmok::record_lint_run(db, started_at, command, records);
+      } catch (const lmok::DbError &e) {
+        // Recording is a side channel: the lint already succeeded and its
+        // stdout/exit-code contract is unchanged; the DB problem is a note.
+        std::cerr << "lint: run not recorded in DB: " << e.what() << "\n";
+      } catch (const std::exception &e) {
+        std::cerr << "lint: run not recorded in DB: " << e.what() << "\n";
+      }
     }
     return std::cout ? 0 : 4;
   }

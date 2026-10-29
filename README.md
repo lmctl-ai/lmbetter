@@ -124,7 +124,8 @@ lmok --dsl-schema [--json]
 lmok --dsl-signatures
 lmok parse [--lang json|c|python|bash] FILE          # '-' reads stdin
 lmok query [--lang json|c|python|bash] PATTERN FILE  # '-' reads stdin
-lmok lint RULES.json FILE...
+lmok lint RULES.json FILE... [--db PATH]
+lmok findings [--rule ID] [--file PATH] [--db PATH]
 lmok check [--lang json|c|python|bash] RULES.dslb FILE...
 lmok --dsl FILE [FILE ...]
 ```
@@ -193,6 +194,31 @@ It opens an existing DB read-only. If absent, it exits 2 with
 For now, explicit `status --init` creates the empty schema and prints status.
 It preserves a compatible existing DB and never overwrites an incompatible
 one. This is a bootstrap/diagnostic operation, not an indexing operation.
+
+## Recording lint runs (`lint --db`, `findings`)
+
+```sh
+lmok lint rules/c-tier1.json src/ --db .lmok/lmok.db
+lmok findings --rule LBC001
+```
+
+`lint ... --db PATH` leaves stdout and exit codes byte-for-byte unchanged and
+additionally records the run: one `runs` row (start time, command string),
+then per linted file the file's previous findings are marked superseded and
+the fresh set inserted — all in ONE transaction, and only after every target
+linted cleanly, so a failed or interrupted lint never masquerades as a clean
+result. A missing DB is created through the same resolution chain as `index`
+(lint --db is a write operation; explicit paths still need an existing parent
+directory). A linted file with no `files` row yet gets a minimal one (real
+content hash, mtime, size) so findings never dangle. If recording itself
+fails (unwritable path, schema mismatch), the lint still succeeds and a
+one-line note goes to stderr — the DB is a side channel, never a lint
+failure mode.
+
+`findings` prints the live (non-superseded) findings as the same JSON lines
+lint prints plus a `"path"` field, sorted by path then position; `--rule`
+and `--file` filter (exact stored path spelling). A missing DB is exit 2
+with "run `lmok index` first".
 
 Paths resolve in order: `--db PATH`, nonempty `LMOK_DB`, `.lmok/lmok.db` at
 the nearest ancestor with `.git` (directory or worktree file) or `.lmok/`,

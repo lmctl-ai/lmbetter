@@ -951,4 +951,57 @@ set +e; out="$("$HOST" facts "$WORK/no-such.c" 2>&1)"; code=$?; set -e
 [ "$code" = 3 ] && [[ "$out" == *'cannot read'* ]] || fail "facts missing file (exit $code): $out"
 ok "facts: --lang forces explicit files and filters directories; unknown extension/--lang exit 2; unreadable file exit 3"
 
+# --- lint --db + findings (run recording and supersession; spike 2B) ---
+mkdir -p "$WORK/dbproj/src"
+cp tests/fixtures/db/a.c tests/fixtures/db/b.c "$WORK/dbproj/src/"
+DBPATH="$WORK/dbproj/lmok.db"
+
+# Recording must not change lint's stdout contract.
+"$HOST" lint rules/c-tier1.json "$WORK/dbproj/src" >"$WORK/lint-nodb.out" || fail "lint dbproj run"
+"$HOST" lint rules/c-tier1.json "$WORK/dbproj/src" --db "$DBPATH" >"$WORK/lint-db.out" || fail "lint --db run"
+cmp "$WORK/lint-nodb.out" "$WORK/lint-db.out" || fail "lint --db changed stdout"
+ok "lint --db: stdout byte-identical to plain lint; a missing DB is created via the resolution chain"
+
+cat >"$WORK/findings.expected" <<EXPECTED_FINDINGS
+{"row":4,"col":2,"end_row":4,"end_col":6,"rule":"LBC001","severity":"critical","message":"unsafe call 'gets'","path":"$WORK/dbproj/src/a.c"}
+EXPECTED_FINDINGS
+"$HOST" findings --db "$DBPATH" >"$WORK/findings.out" || fail "findings run"
+cmp "$WORK/findings.expected" "$WORK/findings.out" || { diff "$WORK/findings.expected" "$WORK/findings.out" >&2; fail "findings output"; }
+"$HOST" findings --rule LBC001 --db "$DBPATH" >"$WORK/findings-rule.out" || fail "findings --rule run"
+cmp "$WORK/findings.expected" "$WORK/findings-rule.out" || fail "findings --rule LBC001"
+"$HOST" findings --file "$WORK/dbproj/src/a.c" --db "$DBPATH" >"$WORK/findings-file.out" || fail "findings --file run"
+cmp "$WORK/findings.expected" "$WORK/findings-file.out" || fail "findings --file"
+out="$("$HOST" findings --rule LBC999 --db "$DBPATH")"
+[ -z "$out" ] || fail "findings --rule LBC999 must be empty: $out"
+ok "findings: stored findings print as lint JSON lines + path; --rule and --file filter"
+
+# Fix the violation and re-lint: the old finding is superseded (gone from the
+# default view) but kept as history; the clean file's row set is unaffected.
+sed -i 's/gets(buf)/fgets(buf, sizeof buf, stdin)/' "$WORK/dbproj/src/a.c"
+"$HOST" lint rules/c-tier1.json "$WORK/dbproj/src" --db "$DBPATH" >/dev/null || fail "re-lint after fix"
+out="$("$HOST" findings --db "$DBPATH")"
+[ -z "$out" ] || fail "the fixed finding must leave the default findings output: $out"
+python3 - "$DBPATH" <<'PY_DB'
+import sqlite3, sys
+con = sqlite3.connect(sys.argv[1])
+runs = con.execute('SELECT count(*) FROM runs').fetchone()[0]
+total = con.execute('SELECT count(*) FROM findings').fetchone()[0]
+live = con.execute('SELECT count(*) FROM findings WHERE superseded=0').fetchone()[0]
+superseded = con.execute('SELECT count(*) FROM findings WHERE superseded=1').fetchone()[0]
+files = con.execute('SELECT count(*) FROM files').fetchone()[0]
+assert runs == 2 and total == 1 and live == 0 and superseded == 1 and files == 2, \
+    (runs, total, live, superseded, files)
+print('runs=2, files=2, findings: 1 superseded, 0 live')
+PY_DB
+ok "lint --db: re-lint supersedes the fixed finding (history kept, default view clean)"
+
+set +e; out="$("$HOST" findings --db "$WORK/no-such.db" 2>&1)"; code=$?; set -e
+[ "$code" = 2 ] && [[ "$out" == *'run `lmok index` first'* ]] || fail "findings missing DB (exit $code): $out"
+set +e; out="$("$HOST" lint rules/c-tier1.json "$WORK/dbproj/src/b.c" --db "$WORK/no-parent-dir/x.db" 2>"$WORK/lint-db-fail.err")"; code=$?; set -e
+[ "$code" = 0 ] && [ "$out" = "0 findings in $WORK/dbproj/src/b.c" ] || fail "lint --db unwritable DB (exit $code): $out"
+grep -q 'run not recorded in DB' "$WORK/lint-db-fail.err" || fail "lint --db unwritable DB: missing stderr note"
+set +e; "$HOST" lint rules/c-tier1.json --db >/dev/null 2>&1; code=$?; set -e
+[ "$code" = 2 ] || fail "lint --db without a value exits 2 (got $code)"
+ok "lint --db: recording failure never fails the lint (stderr note); findings on a missing DB exits 2"
+
 echo "PASS: $pass checks"

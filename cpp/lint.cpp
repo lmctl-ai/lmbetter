@@ -1,11 +1,13 @@
 // Rule-pack loading and the lint dispatcher; see lint.hpp for the contract.
 #include "lint.hpp"
 #include "bounded_regex.hpp"
+#include "db.hpp"
 #include "input.hpp"
 #include "dslvm.hpp"
 #include "stdlib/json.hpp"
 
 #include <algorithm>
+#include <ctime>
 #include <fstream>
 #include <map>
 #include <set>
@@ -193,6 +195,58 @@ std::vector<LintFinding> lint_text(const std::vector<LintRule> &rules, const std
     return a.row < b.row || (a.row == b.row && a.col < b.col);
   });
   return findings;
+}
+
+void record_lint_run(Database &db, int64_t started_at, const std::string &command,
+                     const std::vector<LintFileRecord> &files) {
+  Transaction transaction(db); // rolls back on any DbError: no partial runs
+  auto run = db.prepare("INSERT INTO runs(started_at,command) VALUES (?,?)");
+  run.bind(1, started_at);
+  run.bind(2, command);
+  run.step();
+  auto run_id_query = db.prepare("SELECT last_insert_rowid()");
+  run_id_query.step();
+  const int64_t run_id = run_id_query.integer(0);
+  const int64_t now = std::time(nullptr);
+
+  auto file_id_query = db.prepare("SELECT id FROM files WHERE path = ?");
+  auto file_insert = db.prepare("INSERT OR IGNORE INTO files(path,lang,sha256,mtime,size,indexed_at)"
+                                " VALUES (?,?,?,?,?,?)");
+  auto supersede = db.prepare("UPDATE findings SET superseded = 1 WHERE file_id = ? AND superseded = 0");
+  auto finding_insert = db.prepare(
+      "INSERT INTO findings(run_id,file_id,rule,severity,message,start_row,start_col,end_row,end_col,superseded)"
+      " VALUES (?,?,?,?,?,?,?,?,?,0)");
+  for (const auto &file : files) {
+    file_insert.bind(1, file.path);
+    file_insert.bind(2, file.lang);
+    file_insert.bind(3, file.sha256);
+    file_insert.bind(4, file.mtime);
+    file_insert.bind(5, file.size);
+    file_insert.bind(6, now);
+    file_insert.step();
+    file_insert.reset();
+    file_id_query.bind(1, file.path);
+    if (!file_id_query.step()) throw DbError(3, "record lint run: no files row for " + file.path);
+    const int64_t file_id = file_id_query.integer(0);
+    file_id_query.reset();
+    supersede.bind(1, file_id);
+    supersede.step();
+    supersede.reset();
+    for (const auto &f : file.findings) {
+      finding_insert.bind(1, run_id);
+      finding_insert.bind(2, file_id);
+      finding_insert.bind(3, f.rule);
+      finding_insert.bind(4, f.severity);
+      finding_insert.bind(5, f.message);
+      finding_insert.bind(6, f.row);
+      finding_insert.bind(7, f.col);
+      finding_insert.bind(8, f.end_row);
+      finding_insert.bind(9, f.end_col);
+      finding_insert.step();
+      finding_insert.reset();
+    }
+  }
+  transaction.commit();
 }
 
 } // namespace lmok
