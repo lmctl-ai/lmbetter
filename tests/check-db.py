@@ -30,7 +30,7 @@ with tempfile.TemporaryDirectory(prefix='lmok-db-') as tmp:
     root = Path(tmp).resolve()
     base_env = dict(os.environ)
     base_env.pop('LMOK_DB', None)
-    base_env['XDG_CACHE_HOME'] = str(root / 'cache')
+    base_env['XDG_CACHE_HOME'] = str(root / 'cache-é-水')
 
     def run(*args, cwd=root, extra_env=None, code=0):
         env = dict(base_env)
@@ -126,15 +126,15 @@ with tempfile.TemporaryDirectory(prefix='lmok-db-') as tmp:
     # Outside a project, no cache directories on reads; stable SHA-256 on cwd.
     outside = root / 'outside'
     outside.mkdir()
-    expected_db = root / 'cache' / 'lmok' / (hashlib.sha256(outside.as_posix().encode()).hexdigest() + '.db')
+    expected_db = root / 'cache-é-水' / 'lmok' / (hashlib.sha256(outside.as_posix().encode()).hexdigest() + '.db')
     r = run(cwd=outside, code=2)
     assert expected_db.as_posix() in r.stderr
-    assert not (root / 'cache').exists()
+    assert not (root / 'cache-é-水').exists()
     assert f'db: {expected_db.as_posix()}\n' in run('--init', cwd=outside).stdout
     # Empty XDG uses HOME/.cache; no mutation of the process environment.
-    default_cache = root / 'home' / '.cache' / 'lmok' / expected_db.name
-    r = run(cwd=outside, extra_env={'XDG_CACHE_HOME': '', 'HOME': str(root / 'home')}, code=2)
-    assert default_cache.as_posix() in r.stderr and not (root / 'home').exists()
+    default_cache = root / 'home-é-水' / '.cache' / 'lmok' / expected_db.name
+    r = run(cwd=outside, extra_env={'XDG_CACHE_HOME': '', 'HOME': str(root / 'home-é-水')}, code=2)
+    assert default_cache.as_posix() in r.stderr and not (root / 'home-é-水').exists()
     if os.name != 'nt' and Path('/dev/full').exists():
         with open('/dev/full', 'w') as full:
             r = subprocess.run([host, 'status', '--db', str(expected_db)], stdout=full, stderr=subprocess.PIPE)

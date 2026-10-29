@@ -88,8 +88,17 @@ void check(sqlite3 *db, int code, const std::string &operation) {
   if (code != SQLITE_OK) error(db, operation);
 }
 std::string env(const char *name) {
+#ifdef _WIN32
+  // Windows' narrow CRT environment is in the active ANSI code page, while
+  // all CLI/DB paths are UTF-8. Read UTF-16 directly, just as wmain does for argv.
+  std::wstring wide_name;
+  for (const char *p = name; *p; ++p) wide_name.push_back(static_cast<wchar_t>(*p));
+  const wchar_t *value = _wgetenv(wide_name.c_str());
+  return value ? std::filesystem::path(value).u8string() : "";
+#else
   const char *value = std::getenv(name);
   return value ? value : "";
+#endif
 }
 [[noreturn]] void schema_error() {
   throw DbError(2, "DB schema mismatch (expected schema_version=1); delete the DB and re-index with `lmok index`");
