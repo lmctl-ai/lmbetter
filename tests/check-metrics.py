@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix='metrics os ',dir=ROOT/'build') as tmp:
     for lang, ext, col in [('c','c',3),('python','py',4)]:
         pack = (ROOT/'rules/lmcode'/f'{lang}-function-cognitive-complexity.lms').read_text()
         def compile_pack(threshold, zero=False):
-            source = pack.replace('cli="lmok"','schema='+json.dumps(str(ROOT/'schema/lmok.host.json')))
+            source = pack.replace('cli="lmok"','schema='+json.dumps(str(ROOT/'schema/lmok.dsl.json')))
             source = source.replace('score > 15', threshold)
             if zero: source = source.replace('let score = cognitive_score(n);','let score = 0;')
             source = re.sub(r'savedsl\(p, .*?\);', 'savedsl(p, ARGV[0]);', source)

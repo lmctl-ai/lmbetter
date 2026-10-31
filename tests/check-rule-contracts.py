@@ -93,7 +93,7 @@ class Contracts(unittest.TestCase):
         r=self.run_host('test',self.pack,src);self.assertEqual(r.returncode,0,r.stderr)
         self.assertEqual(json.loads(r.stdout)['expected'],1)
     def test_report_meta_entry(self):
-        schema=json.dumps(str(ROOT/'schema/lmok.host.json'))
+        schema=json.dumps(str(ROOT/'schema/lmok.dsl.json'))
         meta=json.dumps(json.dumps({'tags':['entry'],'confidence':'medium','url':'https://example.org/entry'}))
         src=self.work/'entry.lms';binary=self.work/'entry.dslb'
         src.write_text('p = _lmcode_ schema='+schema+';\n@call_expression fn call(n: Node) -> void implements Rule { ts.report(n,"legacy","ENTRY","minor"); ts.report_meta(n,"entry","ENTRY","minor",'+meta+'); }\nend _lmcode_\nsavedsl(p, ARGV[0]);\n',encoding='utf8')

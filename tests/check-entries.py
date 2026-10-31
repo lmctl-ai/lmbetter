@@ -35,7 +35,7 @@ class EntryChecks(unittest.TestCase):
     def compile(self, body):
         src = self.work / 'rules.lms'
         binary = self.work / 'rules.dslb'
-        src.write_text('p = _lmcode_ schema=' + json.dumps(str(ROOT / 'schema/lmok.host.json')) + ';\n' + body + '\nend _lmcode_\nsavedsl(p, ARGV[0]);\n')
+        src.write_text('p = _lmcode_ schema=' + json.dumps(str(ROOT / 'schema/lmok.dsl.json')) + ';\n' + body + '\nend _lmcode_\nsavedsl(p, ARGV[0]);\n')
         r = subprocess.run([*compiler_argv(), str(src), str(binary)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         return binary

@@ -23,3 +23,18 @@ executing blocks. No compiler release is permitted while canonical/bundled std
 are out of sync. The return protocol tests pin bytecode generated with the
 prepared slice 3 compiler; the full older harness remains compile-only until
 the language cutover lands. No legacy output fallback is provided.
+
+Local host fault controls (after building with Ninja and compile commands):
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake --build build -j2
+LMSCRIPT_BIN=/absolute/path/to/lmscript python3 scripts/test-return-controls.py
+```
+
+The driver compiles and links actual `cpp/main.cpp` mutations, reuses the
+unchanged build objects, and requires assertion failures from the same host
+protocol suite. Missing frames, per-entry resets, early frames, leaked program
+results and frames before failed SARIF output are refused. Compile/link errors
+and test startup errors do not count as caught faults. It never edits the
+vendored SDK or normal binary.

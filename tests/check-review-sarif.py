@@ -53,7 +53,7 @@ with tempfile.TemporaryDirectory(dir=ROOT / "build") as td:
     if os.name == 'nt' and not compiler.lower().endswith(('.exe', '.cmd', '.bat')):
         compiler = shutil.which(compiler + '.cmd') or shutil.which('lmscript.cmd') or compiler
     rule, binary = work / 'rule.lms', work / 'rule.dslb'
-    rule.write_text('p = _lmcode_ schema=' + json.dumps(str(ROOT / 'schema/lmok.host.json')) + ';\n'
+    rule.write_text('p = _lmcode_ schema=' + json.dumps(str(ROOT / 'schema/lmok.dsl.json')) + ';\n'
                     '@number_literal fn numbers(n: Node) -> void implements Rule { ts.report(n,"number","N","major"); }\n'
                     'end _lmcode_\nsavedsl(p, ARGV[0]);\n', encoding='utf-8')
     compiled = subprocess.run([compiler, str(rule), str(binary)], capture_output=True)

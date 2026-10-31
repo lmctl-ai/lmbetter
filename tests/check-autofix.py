@@ -309,7 +309,7 @@ class Autofix(unittest.TestCase):
             compiler = next((p for p in (compiler + ".cmd", shutil.which("lmscript.cmd")) if p and Path(p).exists()), compiler)
         src = self.work / "entry.lms"
         bytecode = self.work / "entry.dslb"
-        schema = ROOT / "schema" / "lmok.host.json"
+        schema = ROOT / "schema" / "lmok.dsl.json"
         src.write_text(
             "p = _lmcode_ schema=" + json.dumps(str(schema)) + ";\n"
             "@identifier fn f(n: Node) -> void implements Rule { ts.report_fix(n, \"fix\", \"ENTRY_FIX\", \"minor\", \"renamed\"); }\n"

@@ -327,7 +327,7 @@ class Baseline(unittest.TestCase):
         source = self.work / 'rule.lms'
         binary = self.work / 'rule.dslb'
         source.write_text(
-            'p = _lmcode_ schema=' + json.dumps(str(ROOT / 'schema/lmok.host.json')) + ';\n'
+            'p = _lmcode_ schema=' + json.dumps(str(ROOT / 'schema/lmok.dsl.json')) + ';\n'
             'ts.report(ts.parse_c("int body;").root(), "body finding", "B001", "major");\n'
             '@comment fn fixme(n: Node) -> void implements Rule { ts.report(n, "FIXME left", "X001", "minor"); }\n'
             'end _lmcode_\nsavedsl(p, ARGV[0]);\n')
