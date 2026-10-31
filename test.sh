@@ -157,7 +157,7 @@ identifier 5:2-5:8' ] || fail "query --lang c captures: $out"
 ok "query --lang c: called-function identifiers (gets, printf)"
 
 set +e; out="$("$HOST" parse --lang rust examples/data/sample.c 2>&1)"; code=$?; set -e
-[ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust' (known: json, c, python, bash, java, go, javascript, typescript, tsx)"* ]] || fail "unknown --lang (exit $code): $out"
+[ "$code" = 2 ] && [[ "$out" == *"unknown language 'rust' (known: json, c, python, bash, java, go, javascript, typescript, tsx, lmscript, lmcode)"* ]] || fail "unknown --lang (exit $code): $out"
 ok "unknown --lang refused with the known-languages list (exit 2)"
 
 # --- Go grammar (tree-sitter-go) ---
@@ -956,8 +956,8 @@ ok "robustness: invalid UTF-8 replaced in JSON findings; valid UTF-8 preserved (
 
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-entries.py "$HOST" || fail "v6 entry dispatch controls"
 ok "v6 entries: kind dispatch, source order, anonymous nodes, per-file state and refusals"
-LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-script-scanners.py || fail "script grammar scanner link controls"
-python3 tests/check-script-languages.py "$HOST" --prove-controls || fail "lmscript/lmcode grammar and facts oracles"
+python3 tests/check-script-scanners.py || fail "script grammar scanner link controls"
+LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-script-languages.py "$HOST" --prove-controls || fail "lmscript/lmcode grammar and facts oracles"
 ok "lmscript/lmcode parse, query, lint, facts and native output controls"
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-java-os.py "$HOST" --prove-controls || fail "Java native OS oracles"
 ok "Java grammar, facts, tier-1 rules and annotated checks on native OS"
