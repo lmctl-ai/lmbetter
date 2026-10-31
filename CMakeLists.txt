@@ -58,11 +58,14 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${LMOK_HOST_SCHEMA}" "${CMAKE_CURRENT_SOURCE_DIR}/cpp/std/lmcode-std.schema.json"
   "${CMAKE_CURRENT_SOURCE_DIR}/scripts/merge-std.py")
 execute_process(COMMAND "${Python3_EXECUTABLE}"
-  "${CMAKE_CURRENT_SOURCE_DIR}/scripts/merge-std.py" "${LMOK_HOST_SCHEMA}" "${SCHEMA_JSON}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/scripts/merge-std.py" "${LMOK_HOST_SCHEMA}" "${SCHEMA_JSON}.tmp"
   RESULT_VARIABLE SCHEMA_MERGE_RESULT)
 if(NOT SCHEMA_MERGE_RESULT EQUAL 0)
   message(FATAL_ERROR "Cannot merge lmok host schema with pinned canonical std")
 endif()
+# Preserve the generated header's timestamp when reconfiguring identical bytes.
+configure_file("${SCHEMA_JSON}.tmp" "${SCHEMA_JSON}" COPYONLY)
+file(REMOVE "${SCHEMA_JSON}.tmp")
 set(GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 set(GENERATED_SCHEMA "${GENERATED_DIR}/schema_embedded.hpp")
 set(GENERATED_NOTICES "${GENERATED_DIR}/notices_embedded.hpp")

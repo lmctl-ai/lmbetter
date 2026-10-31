@@ -206,7 +206,8 @@ rule-entry writes share the sink across all nodes and input files; `--dsl`
 continues to run only the body. Each program in a multi-program `--dsl` command
 gets its own result. Runtime or application failures emit no frame. Finding
 IDs, order, suppression and entry HALT values retain their existing meanings.
-See [invocation ownership and compiler staging](durable-memory/14-invocation-return.md).
+The [body/entry return example](examples/invocation-return.lmcode) requires the
+prepared slice 3 compiler until its release. See [invocation ownership and compiler staging](durable-memory/14-invocation-return.md).
 
 ## Local database status
 
