@@ -184,13 +184,29 @@ first file only when the body reported something. If an entry fails mid-walk, th
 so far is printed, then the located error record, and the run stops with exit 3 (later inputs are
 not processed). Files are explicit; directories
 and stdin are not accepted. A fresh host arena and findings sink are used per
-input. Rule and severity metadata come from `ts.report` payloads; entry names
+input. One invocation-owned return sink survives those per-file resets. Rule and severity metadata come from `ts.report` payloads; entry names
 are not silently used as finding ids. Every annotation is checked against the
 selected grammar at load: a misspelled kind, a supertype (abstract, e.g. `@expression`) or a hidden
 symbol is refused with exit 3 and a `LOAD_UNBOUND` record naming the entry, so a rule can never be
 silently dead; a rules file is therefore specific to one `--lang`. DSLB v6 is the only accepted runtime
 format, so old bytecode must be recompiled. Install the private compiler with
 `npm install --prefix /tmp/lmok-tools @lmctl-ai/lmctl@0.2.444` when needed.
+
+Successful `--dsl` programs and `check` invocations append a terminal frame after
+the existing diagnostics (and after successful SARIF output):
+
+```text
+LMCODE_RETURN_BEGIN
+null
+LMCODE_RETURN_END
+```
+
+The payload is the invocation's `$return` value, or `null` when unset. Body and
+rule-entry writes share the sink across all nodes and input files; `--dsl`
+continues to run only the body. Each program in a multi-program `--dsl` command
+gets its own result. Runtime or application failures emit no frame. Finding
+IDs, order, suppression and entry HALT values retain their existing meanings.
+See [invocation ownership and compiler staging](durable-memory/14-invocation-return.md).
 
 ## Local database status
 
@@ -572,7 +588,7 @@ tier-1 packs.
 - `cpp/` — the CLI host: DSL VM integration plus the tree-sitter wrapper
 - `queries/<lang>/facts.scm` — the embedded facts-extraction queries behind `lmok facts`
 - `docs/` — design documents (e.g. `rule-snippets.md`: analysis rules as lmscript snippets)
-- `schema/lmok.host.json` — the host-only DSL schema (copied to `schema/lmok.dsl.json` and embedded into the binary; `lmscript` >= 0.2.444 supplies the built-in standard library implicitly)
+- `schema/lmok.host.json` — the host-only DSL schema (merged with the pinned canonical standard into `schema/lmok.dsl.json` and embedded into the binary)
 - `examples/` — lmscript examples (plus `examples/rules/` demo packs)
 - `rules/` — the canonical rule library: tier-1 packs plus `rules/lmcode/` logic rules (see [rules/README.md](rules/README.md), [docs/rule-tiers.md](docs/rule-tiers.md))
 - `tests/fixtures/` — lint fixtures (violations fire every rule; clean guards false positives)

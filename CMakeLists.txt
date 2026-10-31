@@ -51,8 +51,18 @@ set(TS_SOURCES
 
 # ---- embedded DSL schema and notices ---------------------------------------
 set(SCHEMA_JSON "${CMAKE_CURRENT_SOURCE_DIR}/schema/lmok.dsl.json")
-# Keep the exact host bytes; standard declarations are compiler built-ins.
-configure_file("${LMOK_HOST_SCHEMA}" "${SCHEMA_JSON}" COPYONLY)
+# Merge the pinned SDK catalog explicitly: during compiler/SDK rollouts the
+# installed compiler's implicit standard may predate the host's return imports.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${LMOK_HOST_SCHEMA}" "${CMAKE_CURRENT_SOURCE_DIR}/cpp/std/lmcode-std.schema.json"
+  "${CMAKE_CURRENT_SOURCE_DIR}/scripts/merge-std.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/scripts/merge-std.py" "${LMOK_HOST_SCHEMA}" "${SCHEMA_JSON}"
+  RESULT_VARIABLE SCHEMA_MERGE_RESULT)
+if(NOT SCHEMA_MERGE_RESULT EQUAL 0)
+  message(FATAL_ERROR "Cannot merge lmok host schema with pinned canonical std")
+endif()
 set(GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 set(GENERATED_SCHEMA "${GENERATED_DIR}/schema_embedded.hpp")
 set(GENERATED_NOTICES "${GENERATED_DIR}/notices_embedded.hpp")

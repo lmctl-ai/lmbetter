@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <regex>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -400,6 +401,192 @@ inline std::string emit(const JsonNode &n) {
   }
   return {};
 }
+
+struct TemplateNode {
+  std::string text, path, item, separator;
+  std::vector<TemplateNode> body, otherwise;
+  bool conditional = false;
+};
+inline std::vector<TemplateNode>
+parse_template(const std::string &s, size_t &pos, const std::string &mode,
+               std::string &separator, unsigned depth = 0) {
+  if (depth > 256)
+    throw Error("template_render: maximum nesting exceeded");
+  static const std::regex head(
+      "^<([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[0-9]+\\])*)(?:"
+      ":\\{([A-Za-z_][A-Za-z0-9_]*)\\||>)");
+  static const std::regex close(
+      "^\\};[ ]*separator[ ]*=[ ]*(\"(?:[^\"\\\\]|\\\\.)*\")>");
+  std::vector<TemplateNode> nodes;
+  std::string literal;
+  auto flush = [&]() {
+    if (!literal.empty()) {
+      TemplateNode n;
+      n.text = std::move(literal);
+      nodes.push_back(std::move(n));
+      literal.clear();
+    }
+  };
+  while (pos < s.size()) {
+    auto rest = s.substr(pos);
+    if (mode == "loop" && rest.rfind("}>", 0) == 0) {
+      flush();
+      pos += 2;
+      return nodes;
+    }
+    if (mode == "loop" && rest.rfind("};", 0) == 0) {
+      std::smatch m;
+      if (!std::regex_search(rest, m, close))
+        throw Error("template_render: invalid loop separator");
+      auto raw = m[1].str();
+      try {
+        utf8(raw);
+        Parser p(raw);
+        separator = p.val().text;
+      } catch (const Error &) {
+        throw Error("template_render: invalid loop separator");
+      }
+      flush();
+      pos += size_t(m.length());
+      return nodes;
+    }
+    if (rest.rfind("<<", 0) == 0) {
+      literal += '<';
+      pos += 2;
+      continue;
+    }
+
+    if (rest.rfind("<else>", 0) == 0 || rest.rfind("<endif>", 0) == 0) {
+      auto tag = rest.rfind("<else>", 0) == 0 ? "else" : "endif";
+      if ((mode != "if" && mode != "else") ||
+          (mode == "else" && std::string(tag) == "else"))
+        throw Error("template_render: unexpected conditional delimiter");
+      flush();
+      pos += std::string(tag) == "else" ? 6 : 7;
+      separator = tag;
+      return nodes;
+    }
+    static const std::regex condition(
+        "^<if\\(([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[0-9]+"
+        "\\])*)\\)>");
+    std::smatch cm;
+    if (std::regex_search(rest, cm, condition)) {
+      flush();
+      pos += size_t(cm.length());
+      TemplateNode n;
+      n.path = cm[1].str();
+      n.conditional = true;
+      std::string end;
+      n.body = parse_template(s, pos, "if", end, depth + 1);
+      if (end == "else")
+        n.otherwise = parse_template(s, pos, "else", end, depth + 1);
+      nodes.push_back(std::move(n));
+      continue;
+    }
+    std::smatch m;
+    if (!std::regex_search(rest, m, head)) {
+      literal += s[pos++];
+      continue;
+    }
+    flush();
+    pos += size_t(m.length());
+    TemplateNode n;
+    n.path = m[1].str();
+    n.item = m[2].str();
+    if (!n.item.empty()) {
+      if (n.item == "index")
+        throw Error("template_render: index is reserved");
+      n.body = parse_template(s, pos, "loop", n.separator, depth + 1);
+    }
+    nodes.push_back(std::move(n));
+  }
+  if (!mode.empty())
+    throw Error("template_render: unterminated block");
+  flush();
+  return nodes;
+}
+inline const JsonNode &
+template_lookup(const JsonNode &context,
+                const std::map<std::string, const JsonNode *> &locals,
+                const std::string &path) {
+  static const std::regex part("[A-Za-z_][A-Za-z0-9_]*|\\[[0-9]+\\]");
+  const JsonNode *n = &context;
+  bool first = true;
+  for (auto it = std::sregex_iterator(path.begin(), path.end(), part);
+       it != std::sregex_iterator(); ++it) {
+    auto key = it->str();
+    if (first) {
+      first = false;
+      auto local = locals.find(key);
+      if (local != locals.end()) {
+        n = local->second;
+        continue;
+      }
+    }
+    const JsonNode *next = nullptr;
+    if (key[0] == '[') {
+      auto digits = key.substr(1, key.size() - 2);
+      size_t i = 0;
+      auto parsed =
+          std::from_chars(digits.data(), digits.data() + digits.size(), i);
+      if (n->kind == JsonNode::Kind::Array && parsed.ec == std::errc{} &&
+          std::to_string(i) == digits && i < n->array.size())
+        next = &n->array[i];
+    } else if (n->kind == JsonNode::Kind::Object)
+      for (auto &m : n->object)
+        if (m.key == key) {
+          next = m.value.get();
+          break;
+        }
+    if (!next)
+      throw Error("template_render: missing variable " + path);
+    n = next;
+  }
+  return *n;
+}
+inline void evaluate_template(
+    const std::vector<TemplateNode> &nodes, const JsonNode &context,
+    const std::map<std::string, const JsonNode *> &locals, std::string &out) {
+  for (auto &n : nodes) {
+    if (n.path.empty()) {
+      out += n.text;
+      continue;
+    }
+    auto &v = template_lookup(context, locals, n.path);
+    if (n.conditional) {
+      if (v.kind != JsonNode::Kind::Bool)
+        throw Error("template_render: condition requires a bool: " + n.path);
+      evaluate_template(v.boolean ? n.body : n.otherwise, context, locals, out);
+      continue;
+    }
+    if (n.item.empty()) {
+      out += v.kind == JsonNode::Kind::String ? v.text : emit(v);
+      continue;
+    }
+    if (v.kind != JsonNode::Kind::Array)
+      throw Error("template_render: loop requires a list: " + n.path);
+    auto scope = locals;
+    for (size_t i = 0; i < v.array.size(); ++i) {
+      if (i)
+        out += n.separator;
+      JsonNode index;
+      index.kind = JsonNode::Kind::Int;
+      index.raw = std::to_string(i);
+      index.integer = int64_t(i);
+      scope[n.item] = &v.array[i];
+      scope["index"] = &index;
+      evaluate_template(n.body, context, scope, out);
+    }
+  }
+}
+inline std::string render_template(const std::string &source,
+                                   const JsonNode &context) {
+  size_t pos = 0;
+  std::string separator, out;
+  auto nodes = parse_template(source, pos, "", separator);
+  evaluate_template(nodes, context, {}, out);
+  return out;
+}
 inline const char *kind(const JsonNode &n) {
   switch (n.kind) {
   case JsonNode::Kind::Null:
@@ -433,6 +620,12 @@ inline Registry &register_json(Registry &r, Collections &arena) {
     Json *root = arena.make_object<Json>("Json");
     root->node = std::move(parsed);
     return Value::object("Json", &root->node);
+  });
+  r.function("template_render", {"string", "Json"}, "string", [](Args &a) {
+    auto &context = *static_cast<JsonNode *>(a[1].obj);
+    if (context.kind != JsonNode::Kind::Object)
+      throw Error("template_render: context must be an object");
+    return Value::string(json_detail::render_template(a[0].s, context));
   });
 #define JSON_METHOD(name, params, ret, body)                                   \
   r.method("Json", name, params, ret, [](void *p, Args &a) {                   \

@@ -588,6 +588,17 @@ static int run_cli(int argc, char **argv) {
   argc=static_cast<int>(metadata_argv.size());argv=metadata_argv.data();
   dslvm::Registry reg;
   register_host(reg, host);
+  // One sink per logical invocation, outside every per-file/per-call arena.
+  dslvm::ResultSink invocation_result;
+  reg.set_result_sink(&invocation_result);
+  const auto emit_result = [&]() {
+    try { dslvm::write_result_frame(std::cout, invocation_result); }
+    catch (const std::exception &error) {
+      std::cerr << "return output: " << error.what() << "\n";
+      return 4;
+    }
+    return 0;
+  };
   const std::string usage =
       "usage: lmok --version | --notices | --dsl-schema [--json] | --dsl-signatures\n"
       "       lmok status [--db PATH] [--init]\n"
@@ -1512,6 +1523,7 @@ static int run_cli(int argc, char **argv) {
         sarif_results.push_back({f.rule, f.severity, f.message, uri, f.row, f.col, f.end_row, f.end_col, f.metadata, source});
     };
     try {
+      invocation_result.reset(); // body + every selected entry across all inputs
       program.run(context, reg); // configuration/effects once, not once per node or file
       if (!host.findings.empty() || host.suppressed_count()) { collect_sarif(""); print_group("body"); }
       for (const auto &target : check_targets) {
@@ -1556,7 +1568,7 @@ static int run_cli(int argc, char **argv) {
                                           lmok::sarif_log(LMOK_VERSION, sarif_rules, sarif_results, json_escape)))
         return rc;
     }
-    return 0;
+    return emit_result(); // SARIF/application validation completed; errors above never frame
   }
   if (argc >= 3 && std::string(argv[1]) == "--dsl") {
     for (int i = 2; i < argc; ++i) {
@@ -1579,6 +1591,7 @@ static int run_cli(int argc, char **argv) {
     }
     for (const auto &program : programs) {
       host.reset(); // trees, nodes, lists and findings are per-file state (caps are per run)
+      invocation_result.reset(); // each program is its own invocation
       try {
         program.run(context, reg);
       } catch (const dslvm::Error &error) {
@@ -1590,6 +1603,7 @@ static int run_cli(int argc, char **argv) {
         return dslvm::report_error("run", dslvm::Error("RUN_HOST", error.what()));
       }
       dslvm::report_ok();
+      if (const int rc = emit_result()) return rc;
     }
     return 0;
   }

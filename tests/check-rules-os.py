@@ -68,6 +68,9 @@ class RulePacksOS(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stdout)
                     lines = result.stdout.split(b'\n')
                     self.assertEqual(lines.pop(), b'')
+                    self.assertEqual(lines.pop(), b'LMCODE_RETURN_END')
+                    self.assertEqual(lines.pop(), b'null')
+                    self.assertEqual(lines.pop(), b'LMCODE_RETURN_BEGIN')
                     self.assertEqual(lines.pop(), b'{"ok": true, "result": null}')  # run-protocol line
                     count = lines.pop().decode()
                     findings = json.loads(lines[0])
@@ -81,7 +84,7 @@ class RulePacksOS(unittest.TestCase):
                     result = self.run_host('--dsl', binary, cwd=ROOT)
                     self.assertEqual(result.stderr, b'', result)
                     self.assertEqual(result.returncode, 0, result.stdout)
-                    self.assertTrue(result.stdout.endswith(b'{"ok": true, "result": null}\n'), result.stdout)
+                    self.assertTrue(result.stdout.endswith(b'LMCODE_RETURN_BEGIN\nnull\nLMCODE_RETURN_END\n'), result.stdout)
 
     def test_crlf_and_missing_trailing_newline_are_byte_stable(self):
         # Findings are computed on bytes: CRLF and a missing final newline must
@@ -96,6 +99,9 @@ class RulePacksOS(unittest.TestCase):
             self.assertEqual((result.returncode, result.stderr), (0, b''), result)
             lines = result.stdout.split(b'\n')
             self.assertEqual(lines.pop(), b'')
+            self.assertEqual(lines.pop(), b'LMCODE_RETURN_END')
+            self.assertEqual(lines.pop(), b'null')
+            self.assertEqual(lines.pop(), b'LMCODE_RETURN_BEGIN')
             self.assertEqual(lines.pop(), b'{"ok": true, "result": null}')  # run-protocol line
             count = lines.pop()
             self.assertEqual(count, ('2 findings in ' + source.as_posix()).encode())
@@ -121,7 +127,7 @@ class RulePacksOS(unittest.TestCase):
                 match = [f for f in findings if f['message'] == name]
                 self.assertEqual(len(match), 1, findings)
                 self.assertEqual(match[0]['end_col'] - match[0]['col'], len(name.encode('utf-8')), match)
-                self.assertTrue(result.stdout.endswith((' findings in ' + source.as_posix() + '\n{"ok": true, "result": null}\n').encode()), result.stdout)
+                self.assertTrue(result.stdout.endswith((' findings in ' + source.as_posix() + '\n{"ok": true, "result": null}\nLMCODE_RETURN_BEGIN\nnull\nLMCODE_RETURN_END\n').encode()), result.stdout)
 
     def test_anonymous_kind_annotations_dispatch_on_every_grammar(self):
         # Anonymous (unnamed) node kinds are legal annotation values (R47 keeps
@@ -147,7 +153,7 @@ class RulePacksOS(unittest.TestCase):
                 self.assertEqual((result.returncode, result.stderr), (0, b''), result)
                 findings = json.loads(result.stdout.split(b'\n')[0])
                 self.assertEqual([(f['message'], f['rule']) for f in findings], [(want_text, 'KW')] * want_count, findings)
-                self.assertTrue(result.stdout.endswith((f'{want_count} findings in {source.as_posix()}\n' + '{"ok": true, "result": null}\n').encode()), result.stdout)
+                self.assertTrue(result.stdout.endswith((f'{want_count} findings in {source.as_posix()}\n' + '{"ok": true, "result": null}\nLMCODE_RETURN_BEGIN\nnull\nLMCODE_RETURN_END\n').encode()), result.stdout)
 
     def test_multi_file_groups_follow_argument_order(self):
         # Group order is argument order (never sorted, never walked order) and

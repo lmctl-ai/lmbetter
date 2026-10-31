@@ -72,9 +72,10 @@ print('all', len(sigs), 'registry members listed in --dsl-schema summary')
 PY
 ok "--dsl-schema summary lists every registry member"
 diff -u <("$LMSCRIPT" --dsl-signatures schema/lmok.dsl.json) <("$HOST" --dsl-signatures) || fail "host/compiler signatures differ"
-cmp schema/lmok.host.json schema/lmok.dsl.json || fail "generated schema differs from host-only input"
+python3 scripts/merge-std.py schema/lmok.host.json "$WORK/merged-schema.json"
+cmp schema/lmok.dsl.json "$WORK/merged-schema.json" || fail "generated schema differs from pinned host/std merge"
 python3 scripts/merge-std.py --host-only schema/lmok.dsl.json "$WORK/host-only-schema.json"
-cmp schema/lmok.dsl.json "$WORK/host-only-schema.json" || fail "embedded schema still declares standard members"
+cmp schema/lmok.host.json "$WORK/host-only-schema.json" || fail "host-only input contains standard members"
 "$HOST" --dsl-signatures >"$WORK/registry-signatures.txt"
 "$LMSCRIPT" --dsl-signatures cpp/std/lmcode-std.schema.json >"$WORK/standard-signatures.txt"
 python3 - "$WORK" <<'PYHOST'
@@ -83,11 +84,13 @@ import sys
 work=Path(sys.argv[1])
 registry=set((work/'registry-signatures.txt').read_text().splitlines())
 standard=set((work/'standard-signatures.txt').read_text().splitlines())
-assert len(standard)==181, len(standard)  # POC branch: sdk.lock pins lmcode-cpp d70a12c, matching the POC compiler's implicit std
+assert len(standard)==206, len(standard)  # canonical v3 catalog including all 24 return overloads
 (work/'host-signatures.txt').write_bytes(''.join(line+'\n' for line in sorted(registry-standard)).encode('utf-8'))
 PYHOST
-diff -u <("$LMSCRIPT" --dsl-signatures schema/lmok.dsl.json --without-std) "$WORK/host-signatures.txt" || fail "host-only registry/compiler signatures differ"
-ok "typed registry signatures match compiler schema signatures (full and --without-std)"
+diff -u <("$LMSCRIPT" --dsl-signatures schema/lmok.host.json --without-std) "$WORK/host-signatures.txt" || fail "host-only registry/compiler signatures differ"
+ok "typed registry signatures match explicit canonical merge and host-only schema"
+python3 tests/check-returns.py "$HOST" || fail "invocation return protocol"
+ok "body/entry result ownership, terminal frames and failure silence"
 
 python3 tests/release-hygiene.py || fail "release input policy"
 ok "release input policy: tests/docs do not publish; binary inputs and tags do"
@@ -348,7 +351,8 @@ EOF
 "$LMSCRIPT" "$WORK/smoke.lms" "$WORK/smoke.dslb" >/dev/null || fail "smoke compile"
 [ "$(od -An -t u1 -j 5 -N 1 "$WORK/smoke.dslb" | tr -d ' ')" = 6 ] || fail "smoke was not compiled as bytecode v6"
 out="$("$HOST" --dsl "$WORK/smoke.dslb")"
-[ "$(tail -1 <<<"$out")" = '{"ok": true, "result": null}' ] || fail "smoke run: $out"
+[ "$(tail -1 <<<"$out")" = 'LMCODE_RETURN_END' ] || fail "smoke run: $out"
+grep -qxF '{"ok": true, "result": null}' <<<"$out" || fail "smoke run protocol: $out"
 grep -qxF '(document (object (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (array (string (string_content)) (string (string_content))))))' <<<"$out" || fail "smoke sexp line: $out"
 grep -q '^has_error -> false$' <<<"$out" || fail "smoke has_error line: $out"
 grep -q '^nodes -> 34$' <<<"$out" || fail "smoke node_count line: $out"
@@ -632,7 +636,7 @@ savedsl(p, "$WORK/handles.dslb");
 EOF2
 "$LMSCRIPT" "$WORK/handles.lms" "$WORK/handles.dslb" >/dev/null || fail "handles compile"
 out="$("$HOST" --dsl "$WORK/handles.dslb" "$WORK/handles.dslb" "$WORK/handles.dslb")" || fail "handles x3 run: $out"
-[ "$(grep -c '^findings 1$' <<<"$out")" = 3 ] && [ "$(grep -c '^{"ok": true, "result": null}$' <<<"$out")" = 3 ] || fail "handles x3 output: $out"
+[ "$(grep -c '^findings 1$' <<<"$out")" = 3 ] && [ "$(grep -c '^LMCODE_RETURN_END$' <<<"$out")" = 3 ] || fail "handles x3 output: $out"
 ok "--dsl arenas (trees/nodes/lists/findings) reset per program: 3 x 400k handles run, findings restart at 1"
 
 # M4: an iterator error during directory expansion fails fast (exit 3), never a silent partial list.

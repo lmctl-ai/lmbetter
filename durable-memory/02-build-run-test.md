@@ -31,7 +31,7 @@
 ## Adding a host function/method
 
 1. Declare in `schema/lmok.host.json` (CMake copies exact host-only bytes
-   to `schema/lmok.dsl.json`; `lmscript >= 0.2.420` supplies std implicitly).
+   with the pinned canonical std into `schema/lmok.dsl.json`).
 2. Implement in `cpp/host.cpp` (tree-sitter headers stay in that one TU) and
    register in `cpp/main.cpp` via `dslvm::Registry`.
 3. Verify `./test.sh` passes and schema signatures match the compiler.

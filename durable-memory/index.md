@@ -28,3 +28,5 @@ proposal documents are owned by the other team and were intentionally retained
 verbatim; old product names there are historical, not current CLI instructions.
 
 - [Rule metadata and pack-author tests](12-rule-contracts.md)
+
+- [Invocation return ownership and terminal frames](14-invocation-return.md)
