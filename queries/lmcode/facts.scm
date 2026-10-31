@@ -2,9 +2,8 @@
 (function_declaration name: (identifier) @name) @def.function
 (function_declaration (implements_clause (identifier) @name)) @ref.implements
 
-; Host calls are candidate references; schema/cli declarations are represented
-; by their string values when supplied through a map literal.
+; Calls are references; import/schema descriptors belong to outer lmscript.
+; An ordinary map with a key named schema or cli is application data, not a
+; schema declaration. S5 can associate inner facts with outer descriptor facts.
 (call_expression function: (identifier) @name) @ref.call
 (call_expression function: (member_expression property: (identifier) @name)) @ref.call
-((map_entry (identifier) @key (string) @name) @ref.schema
-  (#match? @key "^(schema|cli)$"))

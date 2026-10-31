@@ -133,7 +133,7 @@ class ScriptLanguages(unittest.TestCase):
         result = self.run_host('facts', fixture)
         self.assertEqual((result.returncode, result.stderr), (0, b''))
         rows = [json.loads(line) for line in result.stdout.splitlines()]
-        self.assertEqual([(r['kind'], r['name'], r['name_row'], r['name_col']) for r in rows[:3]], [
+        self.assertEqual([(r['kind'], r['name'], r['name_row'], r['name_col']) for r in rows], [
             ('def.function', 'greet', 0, 3), ('ref.implements', 'Render', 0, 44),
             ('ref.call', 'helper', 0, 60)])
 

@@ -14,7 +14,9 @@ not automatically extracted inner programs. parse/query, JSON lint packs,
 compiled `check --lang`, and facts use the same registered grammars.
 
 Facts include function definitions/calls, lmscript imports/packages/schema
-loads and markers, and lmcode implements edges. These are syntactic candidate
+loads and markers, and lmcode implements edges. Inner lmcode has no import/schema declaration;
+those descriptors belong to the outer lmscript context. Ordinary map keys do
+not establish schema references. These are syntactic candidate
 references, not schema/type checking. Grammar limitations and source parser
 pins are recorded in the upstream grammars' DIVERGENCES.md and MONO-PIN.
 
