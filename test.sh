@@ -25,7 +25,7 @@ LMSCRIPT="$(scripts/select-compiler.sh)"
 scripts/sync-sdk.sh --verify >/dev/null || fail "SDK header pin mismatch"
 ok "SDK headers match sdk.lock"
 scripts/sync-deps.sh --verify >/dev/null || fail "deps pin mismatch"
-ok "third_party/ tree-sitter and JSON/C/Python/Bash/Java/Go/JavaScript/TypeScript/TSX grammars match deps.lock"
+ok "third_party/ tree-sitter and JSON/C/Python/Bash/Java/Go/JavaScript/TypeScript/TSX/lmscript/lmcode grammars match deps.lock"
 
 # release versioning (CI stamps this into the build; see scripts/next-version.sh)
 nv() { LMOK_TAGS="$1" GITHUB_REF_TYPE= GITHUB_REF_NAME= scripts/next-version.sh; }

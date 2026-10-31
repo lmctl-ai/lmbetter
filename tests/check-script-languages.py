@@ -137,6 +137,16 @@ class ScriptLanguages(unittest.TestCase):
             ('def.function', 'greet', 0, 3), ('ref.implements', 'Render', 0, 44),
             ('ref.call', 'helper', 0, 60)])
 
+    def test_pinned_upstream_fixtures(self):
+        counts = {'lmscript': 4, 'lmcode': 131}
+        for lang, count in counts.items():
+            root = ROOT / 'third_party' / ('tree-sitter-' + lang) / 'test/fixtures'
+            fixtures = sorted([*root.rglob('*.lms'), *root.rglob('*.lmcode')])
+            self.assertEqual(len(fixtures), count, 'review corpus count when updating grammar pin')
+            for fixture in fixtures:
+                with self.subTest(lang=lang, fixture=fixture.name):
+                    self.assert_clean_parse(lang, fixture)
+
     def test_invalid_syntax_is_visible(self):
         source = self.work / 'bad.lms'
         source.write_text('fn broken(x) { return x }\n', encoding='utf-8')
@@ -180,12 +190,13 @@ class ScriptLanguages(unittest.TestCase):
 
 if __name__ == '__main__':
     if PROVE:
-        suite = unittest.defaultTestLoader.loadTestsFromTestCase(ScriptLanguages)
         CORRUPT = True
-        result = unittest.TestResult()
-        suite.run(result)
-        if len(result.failures) + len(result.errors) != result.testsRun:
-            raise SystemExit('output-corruption control survived')
-        print('CAUGHT script-language output corruption in %d native oracles' % result.testsRun)
+        names = unittest.defaultTestLoader.getTestCaseNames(ScriptLanguages)
+        for name in names:
+            result = unittest.TestResult()
+            ScriptLanguages(name).run(result)
+            if result.errors or not result.failures:
+                raise SystemExit('output-corruption control survived: ' + name + str(result.errors))
+        print('CAUGHT script-language output corruption in %d native oracles' % len(names))
         CORRUPT = False
     unittest.main()
