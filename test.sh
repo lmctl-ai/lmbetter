@@ -956,6 +956,9 @@ ok "robustness: invalid UTF-8 replaced in JSON findings; valid UTF-8 preserved (
 
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-entries.py "$HOST" || fail "v6 entry dispatch controls"
 ok "v6 entries: kind dispatch, source order, anonymous nodes, per-file state and refusals"
+LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-script-scanners.py || fail "script grammar scanner link controls"
+python3 tests/check-script-languages.py "$HOST" --prove-controls || fail "lmscript/lmcode grammar and facts oracles"
+ok "lmscript/lmcode parse, query, lint, facts and native output controls"
 LMSCRIPT_BIN="$LMSCRIPT" python3 tests/check-java-os.py "$HOST" --prove-controls || fail "Java native OS oracles"
 ok "Java grammar, facts, tier-1 rules and annotated checks on native OS"
 

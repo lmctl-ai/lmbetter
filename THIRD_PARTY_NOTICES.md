@@ -364,3 +364,23 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## tree-sitter-lmscript
+
+The lmscript parser and external scanner compiled into the executable.
+
+- Upstream: https://github.com/lmctl-ai/tree-sitter-lmscript
+- Revision: ff301218f388f30fcf40cd63d235070c162aa283, pinned in `deps.lock`
+- License: **MIT License**
+- Copyright (c) 2026 Lattice Systems LLC
+- Full license text: `third_party/tree-sitter-lmscript/LICENSE` after dependency sync
+
+## tree-sitter-lmcode
+
+The lmcode parser and external scanner compiled into the executable.
+
+- Upstream: https://github.com/lmctl-ai/tree-sitter-lmcode
+- Revision: c9d5021cc98982f558937298e4add9a4f79c574a, pinned in `deps.lock`
+- License: **MIT License**
+- Copyright (c) 2026 Lattice Systems LLC
+- Full license text: `third_party/tree-sitter-lmcode/LICENSE` after dependency sync

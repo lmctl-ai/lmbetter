@@ -19,7 +19,7 @@ set(LMOK_HOST_SCHEMA "${CMAKE_CURRENT_SOURCE_DIR}/schema/lmok.host.json")
 # its amalgamation lib/src/lib.c alone (which #includes the individual
 # translation units); each grammar contributes src/parser.c plus its
 # src/scanner.c external scanner where one exists at the pinned commit
-# (python, bash, javascript and typescript; json, c, java and go have none).
+# (python, bash, javascript, typescript, lmscript and lmcode; json, c, java and go have none).
 set(TS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter")
 set(TSJSON_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-json")
 set(TSC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-c")
@@ -31,7 +31,14 @@ set(TSTS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-typescript")
 
 set(TSJAVA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-java")
 
+set(TSLMS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-lmscript")
+set(TSLMC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tree-sitter-lmcode")
+
 set(TS_SOURCES
+  "${TSLMS_ROOT}/src/parser.c"
+  "${TSLMS_ROOT}/src/scanner.c"
+  "${TSLMC_ROOT}/src/parser.c"
+  "${TSLMC_ROOT}/src/scanner.c"
   "${TSJAVA_ROOT}/src/parser.c"
   "${TS_ROOT}/lib/src/lib.c"
   "${TSJSON_ROOT}/src/parser.c"
@@ -93,7 +100,7 @@ add_custom_command(
 )
 # ---- embedded facts.scm query files (E6, cpp/facts.cpp) ---------------------
 set(GENERATED_FACTS)
-foreach(lang c python bash json java go javascript typescript tsx)
+foreach(lang c python bash json java go javascript typescript tsx lmscript lmcode)
   set(_facts_out "${GENERATED_DIR}/facts_${lang}_embedded.hpp")
   add_custom_command(
     OUTPUT "${_facts_out}"

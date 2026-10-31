@@ -37,6 +37,16 @@ class NativeOS(unittest.TestCase):
         self.work = Path(self.temp.name)
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_script_grammar_queries(self):
+        for lang, suffix, text in (
+                ('lmscript', '.lms', 'fn f() { return 1; }\n'),
+                ('lmcode', '.lmcode', 'fn f() -> int { return 1; }\n')):
+            source = self.work / ('entrée 雪' + suffix)
+            source.write_bytes(text.encode('utf-8'))
+            self.exact(self.run_host('query', '--lang', lang,
+                '(function_declaration (identifier) @name)', source),
+                b'identifier 0:3-0:4\n')
     def run_host(self, *args, data=None, cwd=None, binary=HOST):
         result = subprocess.run([str(binary), *map(str, args)], input=data, cwd=cwd, capture_output=True, timeout=15)
         if MUTATE: result.stdout += b'\r'  # Deliberate output corruption: every byte oracle must reject it.

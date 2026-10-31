@@ -35,6 +35,22 @@ class RulePacksOS(unittest.TestCase):
         self.work = Path(self.temp.name)
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_lmscript_lmcode_compiled_check_dispatch(self):
+        # Exercise the same compiler-to-check boundary as a real rule pack for
+        # both registrations; the host must preserve the selected language.
+        body = ('@function_declaration fn check(n: Node) -> void implements Rule { '
+                'ts.report(n, "function", "LANG001", "minor"); }')
+        binary = self.compile(body)
+        for lang, suffix, source_text in (
+                ('lmcode', '.lmcode', 'fn f(x: string) -> string { return x; }\n'),
+                ('lmscript', '.lms', 'fn f(x) { return x; }\n')):
+            source = self.work / ('dispatch' + suffix)
+            source.write_text(source_text, encoding='utf-8')
+            result = self.run_host('check', '--lang', lang, binary, source, cwd=ROOT)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(b'LANG001', result.stdout)
+            self.assertTrue(result.stdout.endswith(b'LMCODE_RETURN_END\n'), result.stdout)
     def run_host(self, *args, cwd=None):
         result = subprocess.run([str(HOST), *map(str, args)], cwd=cwd, capture_output=True, timeout=30)
         if MUTATE: result.stdout += b'\r'  # Deliberate output corruption: every byte oracle must reject it.

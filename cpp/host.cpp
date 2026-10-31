@@ -23,6 +23,9 @@ extern "C" const TSLanguage *tree_sitter_javascript(void);
 extern "C" const TSLanguage *tree_sitter_typescript(void);
 extern "C" const TSLanguage *tree_sitter_tsx(void);
 
+extern "C" const TSLanguage *tree_sitter_lmscript(void);
+extern "C" const TSLanguage *tree_sitter_lmcode(void);
+
 namespace lmok {
 
 static const TSLanguage *language_of(Grammar grammar) {
@@ -36,6 +39,8 @@ static const TSLanguage *language_of(Grammar grammar) {
   case Grammar::Javascript: return tree_sitter_javascript();
   case Grammar::Typescript: return tree_sitter_typescript();
   case Grammar::Tsx: return tree_sitter_tsx();
+  case Grammar::Lmscript: return tree_sitter_lmscript();
+  case Grammar::Lmcode: return tree_sitter_lmcode();
   }
   return tree_sitter_json();
 }
@@ -91,6 +96,8 @@ const char *grammar_name(Grammar grammar) {
   case Grammar::Javascript: return "javascript";
   case Grammar::Typescript: return "typescript";
   case Grammar::Tsx: return "tsx";
+  case Grammar::Lmscript: return "lmscript";
+  case Grammar::Lmcode: return "lmcode";
   }
   return "json";
 }

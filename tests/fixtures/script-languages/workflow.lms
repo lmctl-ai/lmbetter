@@ -1,0 +1,8 @@
+package demo;
+import "dep.lms";
+host = load_schema(schema="host.json");
+fn greet(name) { return util.emit(name); }
+answer = greet("world");
+p = _lmcode_ schema="host.json";
+fn inner() -> int { return 1; }
+end _lmcode_

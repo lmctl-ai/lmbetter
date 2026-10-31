@@ -9,6 +9,8 @@
 #include "facts_javascript_embedded.hpp"
 #include "facts_typescript_embedded.hpp"
 #include "facts_tsx_embedded.hpp"
+#include "facts_lmscript_embedded.hpp"
+#include "facts_lmcode_embedded.hpp"
 
 #include <algorithm>
 #include <sstream>
@@ -26,6 +28,8 @@ const std::string &facts_query(Grammar grammar) {
   static const std::string javascript(reinterpret_cast<const char *>(embedded_facts_javascript), embedded_facts_javascript_size);
   static const std::string typescript(reinterpret_cast<const char *>(embedded_facts_typescript), embedded_facts_typescript_size);
   static const std::string tsx(reinterpret_cast<const char *>(embedded_facts_tsx), embedded_facts_tsx_size);
+  static const std::string lmscript(reinterpret_cast<const char *>(embedded_facts_lmscript), embedded_facts_lmscript_size);
+  static const std::string lmcode(reinterpret_cast<const char *>(embedded_facts_lmcode), embedded_facts_lmcode_size);
   switch (grammar) {
   case Grammar::C: return c;
   case Grammar::Python: return python;
@@ -36,6 +40,8 @@ const std::string &facts_query(Grammar grammar) {
   case Grammar::Javascript: return javascript;
   case Grammar::Typescript: return typescript;
   case Grammar::Tsx: return tsx;
+  case Grammar::Lmscript: return lmscript;
+  case Grammar::Lmcode: return lmcode;
   }
   return json;
 }
@@ -111,6 +117,8 @@ std::vector<Fact> extract_facts(const Tree &tree, Grammar grammar) {
       if (raw_text.find('$') != std::string::npos || raw_text.find('`') != std::string::npos)
         f.confidence = "unresolved";
     }
+    if (grammar == Grammar::Lmscript && (kind == "ref.import" || kind == "ref.schema"))
+      f.name = unwrap(unwrap(f.name, '"', '"'), '\'', '\'');
     f.row = node_start_row(*anchor);
     f.col = node_start_col(*anchor);
     f.end_row = node_end_row(*anchor);

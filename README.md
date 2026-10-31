@@ -742,3 +742,20 @@ See [scoring and limits](durable-memory/11-metrics.md) and run
 Native `--sarif FILE` includes declared metadata in rule/result `properties` and
 uses `url` as rule `helpUri`, including for lmcode entry rules. It does not require
 `--metadata`; that switch controls JSON findings only.
+
+### lmscript and lmcode
+
+The standalone binary includes the experimental lmscript and lmcode Tree-sitter
+parsers (analysis syntax, not runtime/type validation):
+
+```sh
+lmok parse --lang lmscript workflow.lms
+lmok query --lang lmcode '(function_declaration name: (_) @name)' extracted.lmcode
+lmok facts workflow.lms extracted.lmcode
+```
+
+`.lms` selects outer lmscript; `.lmcode` selects standalone inner lmcode.
+JSON lint packs use `"lang": "lmscript"` or `"lang": "lmcode"`; compiled rule
+packs use `lmok check --lang lmscript|lmcode`. Embedded lmcode bodies stay opaque
+in this slice; host-side injection with rebased locations is the next slice.
+See [the grammar contract and S5 seam](durable-memory/15-script-languages.md).

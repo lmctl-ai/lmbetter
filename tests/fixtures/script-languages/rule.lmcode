@@ -1,0 +1,6 @@
+fn greet(name: string) -> string implements Render { return helper(name); }
+let meta = %(schema => "host.json", cli => "lmok");
+let words = qw(one two);
+let body = <<END;
+opaque ${not_an_outer_splice}
+END
