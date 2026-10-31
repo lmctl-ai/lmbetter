@@ -8,7 +8,7 @@ Repository: https://github.com/lmctl-ai/lmok.
 
 | File | Contents |
 | --- | --- |
-| [01-purpose-and-place.md](01-purpose-and-place.md) | What lmok is, the pinned parts, the minimal DSL surface |
+| [01-purpose-and-place.md](01-purpose-and-place.md) | What lmok is, the pinned parts, the minimal lmcode surface |
 | [02-build-run-test.md](02-build-run-test.md) | Build, run, and test commands; adding examples and functions |
 | [03-rule-methods.md](03-rule-methods.md) | Rule methods: @annotation + implements Rule, Node navigation, limitations |
 | [04-dispatcher.md](04-dispatcher.md) | lint rule packs, the kind-indexed walk dispatcher, v6 entry-point trajectory |

@@ -38,7 +38,7 @@ the TODO in scripts/select-compiler.sh).
 
 - **No dispatch on annotations** (by design in this slice): rules self-filter
   with `n.kind()` and the walk calls every rule on every node — O(rules ×
-  nodes). The stated future direction is a DSLB v6 rule entry table
+  nodes). The stated future direction is an lmcode bytecode (DSLB v6) rule entry table
   (annotation + interface per rule; the host walks once and dispatches by
   node kind). The host-side walk exists since v0.2.8 as the `lint`
   dispatcher with rule packs (conditions as data) — see
@@ -61,7 +61,7 @@ the TODO in scripts/select-compiler.sh).
   borrow the owning Tree (arena lifetime).
 - **Beyond JSON** (LANDED in v0.2.4): tree-sitter-c (master commit `b780e47`,
   no external scanner — parser.c only, ABI 15) is vendored and compiled like
-  the JSON grammar. The DSL surface is explicit per grammar on purpose:
+  the JSON grammar. The lmcode surface is explicit per grammar on purpose:
   `ts.parse_c(text)` / `ts.query_c(root, pattern)` next to the JSON pair, and
   `--lang json|c` on the CLI (`json` default; unknown lang exits 2 with the
   known-languages list). `examples/lint-c.lms` runs real security rules
@@ -69,7 +69,7 @@ the TODO in scripts/select-compiler.sh).
   after v0.4.0: tree-sitter-python (v0.23.6, ABI 14) and tree-sitter-bash
   (v0.25.1, ABI 15) vendored the same way — the FIRST grammars with an
   external scanner, so `src/scanner.c` joined the CMake TS_SOURCES list.
-  The DSL surface stayed explicit per grammar on purpose:
+  The lmcode surface stayed explicit per grammar on purpose:
   adding a FIFTH grammar should generalize this to a language parameter
   instead of another parse_x/query_x pair.
 - **Void rules can't count** (R35 forbids caller-local captures, and

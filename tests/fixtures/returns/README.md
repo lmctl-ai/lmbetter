@@ -1,6 +1,6 @@
 # Real `$return` compiler fixtures
 
-These DSLB v6 programs were generated, not patched, using Luna's prepared
+These lmcode bytecode (DSLB v6) programs were generated, not patched, using Luna's prepared
 slice-3 compiler at mono commit `a9df5a8b793ddc90f572d5c5be5800ba8dc448dc`.
 The compiler build was read only. Canonical SDK: `b8615eda9fc56cd19eb5ffef62cd05e0d78cd977`.
 `fixtures.lock` pins source and binary bytes; the host test additionally checks

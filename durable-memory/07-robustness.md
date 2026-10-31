@@ -43,9 +43,9 @@ A future linear-time engine could relax these limits, at the cost of dependency
 and compatibility decisions outside this patch.
 
 Query nesting ignores strings, escaped quotes, and semicolon comments. Limits
-apply equally through CLI query, lint query rules, and DSL query methods.
+apply equally through CLI query, lint query rules, and lmcode query methods.
 Pack regex compilation errors exit 2; matching/query errors exit 3 with a rule
-id, query offset, or DSL line/column where available. Node index bounds remain
+id, query offset, or lmcode line/column where available. Node index bounds remain
 64-bit and checked before the tree-sitter uint32 conversion.
 
 `cpp/input.hpp` shares regular-file validation and checked binary reads between
@@ -79,7 +79,7 @@ an array of tens of millions of tiny nodes uses the same memory.
 
 Seven appended `test.sh` checks cover the fixes with byte-exact output and exit
 status assertions and subprocess timeouts. Permission checks run on non-root
-POSIX; FIFO checks run where `os.mkfifo` exists. The INT64_MAX DSL argument is
+POSIX; FIFO checks run where `os.mkfifo` exists. The INT64_MAX lmcode argument is
 constructed as `9007199254740991 * 1024 + 1023`, because lmscript rejects integer
 literals beyond its exact-number range. Original 53 checks remain in place.
 The link check honors explicit `LMOK_FULL_STATIC=OFF` for sanitizer builds;

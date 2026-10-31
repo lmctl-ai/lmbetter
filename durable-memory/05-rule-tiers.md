@@ -81,7 +81,7 @@ Two grammars vendored (`deps.lock` pins, tags not commits this time):
 tree-sitter-python v0.23.6 (ABI 14) and tree-sitter-bash v0.25.1 (ABI 15) —
 the FIRST external-scanner grammars, so both `src/scanner.c` files joined
 CMake `TS_SOURCES` (the old "parser.c only" comment died). Grammar enum grew
-to `{Json, C, Python, Bash}`; DSL surface mirrors the C pair
+to `{Json, C, Python, Bash}`; lmcode surface mirrors the C pair
 (`ts.parse_python`/`ts.query_python`/`ts.reparse_python`, same for bash);
 CLI `--lang python|bash`; lint extension map `.py` → python, `.sh`/`.bash` →
 bash (directory expansion filter widened too). One existing test.sh pin had

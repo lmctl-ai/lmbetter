@@ -1,4 +1,4 @@
-# DSLB v6 entry dispatch
+# lmcode bytecode (DSLB v6) entry dispatch
 
 `lmok check [--lang json|c|python|bash|java|go|javascript|typescript|tsx] RULES.dslb FILE...` is the host
 entry-dispatch path. It loads one DSLB v6 program and rejects v5 files through

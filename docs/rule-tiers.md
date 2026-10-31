@@ -129,7 +129,7 @@ query as `#match?` predicates — same behavior, sharper form.)
 - **E1: host-side evaluation of query predicates — LANDED (v0.3.3).**
   `#eq?`/`#not-eq?` (capture text vs literal or another capture) and
   `#match?`/`#not-match?` are evaluated per match in the single query path
-  (`node_query`), so DSL `ts.query*`, pack `query` rules, and the CLI `query`
+  (`node_query`), so lmcode `ts.query*`, pack `query` rules, and the CLI `query`
   subcommand all share it. Semantics follow upstream
   (`satisfies_text_predicates` in the Rust binding): text equality for
   `#eq?`, and **unanchored** regex for `#match?` (upstream uses

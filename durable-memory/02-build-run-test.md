@@ -12,7 +12,7 @@
   the extracted third_party/ trees, build, `--version`, `--notices`
   byte-compare, embedded-schema byte-compare, full and `--without-std`
   signature parity with `lmscript >= 0.2.442`, CLI parse/query/lint cases,
-  rule packs against violations/clean fixtures, DSL bytecode runs, examples,
+  rule packs against violations/clean fixtures, lmcode bytecode runs, examples,
   rules/lmcode, the reparse contract, the v0.4.0 review regressions — regex
   bound, arena caps/reset, directory-walk errors, predicate semantics —
   and the static-link check). The aggregate count is printed as `PASS: N checks`. Put `build/` on

@@ -5,7 +5,7 @@ upstream C library (v0.27.1, pinned in `deps.lock`) plus the tree-sitter-json
 (commit `254c42a`), tree-sitter-c (commit `b780e47`), tree-sitter-python
 (v0.23.6), tree-sitter-bash (v0.25.1), tree-sitter-go (v0.25.0),
 tree-sitter-javascript (v0.25.0) and tree-sitter-typescript (v0.23.2) grammars
-(same lock) behind `parse`/`query` subcommands and an lmscript DSL host. Sibling of
+(same lock) behind `parse`/`query` subcommands and an lmscript lmcode host. Sibling of
 lmproxy (Squid) and lmcurl (curl); same house conventions: vendored sources
 in git-ignored `third_party/`, per-file SDK hashes in `sdk.lock`, schema
 embedded by `cmake/embed_schema.cmake`.
@@ -16,7 +16,7 @@ contributes `src/parser.c`, plus `src/scanner.c` for Python and Bash (Go, C and
 JSON have no external scanner). Upstream feature-test defines `-D_POSIX_C_SOURCE=200112L
 -D_DEFAULT_SOURCE` apply target-wide.
 
-The DSL surface is deliberately minimal: context `ts` (type `Ts`)
+The lmcode surface is deliberately minimal: context `ts` (type `Ts`)
 with `ts.parse(text) -> Tree`; `Tree.sexp() -> string`, `Tree.has_error() ->
 bool`, `Tree.node_count() -> int` (total nodes including the root), plus —
 since v0.2.0 — `Tree.root() -> Node`, the `Node` navigation methods and the
@@ -32,7 +32,7 @@ CLI grammars for `--lang go` / `--lang javascript` / `--lang typescript` /
 `--lang tsx`, `.go` / `.js` / `.ts` / `.tsx` lint/facts inference, and their tier-1 packs. They do not add
 `ts.parse_go`/`ts.query_go`, `ts.parse_javascript`/`ts.query_javascript`, or
 `ts.parse_typescript`/`ts.query_typescript` or `ts.parse_tsx`/`ts.query_tsx`;
-the existing explicit DSL surface stays unchanged for this slice. No cursor API yet.
+the existing explicit lmcode surface stays unchanged for this slice. No cursor API yet.
 
 The lmcode-cpp SDK pin (`sdk.lock`) must match the implicit std set of the
 compiler in use. Since v0.2.0 the pin is `d70a12c` (181 standard signatures),

@@ -80,7 +80,7 @@ Three delivery forms, by how much logic a rule needs:
   functions defined in none of the input files), plus
   `python-function-metrics.lms` (LBP101 function too long) and
   `bash-unquoted-vars.lms` (LBS101 unquoted variable — expansion node with
-  no `string` ancestor, needs `Node.parent()`). In DSLB v6, per-node files are
+  no `string` ancestor, needs `Node.parent()`). In lmcode bytecode (DSLB v6), per-node files are
   entry-only programs: the host's `check` command indexes `@annotation` entries,
   walks the CST once, and calls matching rules in source order. Their `# check:`
   line identifies the grammar and fixture used by the test harness.

@@ -155,7 +155,7 @@ The same patterns work in rule packs (`pattern`, below). `lint` runs a rule pack
 prints one JSON finding per line plus `N findings in <file>`; exit codes:
 0 ok (findings never fail the run — gating is the caller's job, or use
 `--fail-on-new`, below), 2 usage or
-rule-pack error, 3 input/DSL error (unreadable file aborts the run fast; an
+rule-pack error, 3 input/lmcode error (unreadable file aborts the run fast; an
 invalid query pattern names the rule id, byte offset and reason), 4 stdout
 failure or new findings under `--fail-on-new`.
 
@@ -188,7 +188,7 @@ input. One invocation-owned return sink survives those per-file resets. Rule and
 are not silently used as finding ids. Every annotation is checked against the
 selected grammar at load: a misspelled kind, a supertype (abstract, e.g. `@expression`) or a hidden
 symbol is refused with exit 3 and a `LOAD_UNBOUND` record naming the entry, so a rule can never be
-silently dead; a rules file is therefore specific to one `--lang`. DSLB v6 is the only accepted runtime
+silently dead; a rules file is therefore specific to one `--lang`. lmcode bytecode (DSLB v6) is the only accepted runtime
 format, so old bytecode must be recompiled. Install the private compiler with
 `npm install --prefix /tmp/lmok-tools @lmctl-ai/lmctl@0.2.444` when needed.
 
@@ -519,7 +519,7 @@ end _dsl_
 savedsl(p, "build/show.dslb");
 ```
 
-The DSL surface is deliberately small: `ts.parse(text)` returns a `Tree` with
+The lmcode surface is deliberately small: `ts.parse(text)` returns a `Tree` with
 `.sexp()`, `.has_error()`, `.node_count()`, and `.root()`. The `root()` handle
 is a `Node` with `.kind()`, `.text()`, `.is_named()`, `.is_missing()` (zero-width placeholder tree-sitter inserted for a missing token),
 `.start_row()/.start_col()/.end_row()/.end_col()` (all **0-based**,
@@ -570,14 +570,14 @@ follow the same pattern: tree-sitter-python (`ts.parse_python` /
 both pinned in `deps.lock` — these are the first grammars with an external
 scanner (`src/scanner.c`), wired into the CMake source list. Go (tree-sitter-go v0.25.0) is the sixth CLI grammar: use
 `--lang go` for parse/query/check and `.go` files for lint/facts extension
-inference. The lmscript `ts.parse_*` DSL surface remains unchanged. Example:
+inference. The lmscript `ts.parse_*` lmcode surface remains unchanged. Example:
 `build/lmok lint rules/go-tier1.json tests/fixtures/go-tier1-violations.go`.
 The `ts.match_*` code-pattern APIs work for C/Python; see
 [examples/pattern-rules.lms](examples/pattern-rules.lms). See `examples/` for runnable scripts.
 
 JavaScript (tree-sitter-javascript v0.25.0) is available as `--lang javascript`
 and inferred for `.js` files. Its CLI facts include declarations, imports and
-calls; the lmscript `ts.parse_*` DSL surface remains unchanged. The heuristic
+calls; the lmscript `ts.parse_*` lmcode surface remains unchanged. The heuristic
 `rules/javascript-tier1.json` pack flags dynamic code, child_process imports,
 and innerHTML assignments. TypeScript (tree-sitter-typescript v0.23.2) is a
 separate `--lang typescript` grammar for `.ts` files. The distinct TSX grammar
@@ -586,10 +586,10 @@ tier-1 packs.
 
 ## Repository layout
 
-- `cpp/` — the CLI host: DSL VM integration plus the tree-sitter wrapper
+- `cpp/` — the CLI host: lmcode VM integration plus the tree-sitter wrapper
 - `queries/<lang>/facts.scm` — the embedded facts-extraction queries behind `lmok facts`
 - `docs/` — design documents (e.g. `rule-snippets.md`: analysis rules as lmscript snippets)
-- `schema/lmok.host.json` — the host-only DSL schema (merged with the pinned canonical standard into `schema/lmok.dsl.json` and embedded into the binary)
+- `schema/lmok.host.json` — the host-only lmcode schema (merged with the pinned canonical standard into `schema/lmok.dsl.json` and embedded into the binary)
 - `examples/` — lmscript examples (plus `examples/rules/` demo packs)
 - `rules/` — the canonical rule library: tier-1 packs plus `rules/lmcode/` logic rules (see [rules/README.md](rules/README.md), [docs/rule-tiers.md](docs/rule-tiers.md))
 - `tests/fixtures/` — lint fixtures (violations fire every rule; clean guards false positives)
@@ -759,3 +759,7 @@ JSON lint packs use `"lang": "lmscript"` or `"lang": "lmcode"`; compiled rule
 packs use `lmok check --lang lmscript|lmcode`. Embedded lmcode bodies stay opaque
 in this slice; host-side injection with rebased locations is the next slice.
 See [the grammar contract and S5 seam](durable-memory/15-script-languages.md).
+
+## Historical literal names
+
+The documentation calls the language lmcode. `--dsl`, `--dsl-schema` and `--dsl-signatures` are current host flag literals; `DSLB` is the bytecode magic and `DSLB v6` is the current format name; `.dslb` is the current bytecode filename extension; `_dsl_` is the historical block spelling. Other code-formatted API names, paths, manifest names and diagnostic text retain their current literal spellings.

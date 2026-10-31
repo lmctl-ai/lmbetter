@@ -41,7 +41,7 @@ x64, Release).
   paths, signature slices), emitting one JSONL record per fact; a resolver
   that late-binds import/include edges and name references against the
   union of facts (the stack-graph property: a file's facts never depend on
-  another file); DSL builtins so lmcode rules query facts instead of
+  another file); lmcode builtins so lmcode rules query facts instead of
   re-parsing; and an `outline` verb (aider-style repo map) for AI context.
   Keep the existing dispatcher untouched; `facts` is a sibling pass.
 - **Don't build:** a TSG interpreter, a stack-graph path solver, a type
@@ -75,7 +75,7 @@ number of changed files instead of quadratic in dependents.
 ### 1.2 How the rules are written (TSG)
 
 `tree-sitter-graph` (tree-sitter org, Rust, crate 0.12, not archived) is a
-DSL for "constructing arbitrary graph structures from source code that has
+lmcode for "constructing arbitrary graph structures from source code that has
 been parsed using tree-sitter". A TSG file is a list of **stanzas**: a
 tree-sitter query pattern followed by statements that run once per match:
 
@@ -391,7 +391,7 @@ deliberately literal:
   candidates. An AI consumer that sees two candidates can read both; a
   linter rule can require exactly one.
 
-### E8 — DSL builtins so lmcode rules can query facts
+### E8 — lmcode builtins so lmcode rules can query facts
 
 Keep the schema surface small and typed (per `durable-memory/01`: a third
 grammar generalises to a language parameter — the same applies here, one
@@ -406,7 +406,7 @@ API for all four):
 - `FactList.where(kind, name) -> FactList` (both may be `""` wildcards) —
   enough for set algebra in lmcode without a query language.
 - `ts.resolve(facts_a, facts_b, …)`? No: multi-file joins stay script-side
-  (as LBC110 does today) *or* go through the external DB. The DSL gets
+  (as LBC110 does today) *or* go through the external DB. The lmcode language gets
   per-file facts; the resolver is a CLI verb. This mirrors E3's lesson
   ("symbol-ish rules were pure lmcode set algebra").
 
@@ -508,7 +508,7 @@ property that a static tool must not pretend to know.
   first, then Bash + JSON.
 - E7 literal edge resolver with explicit `exact|candidate|unresolved|
   external` outcomes and every candidate kept.
-- E8 `ts.facts`/`FactList`/`Fact` DSL builtins; migrate the four lmcode
+- E8 `ts.facts`/`FactList`/`Fact` lmcode builtins; migrate the four lmcode
   symbol rules onto them.
 - E9 `outline` verb with raw reference/import counts (ranking optional).
 - Scope-path and `top`-range bookkeeping so in-session incremental
@@ -544,7 +544,7 @@ property that a static tool must not pretend to know.
   https://docs.rs/tree-sitter-stack-graphs/latest/tree_sitter_stack_graphs/
 - Python rule set (`stack-graphs.tsg`, ≈1,250 lines):
   https://raw.githubusercontent.com/github/stack-graphs/main/languages/tree-sitter-stack-graphs-python/src/stack-graphs.tsg
-- `tree-sitter-graph` DSL reference: https://docs.rs/tree-sitter-graph/latest/tree_sitter_graph/reference/index.html
+- `tree-sitter-graph` language reference: https://docs.rs/tree-sitter-graph/latest/tree_sitter_graph/reference/index.html
   and repository: https://github.com/tree-sitter/tree-sitter-graph
 - RUSTSEC-2026-0303, "`stack-graphs` is archived and unmaintained":
   https://rustsec.org/advisories/RUSTSEC-2026-0303.html

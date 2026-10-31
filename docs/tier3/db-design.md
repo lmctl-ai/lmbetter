@@ -15,7 +15,7 @@ files). lmcode snippets stay the policy layer and gain DB access.
 
 ## 1. CLI shape
 
-New/changed verbs (existing parse/query/lint/--dsl behavior unchanged):
+New/changed verbs (existing `parse`/`query`/`lint`/`--dsl` behavior unchanged):
 
 ```
 lmok index [DIR...] [--db PATH] [--force]

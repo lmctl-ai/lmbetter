@@ -250,7 +250,7 @@ pointers, tree-sitter handles, or an unversioned serialized AST.
 
 For a first CLI, proposed operations are explicit `index`, fact queries,
 `scan --record`, history export, and `index --rebuild`/prune. These are proposed
-names, not installed commands. Start with bounded typed host/DSL accessors;
+names, not installed commands. Start with bounded typed host/lmcode accessors;
 an unrestricted SQL API is not necessary to deliver useful local queries.
 Limit schema scope to facts that current extractors can justify. Do not label
 CST-derived calls as compiler-resolved calls.
@@ -265,7 +265,7 @@ C++ engineer should budget roughly **15–25 working days**:
 | --- | ---: |
 | Pinned SQLite/FTS5 static build, connection wrapper, schema/versioning, typed inserts/queries | 3–5 days |
 | File manifests, content hashes, transactional generations, delete/retry/error semantics | 4–6 days |
-| Initial per-file facts, rule-result history, CLI/DSL integration and exports | 4–7 days |
+| Initial per-file facts, rule-result history, CLI/lmcode integration and exports | 4–7 days |
 | Optional trigram candidate search, exact verification, regression/performance tests | 4–7 days |
 
 This excludes a compiler-grade resolver, interfile taint, alias analysis,
